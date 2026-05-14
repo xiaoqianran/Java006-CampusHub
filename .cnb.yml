@@ -1,6 +1,6 @@
 "**":
   push:
-    - name: maven-test
+    - name: maven-ci
       runner:
         cpus: 4
       docker:
@@ -8,11 +8,19 @@
         volumes:
           - .m2:/root/.m2:rw
       stages:
-        - name: mvn-test
+        - name: validate
+          script: mvn validate -B
+        - name: compile
+          script: mvn compile -B
+        - name: test
           script: mvn test -B
+        - name: package
+          script: mvn package -DskipTests -B
+        - name: dependency-check
+          script: mvn dependency:tree -B
 
   pull_request:
-    - name: maven-test
+    - name: maven-ci
       runner:
         cpus: 4
       docker:
@@ -20,5 +28,13 @@
         volumes:
           - .m2:/root/.m2:rw
       stages:
-        - name: mvn-test
+        - name: validate
+          script: mvn validate -B
+        - name: compile
+          script: mvn compile -B
+        - name: test
           script: mvn test -B
+        - name: package
+          script: mvn package -DskipTests -B
+        - name: dependency-check
+          script: mvn dependency:tree -B
