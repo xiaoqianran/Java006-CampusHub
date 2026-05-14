@@ -77,15 +77,23 @@
 
             <!-- Knife4j -->
             <dependency>
-                <groupId>com.github.xiaominfo</groupId>
+                <groupId>com.github.xiaoymin</groupId>
                 <artifactId>knife4j-openapi3-jakarta-spring-boot-starter</artifactId>
                 <version>${knife4j.version}</version>
+            </dependency>
+
+            <!-- Internal Modules -->
+            <dependency>
+                <groupId>com.shiqian</groupId>
+                <artifactId>shiqian-common</artifactId>
+                <version>${project.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
 
     <modules>
         <module>shiqian-common</module>
+        <module>shiqian-user</module>
     </modules>
 
     <build>
