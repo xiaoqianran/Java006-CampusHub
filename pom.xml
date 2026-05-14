@@ -84,6 +84,10 @@
         </dependencies>
     </dependencyManagement>
 
+    <modules>
+        <module>shiqian-common</module>
+    </modules>
+
     <build>
         <plugins>
             <plugin>
