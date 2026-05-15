@@ -112,6 +112,7 @@
     <modules>
         <module>shiqian-common</module>
         <module>shiqian-user</module>
+        <module>shiqian-resource</module>
     </modules>
 
     <build>
