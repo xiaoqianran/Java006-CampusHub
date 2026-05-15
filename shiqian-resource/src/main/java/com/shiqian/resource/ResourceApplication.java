@@ -6,8 +6,7 @@ import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 
 @SpringBootApplication(
-    scanBasePackages = {"com.shiqian.resource", "com.shiqian.common"},
-    exclude = {DataSourceAutoConfiguration.class}
+    scanBasePackages = {"com.shiqian.resource", "com.shiqian.common"}
 )
 @EnableDiscoveryClient
 public class ResourceApplication {
