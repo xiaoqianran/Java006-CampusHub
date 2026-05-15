@@ -1,6 +1,8 @@
 package com.shiqian.user.controller;
 
 import com.shiqian.common.result.Result;
+import com.shiqian.user.dto.LoginDTO;
+import com.shiqian.user.dto.LoginVO;
 import com.shiqian.user.dto.RegisterDTO;
 import com.shiqian.user.service.UserService;
 import jakarta.validation.Valid;
@@ -38,5 +40,11 @@ public class UserController {
     public Result<Void> register(@RequestBody @Valid RegisterDTO registerDTO) {
         userService.register(registerDTO);
         return Result.ok();
+    }
+
+    @PostMapping("/login")
+    public Result<LoginVO> login(@RequestBody @Valid LoginDTO loginDTO) {
+        LoginVO loginVO = userService.login(loginDTO);
+        return Result.ok(loginVO);
     }
 }
