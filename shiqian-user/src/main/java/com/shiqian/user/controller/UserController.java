@@ -4,7 +4,7 @@ import com.shiqian.common.result.Result;
 import com.shiqian.user.dto.LoginDTO;
 import com.shiqian.user.dto.LoginVO;
 import com.shiqian.user.dto.RegisterDTO;
-import com.shiqian.user.dto.UserInfoVO;
+import com.shiqian.user.dto.UpdateUserDTO;
 import com.shiqian.user.entity.LoginUser;
 import com.shiqian.user.service.UserService;
 import jakarta.validation.Valid;
@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -51,11 +52,11 @@ public class UserController {
         return Result.ok(loginVO);
     }
 
-    @GetMapping("/me")
-    public Result<UserInfoVO> getCurrentUser() {
+    @PutMapping("/me")
+    public Result<Void> updateCurrentUser(@RequestBody @Valid UpdateUserDTO updateUserDTO) {
         LoginUser loginUser = (LoginUser) SecurityContextHolder.getContext()
                 .getAuthentication().getPrincipal();
-        UserInfoVO userInfo = userService.getUserInfo(loginUser.getUserId());
-        return Result.ok(userInfo);
+        userService.updateUserInfo(loginUser.getUserId(), updateUserDTO);
+        return Result.ok();
     }
 }
