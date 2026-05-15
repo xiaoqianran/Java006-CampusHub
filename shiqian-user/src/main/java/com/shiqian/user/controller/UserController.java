@@ -1,10 +1,14 @@
 package com.shiqian.user.controller;
 
 import com.shiqian.common.result.Result;
+import com.shiqian.user.dto.RegisterDTO;
 import com.shiqian.user.service.UserService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -28,5 +32,11 @@ public class UserController {
         data.put("database", dbConnected ? "CONNECTED" : "DISCONNECTED");
         data.put("timestamp", System.currentTimeMillis());
         return Result.ok(data);
+    }
+
+    @PostMapping("/register")
+    public Result<Void> register(@RequestBody @Valid RegisterDTO registerDTO) {
+        userService.register(registerDTO);
+        return Result.ok();
     }
 }
