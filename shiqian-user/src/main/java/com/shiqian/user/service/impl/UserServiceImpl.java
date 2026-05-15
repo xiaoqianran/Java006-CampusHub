@@ -2,11 +2,10 @@ package com.shiqian.user.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.shiqian.common.exception.BusinessException;
-import com.shiqian.common.result.ResultCode;
 import com.shiqian.user.dto.LoginDTO;
 import com.shiqian.user.dto.LoginVO;
 import com.shiqian.user.dto.RegisterDTO;
-import com.shiqian.user.dto.UserInfoVO;
+import com.shiqian.user.dto.UpdateUserDTO;
 import com.shiqian.user.entity.User;
 import com.shiqian.user.mapper.UserMapper;
 import com.shiqian.user.service.UserService;
@@ -117,20 +116,34 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserInfoVO getUserInfo(Long userId) {
+    public void updateUserInfo(Long userId, UpdateUserDTO updateUserDTO) {
         User user = userMapper.selectById(userId);
         if (user == null) {
-            throw new BusinessException(ResultCode.NOT_FOUND.getCode(), "用户不存在");
+            throw new BusinessException(404, "用户不存在");
         }
-        UserInfoVO vo = new UserInfoVO();
-        vo.setUserId(user.getId());
-        vo.setUsername(user.getUsername());
-        vo.setNickname(user.getNickname());
-        vo.setEmail(user.getEmail());
-        vo.setPhone(user.getPhone());
-        vo.setAvatar(user.getAvatar());
-        vo.setRole(user.getRole());
-        vo.setCreateTime(user.getCreateTime());
-        return vo;
+
+        if (updateUserDTO.getEmail() != null && !updateUserDTO.getEmail().isEmpty()) {
+            if (!updateUserDTO.getEmail().equals(user.getEmail()) && checkEmailExists(updateUserDTO.getEmail())) {
+                throw new BusinessException("邮箱已被其他用户注册");
+            }
+            user.setEmail(updateUserDTO.getEmail());
+        }
+
+        if (updateUserDTO.getPhone() != null && !updateUserDTO.getPhone().isEmpty()) {
+            if (!updateUserDTO.getPhone().equals(user.getPhone()) && checkPhoneExists(updateUserDTO.getPhone())) {
+                throw new BusinessException("手机号已被其他用户注册");
+            }
+            user.setPhone(updateUserDTO.getPhone());
+        }
+
+        if (updateUserDTO.getNickname() != null) {
+            user.setNickname(updateUserDTO.getNickname());
+        }
+
+        if (updateUserDTO.getAvatar() != null) {
+            user.setAvatar(updateUserDTO.getAvatar());
+        }
+
+        userMapper.updateById(user);
     }
 }

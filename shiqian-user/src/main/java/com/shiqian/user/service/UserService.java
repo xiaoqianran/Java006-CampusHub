@@ -3,7 +3,7 @@ package com.shiqian.user.service;
 import com.shiqian.user.dto.LoginDTO;
 import com.shiqian.user.dto.LoginVO;
 import com.shiqian.user.dto.RegisterDTO;
-import com.shiqian.user.dto.UserInfoVO;
+import com.shiqian.user.dto.UpdateUserDTO;
 
 public interface UserService {
 
@@ -13,5 +13,5 @@ public interface UserService {
 
     LoginVO login(LoginDTO loginDTO);
 
-    UserInfoVO getUserInfo(Long userId);
+    void updateUserInfo(Long userId, UpdateUserDTO updateUserDTO);
 }
