@@ -15,3 +15,9 @@ mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# JWT 配置
+jwt:
+  secret: shiqian-platform-jwt-secret-key-must-be-at-least-256-bits-for-hs256
+  access-token-expiration: 7200000    # 2小时，单位毫秒
+  refresh-token-expiration: 604800000 # 7天，单位毫秒
