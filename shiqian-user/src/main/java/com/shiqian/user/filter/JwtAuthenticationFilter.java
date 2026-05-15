@@ -1,5 +1,6 @@
 package com.shiqian.user.filter;
 
+import com.shiqian.user.entity.LoginUser;
 import com.shiqian.user.util.JwtUtil;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
@@ -42,18 +43,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     String username = claims.get("username", String.class);
                     String role = claims.get("role", String.class);
 
+                    LoginUser loginUser = new LoginUser(userId, username, role);
                     SimpleGrantedAuthority authority = new SimpleGrantedAuthority(
                             "ROLE_" + (role != null ? role : "USER")
                     );
 
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(
-                                    username,
+                                    loginUser,
                                     null,
                                     Collections.singletonList(authority)
                             );
 
-                    authentication.setDetails(new LoginUserDetails(userId, username, role));
                     SecurityContextHolder.getContext().setAuthentication(authentication);
                 }
             } catch (Exception e) {
@@ -71,6 +72,4 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
         return null;
     }
-
-    private record LoginUserDetails(Long userId, String username, String role) {}
 }
