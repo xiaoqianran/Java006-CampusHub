@@ -1,6 +1,9 @@
 .codebuddy/
 .m2/
 skills-lock.json
+
+digest.txt
+merge_msg.txt
 # Maven
 target/
 *.class
