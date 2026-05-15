@@ -4,10 +4,13 @@ import com.shiqian.common.result.Result;
 import com.shiqian.user.dto.LoginDTO;
 import com.shiqian.user.dto.LoginVO;
 import com.shiqian.user.dto.RegisterDTO;
+import com.shiqian.user.dto.UserInfoVO;
+import com.shiqian.user.entity.LoginUser;
 import com.shiqian.user.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -46,5 +49,13 @@ public class UserController {
     public Result<LoginVO> login(@RequestBody @Valid LoginDTO loginDTO) {
         LoginVO loginVO = userService.login(loginDTO);
         return Result.ok(loginVO);
+    }
+
+    @GetMapping("/me")
+    public Result<UserInfoVO> getCurrentUser() {
+        LoginUser loginUser = (LoginUser) SecurityContextHolder.getContext()
+                .getAuthentication().getPrincipal();
+        UserInfoVO userInfo = userService.getUserInfo(loginUser.getUserId());
+        return Result.ok(userInfo);
     }
 }

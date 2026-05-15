@@ -2,9 +2,11 @@ package com.shiqian.user.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.shiqian.common.exception.BusinessException;
+import com.shiqian.common.result.ResultCode;
 import com.shiqian.user.dto.LoginDTO;
 import com.shiqian.user.dto.LoginVO;
 import com.shiqian.user.dto.RegisterDTO;
+import com.shiqian.user.dto.UserInfoVO;
 import com.shiqian.user.entity.User;
 import com.shiqian.user.mapper.UserMapper;
 import com.shiqian.user.service.UserService;
@@ -112,5 +114,23 @@ public class UserServiceImpl implements UserService {
         loginVO.setRole(user.getRole());
 
         return loginVO;
+    }
+
+    @Override
+    public UserInfoVO getUserInfo(Long userId) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(ResultCode.NOT_FOUND.getCode(), "用户不存在");
+        }
+        UserInfoVO vo = new UserInfoVO();
+        vo.setUserId(user.getId());
+        vo.setUsername(user.getUsername());
+        vo.setNickname(user.getNickname());
+        vo.setEmail(user.getEmail());
+        vo.setPhone(user.getPhone());
+        vo.setAvatar(user.getAvatar());
+        vo.setRole(user.getRole());
+        vo.setCreateTime(user.getCreateTime());
+        return vo;
     }
 }
