@@ -64,4 +64,10 @@ public class ResourceController {
         resourceService.deleteResource(userId, id);
         return Result.ok();
     }
+
+    @PostMapping("/{id}/download")
+    public Result<Void> downloadResource(@PathVariable Long id) {
+        resourceService.incrementDownloadCount(id);
+        return Result.ok();
+    }
 }
