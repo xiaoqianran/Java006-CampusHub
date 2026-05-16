@@ -1,5 +1,6 @@
 package com.shiqian.resource.service;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shiqian.common.exception.BusinessException;
 import com.shiqian.resource.dto.ResourceCreateDTO;
 import com.shiqian.resource.entity.Category;
@@ -64,5 +65,74 @@ public class ResourceServiceTest {
         BusinessException exception = assertThrows(BusinessException.class,
                 () -> resourceService.createResource(1L, dto));
         assertEquals("分类不存在", exception.getMessage());
+    }
+
+    @Test
+    public void testPageResourcesNoCondition() {
+        Category category = createCategory("测试分类");
+        for (int i = 1; i <= 5; i++) {
+            createResource("资源" + i, category.getId());
+        }
+
+        Page<Resource> page = resourceService.pageResources(1, 3, null, null);
+        assertEquals(5, page.getTotal());
+        assertEquals(2, page.getPages());
+        assertEquals(3, page.getRecords().size());
+    }
+
+    @Test
+    public void testPageResourcesByCategoryId() {
+        Category c1 = createCategory("分类1");
+        Category c2 = createCategory("分类2");
+        createResource("资源A", c1.getId());
+        createResource("资源B", c2.getId());
+        createResource("资源C", c2.getId());
+
+        Page<Resource> page = resourceService.pageResources(1, 10, c2.getId(), null);
+        assertEquals(2, page.getTotal());
+    }
+
+    @Test
+    public void testPageResourcesByKeyword() {
+        Category category = createCategory("测试分类");
+        createResource("Java入门", category.getId());
+        createResource("Python入门", category.getId());
+        createResource("Go语言", category.getId());
+
+        Page<Resource> page = resourceService.pageResources(1, 10, null, "入门");
+        assertEquals(2, page.getTotal());
+    }
+
+    @Test
+    public void testPageResourcesCombinedCondition() {
+        Category c1 = createCategory("分类1");
+        Category c2 = createCategory("分类2");
+        createResource("Java入门", c1.getId());
+        createResource("Python入门", c2.getId());
+        createResource("Go语言", c2.getId());
+
+        Page<Resource> page = resourceService.pageResources(1, 10, c2.getId(), "入门");
+        assertEquals(1, page.getTotal());
+        assertEquals("Python入门", page.getRecords().get(0).getTitle());
+    }
+
+    private Category createCategory(String name) {
+        Category category = new Category();
+        category.setName(name);
+        category.setParentId(0L);
+        category.setSortOrder(1);
+        category.setStatus(1);
+        categoryService.addCategory(category);
+        return category;
+    }
+
+    private void createResource(String title, Long categoryId) {
+        ResourceCreateDTO dto = new ResourceCreateDTO();
+        dto.setTitle(title);
+        dto.setCategoryId(categoryId);
+        dto.setFileUrl("http://example.com/file.pdf");
+        dto.setFileSize(1024L);
+        dto.setFileType("application/pdf");
+        resourceService.createResource(1L, dto);
     }
 }

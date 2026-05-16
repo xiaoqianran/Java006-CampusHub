@@ -13,6 +13,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -34,12 +35,7 @@ public class ResourceControllerTest {
 
     @Test
     public void testCreateResourceSuccess() throws Exception {
-        Category category = new Category();
-        category.setName("测试分类");
-        category.setParentId(0L);
-        category.setSortOrder(1);
-        category.setStatus(1);
-        categoryService.addCategory(category);
+        Category category = createCategory("测试分类");
 
         ResourceCreateDTO dto = new ResourceCreateDTO();
         dto.setTitle("测试资源");
@@ -86,5 +82,75 @@ public class ResourceControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(500))
                 .andExpect(jsonPath("$.message").value("分类不存在"));
+    }
+
+    @Test
+    public void testPageResourcesSuccess() throws Exception {
+        Category category = createCategory("测试分类");
+        createResource("资源A", category.getId());
+        createResource("资源B", category.getId());
+
+        mockMvc.perform(get("/api/resource")
+                        .param("page", "1")
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.total").value(2));
+    }
+
+    @Test
+    public void testPageResourcesByCategoryId() throws Exception {
+        Category c1 = createCategory("分类1");
+        Category c2 = createCategory("分类2");
+        createResource("资源A", c1.getId());
+        createResource("资源B", c2.getId());
+        createResource("资源C", c2.getId());
+
+        mockMvc.perform(get("/api/resource")
+                        .param("page", "1")
+                        .param("size", "10")
+                        .param("categoryId", String.valueOf(c2.getId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.total").value(2));
+    }
+
+    @Test
+    public void testPageResourcesByKeyword() throws Exception {
+        Category category = createCategory("测试分类");
+        createResource("Java入门", category.getId());
+        createResource("Python入门", category.getId());
+        createResource("Go语言", category.getId());
+
+        mockMvc.perform(get("/api/resource")
+                        .param("page", "1")
+                        .param("size", "10")
+                        .param("keyword", "入门"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.total").value(2));
+    }
+
+    private Category createCategory(String name) {
+        Category category = new Category();
+        category.setName(name);
+        category.setParentId(0L);
+        category.setSortOrder(1);
+        category.setStatus(1);
+        categoryService.addCategory(category);
+        return category;
+    }
+
+    private void createResource(String title, Long categoryId) throws Exception {
+        ResourceCreateDTO dto = new ResourceCreateDTO();
+        dto.setTitle(title);
+        dto.setCategoryId(categoryId);
+        dto.setFileUrl("http://example.com/file.pdf");
+        dto.setFileSize(1024L);
+        dto.setFileType("application/pdf");
+        mockMvc.perform(post("/api/resource")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk());
     }
 }
