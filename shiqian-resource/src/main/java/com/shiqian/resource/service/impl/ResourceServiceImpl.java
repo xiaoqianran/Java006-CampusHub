@@ -1,5 +1,7 @@
 package com.shiqian.resource.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shiqian.common.exception.BusinessException;
 import com.shiqian.resource.dto.ResourceCreateDTO;
 import com.shiqian.resource.entity.Category;
@@ -11,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 @Slf4j
 @Service
@@ -42,5 +45,23 @@ public class ResourceServiceImpl implements ResourceService {
     @Override
     public Resource getResourceById(Long id) {
         return resourceMapper.selectById(id);
+    }
+
+    @Override
+    public Page<Resource> pageResources(Integer page, Integer size, Long categoryId, String keyword) {
+        Page<Resource> pageParam = new Page<>(page, size);
+        QueryWrapper<Resource> wrapper = new QueryWrapper<>();
+        wrapper.eq("deleted", 0);
+
+        if (categoryId != null) {
+            wrapper.eq("category_id", categoryId);
+        }
+
+        if (StringUtils.hasText(keyword)) {
+            wrapper.and(w -> w.like("title", keyword).or().like("description", keyword));
+        }
+
+        wrapper.orderByDesc("create_time");
+        return resourceMapper.selectPage(pageParam, wrapper);
     }
 }
