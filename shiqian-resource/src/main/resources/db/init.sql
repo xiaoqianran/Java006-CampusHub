@@ -23,3 +23,18 @@ CREATE TABLE IF NOT EXISTS t_resource (
     INDEX idx_user_id (user_id),
     INDEX idx_category_id (category_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='资源主表';
+
+-- 资源分类表
+CREATE TABLE IF NOT EXISTS t_category (
+    id BIGINT AUTO_INCREMENT COMMENT '主键',
+    parent_id BIGINT NOT NULL DEFAULT 0 COMMENT '父分类ID，0为根分类',
+    name VARCHAR(100) NOT NULL COMMENT '分类名称',
+    sort_order INT NOT NULL DEFAULT 0 COMMENT '排序',
+    icon VARCHAR(255) DEFAULT NULL COMMENT '图标URL',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态（1=启用, 0=禁用）',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除（0=正常, 1=已删除）',
+    PRIMARY KEY (id),
+    INDEX idx_parent_id (parent_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='资源分类表';
