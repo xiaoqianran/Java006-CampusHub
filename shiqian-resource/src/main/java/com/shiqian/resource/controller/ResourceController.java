@@ -1,11 +1,14 @@
 package com.shiqian.resource.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shiqian.common.result.Result;
+import com.shiqian.resource.document.ResourceDocument;
 import com.shiqian.resource.dto.ResourceCreateDTO;
 import com.shiqian.resource.dto.ResourceUpdateDTO;
 import com.shiqian.resource.entity.Resource;
 import com.shiqian.resource.service.FavoriteService;
+import com.shiqian.resource.service.ResourceSearchService;
 import com.shiqian.resource.service.ResourceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +31,7 @@ public class ResourceController {
 
     private final ResourceService resourceService;
     private final FavoriteService favoriteService;
+    private final ResourceSearchService resourceSearchService;
 
     @PostMapping
     public Result<Void> createResource(@RequestBody @Valid ResourceCreateDTO dto) {
@@ -91,5 +95,14 @@ public class ResourceController {
     public Result<Boolean> isFavorited(@PathVariable Long id) {
         Long userId = 1L;
         return Result.ok(favoriteService.isFavorited(userId, id));
+    }
+
+    @GetMapping("/search")
+    public Result<org.springframework.data.domain.Page<ResourceDocument>> search(
+            @RequestParam String keyword,
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer size) {
+        org.springframework.data.domain.Page<ResourceDocument> result = resourceSearchService.search(keyword, page, size);
+        return Result.ok(result);
     }
 }

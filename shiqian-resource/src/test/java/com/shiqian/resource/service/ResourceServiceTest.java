@@ -2,15 +2,20 @@ package com.shiqian.resource.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shiqian.common.exception.BusinessException;
+import com.shiqian.resource.document.ResourceDocument;
 import com.shiqian.resource.dto.ResourceCreateDTO;
 import com.shiqian.resource.dto.ResourceUpdateDTO;
 import com.shiqian.resource.entity.Category;
 import com.shiqian.resource.entity.Resource;
+import com.shiqian.resource.repository.ResourceDocumentRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -24,6 +29,14 @@ public class ResourceServiceTest {
 
     @Autowired
     private CategoryService categoryService;
+
+    @Autowired
+    private ResourceDocumentRepository resourceDocumentRepository;
+
+    @BeforeEach
+    public void setUp() {
+        resourceDocumentRepository.deleteAll();
+    }
 
     @Test
     public void testCreateResourceSuccess() {
@@ -217,6 +230,51 @@ public class ResourceServiceTest {
         BusinessException exception = assertThrows(BusinessException.class,
                 () -> resourceService.incrementDownloadCount(99999L));
         assertEquals("资源不存在", exception.getMessage());
+    }
+
+    @Test
+    public void testSyncIndexOnCreate() {
+        Category category = createCategory("测试分类");
+        Resource resource = createResource("ES同步测试", category.getId());
+
+        Optional<ResourceDocument> docOpt = resourceDocumentRepository.findById(resource.getId());
+        assertTrue(docOpt.isPresent());
+        assertEquals("ES同步测试", docOpt.get().getTitle());
+    }
+
+    @Test
+    public void testSyncIndexOnUpdate() {
+        Category category = createCategory("测试分类");
+        Resource resource = createResource("旧标题", category.getId());
+
+        ResourceUpdateDTO dto = new ResourceUpdateDTO();
+        dto.setTitle("新标题");
+        dto.setDescription("新描述");
+        dto.setCategoryId(category.getId());
+        dto.setFileUrl("http://example.com/new.pdf");
+        dto.setFileSize(2048L);
+        dto.setFileType("application/pdf");
+
+        resourceService.updateResource(1L, resource.getId(), dto);
+
+        Optional<ResourceDocument> docOpt = resourceDocumentRepository.findById(resource.getId());
+        assertTrue(docOpt.isPresent());
+        assertEquals("新标题", docOpt.get().getTitle());
+        assertEquals("新描述", docOpt.get().getDescription());
+    }
+
+    @Test
+    public void testSyncIndexOnDelete() {
+        Category category = createCategory("测试分类");
+        Resource resource = createResource("删除测试", category.getId());
+        Long id = resource.getId();
+
+        assertTrue(resourceDocumentRepository.findById(id).isPresent());
+
+        resourceService.deleteResource(1L, id);
+
+        Optional<ResourceDocument> docOpt = resourceDocumentRepository.findById(id);
+        assertFalse(docOpt.isPresent());
     }
 
     private Category createCategory(String name) {

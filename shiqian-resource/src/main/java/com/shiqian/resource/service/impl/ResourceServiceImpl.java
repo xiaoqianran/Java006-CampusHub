@@ -4,11 +4,13 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shiqian.common.exception.BusinessException;
+import com.shiqian.resource.document.ResourceDocument;
 import com.shiqian.resource.dto.ResourceCreateDTO;
 import com.shiqian.resource.dto.ResourceUpdateDTO;
 import com.shiqian.resource.entity.Category;
 import com.shiqian.resource.entity.Resource;
 import com.shiqian.resource.mapper.ResourceMapper;
+import com.shiqian.resource.repository.ResourceDocumentRepository;
 import com.shiqian.resource.service.CategoryService;
 import com.shiqian.resource.service.ResourceService;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +26,7 @@ public class ResourceServiceImpl implements ResourceService {
 
     private final ResourceMapper resourceMapper;
     private final CategoryService categoryService;
+    private final ResourceDocumentRepository resourceDocumentRepository;
 
     @Override
     public Resource createResource(Long userId, ResourceCreateDTO dto) {
@@ -40,6 +43,7 @@ public class ResourceServiceImpl implements ResourceService {
         resource.setStatus(0);
 
         resourceMapper.insert(resource);
+        resourceDocumentRepository.save(buildResourceDocument(resource));
         log.info("资源创建成功: id={}, title={}, userId={}", resource.getId(), resource.getTitle(), userId);
         return resource;
     }
@@ -70,6 +74,8 @@ public class ResourceServiceImpl implements ResourceService {
         resource.setStatus(existing.getStatus());
 
         resourceMapper.updateById(resource);
+        Resource updated = resourceMapper.selectById(id);
+        resourceDocumentRepository.save(buildResourceDocument(updated));
         log.info("资源更新成功: id={}, title={}, version={}", id, resource.getTitle(), resource.getVersion());
     }
 
@@ -83,6 +89,7 @@ public class ResourceServiceImpl implements ResourceService {
             throw new BusinessException("无权删除该资源");
         }
         resourceMapper.deleteById(id);
+        resourceDocumentRepository.deleteById(id);
         log.info("资源删除成功: id={}, userId={}", id, userId);
     }
 
@@ -115,5 +122,17 @@ public class ResourceServiceImpl implements ResourceService {
 
         wrapper.orderByDesc("create_time");
         return resourceMapper.selectPage(pageParam, wrapper);
+    }
+
+    private ResourceDocument buildResourceDocument(Resource resource) {
+        ResourceDocument doc = new ResourceDocument();
+        doc.setId(resource.getId());
+        doc.setTitle(resource.getTitle());
+        doc.setDescription(resource.getDescription());
+        doc.setFileType(resource.getFileType());
+        doc.setCategoryId(resource.getCategoryId());
+        doc.setUserId(resource.getUserId());
+        doc.setStatus(resource.getStatus());
+        return doc;
     }
 }

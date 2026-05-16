@@ -11,6 +11,10 @@ spring:
     username: root
     password: root
     driver-class-name: com.mysql.cj.jdbc.Driver
+  elasticsearch:
+    uris: http://localhost:9200
+    connection-timeout: 5s
+    socket-timeout: 30s
 
 mybatis-plus:
   mapper-locations: classpath*:mapper/**/*.xml
