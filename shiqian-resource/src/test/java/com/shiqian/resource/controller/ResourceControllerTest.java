@@ -17,6 +17,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -129,6 +130,34 @@ public class ResourceControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.total").value(2));
+    }
+
+    @Test
+    public void testGetResourceByIdSuccess() throws Exception {
+        Category category = createCategory("测试分类");
+        ResourceCreateDTO dto = new ResourceCreateDTO();
+        dto.setTitle("详情测试资源");
+        dto.setCategoryId(category.getId());
+        dto.setFileUrl("http://example.com/file.pdf");
+        dto.setFileSize(1024L);
+        dto.setFileType("application/pdf");
+
+        mockMvc.perform(post("/api/resource")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/resource/{id}", 1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+    }
+
+    @Test
+    public void testGetResourceByIdNotExist() throws Exception {
+        mockMvc.perform(get("/api/resource/{id}", 99999))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data").isEmpty());
     }
 
     private Category createCategory(String name) {
