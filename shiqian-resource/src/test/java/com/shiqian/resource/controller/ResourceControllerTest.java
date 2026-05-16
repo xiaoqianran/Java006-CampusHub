@@ -249,6 +249,52 @@ public class ResourceControllerTest {
                 .andExpect(jsonPath("$.message").value("资源不存在"));
     }
 
+    @Test
+    public void testAddFavoriteSuccess() throws Exception {
+        Category category = createCategory("测试分类");
+        Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "收藏测试"));
+
+        mockMvc.perform(post("/api/resource/{id}/favorite", resource.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        mockMvc.perform(get("/api/resource/{id}/favorite", resource.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data").value(true));
+    }
+
+    @Test
+    public void testAddFavoriteDuplicate() throws Exception {
+        Category category = createCategory("测试分类");
+        Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "收藏测试"));
+
+        mockMvc.perform(post("/api/resource/{id}/favorite", resource.getId()))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/resource/{id}/favorite", resource.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(500))
+                .andExpect(jsonPath("$.message").value("已收藏该资源"));
+    }
+
+    @Test
+    public void testRemoveFavoriteSuccess() throws Exception {
+        Category category = createCategory("测试分类");
+        Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "收藏测试"));
+
+        mockMvc.perform(post("/api/resource/{id}/favorite", resource.getId()))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(delete("/api/resource/{id}/favorite", resource.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        mockMvc.perform(get("/api/resource/{id}/favorite", resource.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").value(false));
+    }
+
     private ResourceCreateDTO buildCreateDto(Long categoryId, String title) {
         ResourceCreateDTO dto = new ResourceCreateDTO();
         dto.setTitle(title);
