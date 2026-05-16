@@ -5,6 +5,7 @@ import com.shiqian.resource.dto.ResourceCreateDTO;
 import com.shiqian.resource.dto.ResourceUpdateDTO;
 import com.shiqian.resource.entity.Category;
 import com.shiqian.resource.entity.Resource;
+import com.shiqian.resource.document.ResourceDocument;
 import com.shiqian.resource.repository.ResourceDocumentRepository;
 import com.shiqian.resource.service.CategoryService;
 import com.shiqian.resource.service.ResourceService;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -45,6 +47,9 @@ public class ResourceControllerTest {
 
     @Autowired
     private ResourceDocumentRepository resourceDocumentRepository;
+
+    @Autowired
+    private ElasticsearchOperations elasticsearchOperations;
 
     @BeforeEach
     public void setUp() {
@@ -303,6 +308,25 @@ public class ResourceControllerTest {
         mockMvc.perform(get("/api/resource/{id}/favorite", resource.getId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").value(false));
+    }
+
+    @Test
+    public void testSearchResourceByKeyword() throws Exception {
+        Category category = createCategory("测试分类");
+        resourceService.createResource(1L, buildCreateDto(category.getId(), "Java入门教程"));
+        resourceService.createResource(1L, buildCreateDto(category.getId(), "Python高级编程"));
+        resourceService.createResource(1L, buildCreateDto(category.getId(), "Go语言实战"));
+
+        elasticsearchOperations.indexOps(ResourceDocument.class).refresh();
+
+        mockMvc.perform(get("/api/resource/search")
+                        .param("keyword", "Java")
+                        .param("page", "1")
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].title").value("Java入门教程"));
     }
 
     private ResourceCreateDTO buildCreateDto(Long categoryId, String title) {
