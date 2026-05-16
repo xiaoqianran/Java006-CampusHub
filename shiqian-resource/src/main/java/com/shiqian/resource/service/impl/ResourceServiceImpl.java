@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shiqian.common.exception.BusinessException;
 import com.shiqian.resource.dto.ResourceCreateDTO;
+import com.shiqian.resource.dto.ResourceUpdateDTO;
 import com.shiqian.resource.entity.Category;
 import com.shiqian.resource.entity.Resource;
 import com.shiqian.resource.mapper.ResourceMapper;
@@ -45,6 +46,30 @@ public class ResourceServiceImpl implements ResourceService {
     @Override
     public Resource getResourceById(Long id) {
         return resourceMapper.selectById(id);
+    }
+
+    @Override
+    public void updateResource(Long userId, Long id, ResourceUpdateDTO dto) {
+        Resource existing = resourceMapper.selectById(id);
+        if (existing == null || existing.getDeleted() == 1) {
+            throw new BusinessException("资源不存在");
+        }
+
+        Category category = categoryService.getCategoryById(dto.getCategoryId());
+        if (category == null || category.getDeleted() == 1) {
+            throw new BusinessException("分类不存在");
+        }
+
+        Resource resource = new Resource();
+        BeanUtils.copyProperties(dto, resource);
+        resource.setId(id);
+        resource.setUserId(userId);
+        resource.setVersion(existing.getVersion() + 1);
+        resource.setDownloadCount(existing.getDownloadCount());
+        resource.setStatus(existing.getStatus());
+
+        resourceMapper.updateById(resource);
+        log.info("资源更新成功: id={}, title={}, version={}", id, resource.getTitle(), resource.getVersion());
     }
 
     @Override
