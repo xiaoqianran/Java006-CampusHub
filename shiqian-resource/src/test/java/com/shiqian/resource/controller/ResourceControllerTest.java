@@ -5,8 +5,10 @@ import com.shiqian.resource.dto.ResourceCreateDTO;
 import com.shiqian.resource.dto.ResourceUpdateDTO;
 import com.shiqian.resource.entity.Category;
 import com.shiqian.resource.entity.Resource;
+import com.shiqian.resource.repository.ResourceDocumentRepository;
 import com.shiqian.resource.service.CategoryService;
 import com.shiqian.resource.service.ResourceService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -40,6 +42,14 @@ public class ResourceControllerTest {
 
     @Autowired
     private ResourceService resourceService;
+
+    @Autowired
+    private ResourceDocumentRepository resourceDocumentRepository;
+
+    @BeforeEach
+    public void setUp() {
+        resourceDocumentRepository.deleteAll();
+    }
 
     @Test
     public void testCreateResourceSuccess() throws Exception {
