@@ -2,8 +2,11 @@ package com.shiqian.resource.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shiqian.resource.dto.ResourceCreateDTO;
+import com.shiqian.resource.dto.ResourceUpdateDTO;
 import com.shiqian.resource.entity.Category;
+import com.shiqian.resource.entity.Resource;
 import com.shiqian.resource.service.CategoryService;
+import com.shiqian.resource.service.ResourceService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -15,9 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -33,6 +36,9 @@ public class ResourceControllerTest {
 
     @Autowired
     private CategoryService categoryService;
+
+    @Autowired
+    private ResourceService resourceService;
 
     @Test
     public void testCreateResourceSuccess() throws Exception {
@@ -158,6 +164,48 @@ public class ResourceControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").isEmpty());
+    }
+
+    @Test
+    public void testUpdateResourceSuccess() throws Exception {
+        Category category = createCategory("测试分类");
+
+        ResourceCreateDTO createDto = new ResourceCreateDTO();
+        createDto.setTitle("旧标题");
+        createDto.setCategoryId(category.getId());
+        createDto.setFileUrl("http://example.com/file.pdf");
+        createDto.setFileSize(1024L);
+        createDto.setFileType("application/pdf");
+        Resource resource = resourceService.createResource(1L, createDto);
+
+        ResourceUpdateDTO dto = new ResourceUpdateDTO();
+        dto.setTitle("新标题");
+        dto.setDescription("新描述");
+        dto.setCategoryId(category.getId());
+        dto.setFileUrl("http://example.com/new.pdf");
+        dto.setFileSize(2048L);
+        dto.setFileType("application/pdf");
+
+        mockMvc.perform(put("/api/resource/{id}", resource.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+    }
+
+    @Test
+    public void testUpdateResourceValidationFail() throws Exception {
+        ResourceUpdateDTO dto = new ResourceUpdateDTO();
+        dto.setTitle("");
+        dto.setCategoryId(0L);
+        dto.setFileUrl("");
+        dto.setFileSize(-1L);
+        dto.setFileType("");
+
+        mockMvc.perform(put("/api/resource/{id}", 1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest());
     }
 
     private Category createCategory(String name) {

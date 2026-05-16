@@ -3,6 +3,7 @@ package com.shiqian.resource.service;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shiqian.common.exception.BusinessException;
 import com.shiqian.resource.dto.ResourceCreateDTO;
+import com.shiqian.resource.dto.ResourceUpdateDTO;
 import com.shiqian.resource.entity.Category;
 import com.shiqian.resource.entity.Resource;
 import org.junit.jupiter.api.Test;
@@ -116,6 +117,60 @@ public class ResourceServiceTest {
         assertEquals("Python入门", page.getRecords().get(0).getTitle());
     }
 
+    @Test
+    public void testUpdateResourceSuccess() {
+        Category category = createCategory("测试分类");
+        Resource resource = createResource("旧标题", category.getId());
+        Long id = resource.getId();
+
+        ResourceUpdateDTO dto = new ResourceUpdateDTO();
+        dto.setTitle("新标题");
+        dto.setDescription("新描述");
+        dto.setCategoryId(category.getId());
+        dto.setFileUrl("http://example.com/new.pdf");
+        dto.setFileSize(2048L);
+        dto.setFileType("application/pdf");
+
+        resourceService.updateResource(1L, id, dto);
+
+        Resource updated = resourceService.getResourceById(id);
+        assertEquals("新标题", updated.getTitle());
+        assertEquals("新描述", updated.getDescription());
+        assertEquals(2, updated.getVersion());
+    }
+
+    @Test
+    public void testUpdateResourceNotExist() {
+        Category category = createCategory("测试分类");
+        ResourceUpdateDTO dto = new ResourceUpdateDTO();
+        dto.setTitle("新标题");
+        dto.setCategoryId(category.getId());
+        dto.setFileUrl("http://example.com/new.pdf");
+        dto.setFileSize(1024L);
+        dto.setFileType("application/pdf");
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> resourceService.updateResource(1L, 99999L, dto));
+        assertEquals("资源不存在", exception.getMessage());
+    }
+
+    @Test
+    public void testUpdateResourceCategoryNotExist() {
+        Category category = createCategory("测试分类");
+        Resource resource = createResource("旧标题", category.getId());
+
+        ResourceUpdateDTO dto = new ResourceUpdateDTO();
+        dto.setTitle("新标题");
+        dto.setCategoryId(99999L);
+        dto.setFileUrl("http://example.com/new.pdf");
+        dto.setFileSize(1024L);
+        dto.setFileType("application/pdf");
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> resourceService.updateResource(1L, resource.getId(), dto));
+        assertEquals("分类不存在", exception.getMessage());
+    }
+
     private Category createCategory(String name) {
         Category category = new Category();
         category.setName(name);
@@ -126,13 +181,13 @@ public class ResourceServiceTest {
         return category;
     }
 
-    private void createResource(String title, Long categoryId) {
+    private Resource createResource(String title, Long categoryId) {
         ResourceCreateDTO dto = new ResourceCreateDTO();
         dto.setTitle(title);
         dto.setCategoryId(categoryId);
         dto.setFileUrl("http://example.com/file.pdf");
         dto.setFileSize(1024L);
         dto.setFileType("application/pdf");
-        resourceService.createResource(1L, dto);
+        return resourceService.createResource(1L, dto);
     }
 }
