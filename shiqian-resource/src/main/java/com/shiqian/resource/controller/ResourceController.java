@@ -5,13 +5,14 @@ import com.shiqian.common.result.Result;
 import com.shiqian.resource.dto.ResourceCreateDTO;
 import com.shiqian.resource.dto.ResourceUpdateDTO;
 import com.shiqian.resource.entity.Resource;
+import com.shiqian.resource.service.FavoriteService;
 import com.shiqian.resource.service.ResourceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ResourceController {
 
     private final ResourceService resourceService;
+    private final FavoriteService favoriteService;
 
     @PostMapping
     public Result<Void> createResource(@RequestBody @Valid ResourceCreateDTO dto) {
@@ -69,5 +71,25 @@ public class ResourceController {
     public Result<Void> downloadResource(@PathVariable Long id) {
         resourceService.incrementDownloadCount(id);
         return Result.ok();
+    }
+
+    @PostMapping("/{id}/favorite")
+    public Result<Void> addFavorite(@PathVariable Long id) {
+        Long userId = 1L;
+        favoriteService.addFavorite(userId, id);
+        return Result.ok();
+    }
+
+    @DeleteMapping("/{id}/favorite")
+    public Result<Void> removeFavorite(@PathVariable Long id) {
+        Long userId = 1L;
+        favoriteService.removeFavorite(userId, id);
+        return Result.ok();
+    }
+
+    @GetMapping("/{id}/favorite")
+    public Result<Boolean> isFavorited(@PathVariable Long id) {
+        Long userId = 1L;
+        return Result.ok(favoriteService.isFavorited(userId, id));
     }
 }

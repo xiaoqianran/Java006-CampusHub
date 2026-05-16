@@ -24,6 +24,17 @@ CREATE TABLE IF NOT EXISTS t_resource (
     INDEX idx_category_id (category_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='资源主表';
 
+-- 资源收藏表
+CREATE TABLE IF NOT EXISTS t_favorite (
+    id BIGINT AUTO_INCREMENT COMMENT '主键',
+    user_id BIGINT NOT NULL COMMENT '用户ID',
+    resource_id BIGINT NOT NULL COMMENT '资源ID',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '收藏时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_user_resource (user_id, resource_id),
+    INDEX idx_resource_id (resource_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='资源收藏表';
+
 -- 资源分类表
 CREATE TABLE IF NOT EXISTS t_category (
     id BIGINT AUTO_INCREMENT COMMENT '主键',
