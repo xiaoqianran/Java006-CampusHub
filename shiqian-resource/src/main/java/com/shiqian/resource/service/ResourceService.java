@@ -16,4 +16,6 @@ public interface ResourceService {
     void updateResource(Long userId, Long id, ResourceUpdateDTO dto);
 
     void deleteResource(Long userId, Long id);
+
+    void incrementDownloadCount(Long id);
 }

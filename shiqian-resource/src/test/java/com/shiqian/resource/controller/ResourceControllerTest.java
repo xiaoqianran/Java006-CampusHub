@@ -231,6 +231,24 @@ public class ResourceControllerTest {
                 .andExpect(jsonPath("$.message").value("资源不存在"));
     }
 
+    @Test
+    public void testDownloadResourceSuccess() throws Exception {
+        Category category = createCategory("测试分类");
+        Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "下载测试"));
+
+        mockMvc.perform(post("/api/resource/{id}/download", resource.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+    }
+
+    @Test
+    public void testDownloadResourceNotExist() throws Exception {
+        mockMvc.perform(post("/api/resource/{id}/download", 99999))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(500))
+                .andExpect(jsonPath("$.message").value("资源不存在"));
+    }
+
     private ResourceCreateDTO buildCreateDto(Long categoryId, String title) {
         ResourceCreateDTO dto = new ResourceCreateDTO();
         dto.setTitle(title);

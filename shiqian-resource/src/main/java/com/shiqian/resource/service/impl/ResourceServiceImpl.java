@@ -1,6 +1,7 @@
 package com.shiqian.resource.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shiqian.common.exception.BusinessException;
 import com.shiqian.resource.dto.ResourceCreateDTO;
@@ -83,6 +84,19 @@ public class ResourceServiceImpl implements ResourceService {
         }
         resourceMapper.deleteById(id);
         log.info("资源删除成功: id={}, userId={}", id, userId);
+    }
+
+    @Override
+    public void incrementDownloadCount(Long id) {
+        Resource existing = resourceMapper.selectById(id);
+        if (existing == null || existing.getDeleted() == 1) {
+            throw new BusinessException("资源不存在");
+        }
+        UpdateWrapper<Resource> wrapper = new UpdateWrapper<>();
+        wrapper.eq("id", id);
+        wrapper.setSql("download_count = download_count + 1");
+        resourceMapper.update(null, wrapper);
+        log.info("资源下载计数增加: id={}", id);
     }
 
     @Override

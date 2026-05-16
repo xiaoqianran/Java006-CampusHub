@@ -200,6 +200,25 @@ public class ResourceServiceTest {
         assertEquals("无权删除该资源", exception.getMessage());
     }
 
+    @Test
+    public void testIncrementDownloadCountSuccess() {
+        Category category = createCategory("测试分类");
+        Resource resource = createResource("下载测试资源", category.getId());
+        assertEquals(0, resource.getDownloadCount());
+
+        resourceService.incrementDownloadCount(resource.getId());
+
+        Resource updated = resourceService.getResourceById(resource.getId());
+        assertEquals(1, updated.getDownloadCount());
+    }
+
+    @Test
+    public void testIncrementDownloadCountNotExist() {
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> resourceService.incrementDownloadCount(99999L));
+        assertEquals("资源不存在", exception.getMessage());
+    }
+
     private Category createCategory(String name) {
         Category category = new Category();
         category.setName(name);
