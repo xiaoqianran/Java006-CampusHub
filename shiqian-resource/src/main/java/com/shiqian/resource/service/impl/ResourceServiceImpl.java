@@ -73,6 +73,19 @@ public class ResourceServiceImpl implements ResourceService {
     }
 
     @Override
+    public void deleteResource(Long userId, Long id) {
+        Resource existing = resourceMapper.selectById(id);
+        if (existing == null || existing.getDeleted() == 1) {
+            throw new BusinessException("资源不存在");
+        }
+        if (!existing.getUserId().equals(userId)) {
+            throw new BusinessException("无权删除该资源");
+        }
+        resourceMapper.deleteById(id);
+        log.info("资源删除成功: id={}, userId={}", id, userId);
+    }
+
+    @Override
     public Page<Resource> pageResources(Integer page, Integer size, Long categoryId, String keyword) {
         Page<Resource> pageParam = new Page<>(page, size);
         QueryWrapper<Resource> wrapper = new QueryWrapper<>();

@@ -16,6 +16,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -206,6 +207,38 @@ public class ResourceControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    public void testDeleteResourceSuccess() throws Exception {
+        Category category = createCategory("测试分类");
+        Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "删除测试"));
+
+        mockMvc.perform(delete("/api/resource/{id}", resource.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        mockMvc.perform(get("/api/resource/{id}", resource.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isEmpty());
+    }
+
+    @Test
+    public void testDeleteResourceNotExist() throws Exception {
+        mockMvc.perform(delete("/api/resource/{id}", 99999))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(500))
+                .andExpect(jsonPath("$.message").value("资源不存在"));
+    }
+
+    private ResourceCreateDTO buildCreateDto(Long categoryId, String title) {
+        ResourceCreateDTO dto = new ResourceCreateDTO();
+        dto.setTitle(title);
+        dto.setCategoryId(categoryId);
+        dto.setFileUrl("http://example.com/file.pdf");
+        dto.setFileSize(1024L);
+        dto.setFileType("application/pdf");
+        return dto;
     }
 
     private Category createCategory(String name) {

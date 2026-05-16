@@ -171,6 +171,35 @@ public class ResourceServiceTest {
         assertEquals("分类不存在", exception.getMessage());
     }
 
+    @Test
+    public void testDeleteResourceSuccess() {
+        Category category = createCategory("测试分类");
+        Resource resource = createResource("待删除资源", category.getId());
+        Long id = resource.getId();
+
+        resourceService.deleteResource(1L, id);
+
+        Resource found = resourceService.getResourceById(id);
+        assertNull(found);
+    }
+
+    @Test
+    public void testDeleteResourceNotExist() {
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> resourceService.deleteResource(1L, 99999L));
+        assertEquals("资源不存在", exception.getMessage());
+    }
+
+    @Test
+    public void testDeleteResourceNoPermission() {
+        Category category = createCategory("测试分类");
+        Resource resource = createResource("他人资源", category.getId());
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> resourceService.deleteResource(2L, resource.getId()));
+        assertEquals("无权删除该资源", exception.getMessage());
+    }
+
     private Category createCategory(String name) {
         Category category = new Category();
         category.setName(name);
