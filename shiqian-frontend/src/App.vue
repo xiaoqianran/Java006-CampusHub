@@ -80,6 +80,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from './stores/auth'
 import { Search } from 'lucide-vue-next'
+import { ElMessage } from 'element-plus'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -94,6 +95,7 @@ function goToSearch() {
 function handleLogout() {
   authStore.clearSession()
   userMenuOpen.value = false
+  ElMessage.success('已退出登录')
   router.push('/')
 }
 
