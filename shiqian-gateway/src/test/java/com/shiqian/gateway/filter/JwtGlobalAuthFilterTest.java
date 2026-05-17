@@ -76,6 +76,21 @@ class JwtGlobalAuthFilterTest {
     }
 
     @Test
+    void shouldPassActuatorSubPathWithoutToken() {
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/actuator/prometheus"));
+        AtomicReference<ServerWebExchange> captured = new AtomicReference<>();
+
+        filter.filter(exchange, chainExchange -> {
+            captured.set(chainExchange);
+            return Mono.empty();
+        }).block();
+
+        assertNull(exchange.getResponse().getStatusCode());
+        assertNotNull(captured.get());
+    }
+
+    @Test
     void shouldPassOptionsRequestWithoutToken() {
         MockServerWebExchange exchange = MockServerWebExchange.from(
                 MockServerHttpRequest.method(HttpMethod.OPTIONS, "/api/resource"));
