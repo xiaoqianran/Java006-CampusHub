@@ -51,12 +51,14 @@ public class ResourceControllerTest extends BaseResourceTest {
 
     private String userToken;
     private String adminToken;
+    private String guestToken;
 
     @BeforeEach
     public void setUp() {
         when(resourceDocumentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         userToken = jwtUtil.generateAccessToken(1L, "testuser", "USER");
         adminToken = jwtUtil.generateAccessToken(2L, "admin", "ADMIN");
+        guestToken = jwtUtil.generateAccessToken(3L, "guest", "GUEST");
     }
 
     @Test
@@ -111,6 +113,39 @@ public class ResourceControllerTest extends BaseResourceTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(500))
                 .andExpect(jsonPath("$.message").value("分类不存在"));
+    }
+
+    @Test
+    public void testCreateResourceWithoutTokenShouldReturnUnauthorized() throws Exception {
+        ResourceCreateDTO dto = new ResourceCreateDTO();
+        dto.setTitle("测试资源");
+        dto.setCategoryId(1L);
+        dto.setFileUrl("http://example.com/file.pdf");
+        dto.setFileSize(1024L);
+        dto.setFileType("application/pdf");
+
+        mockMvc.perform(post("/api/resource")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(401));
+    }
+
+    @Test
+    public void testCreateResourceWithoutPermissionShouldReturnForbidden() throws Exception {
+        ResourceCreateDTO dto = new ResourceCreateDTO();
+        dto.setTitle("测试资源");
+        dto.setCategoryId(1L);
+        dto.setFileUrl("http://example.com/file.pdf");
+        dto.setFileSize(1024L);
+        dto.setFileType("application/pdf");
+
+        mockMvc.perform(post("/api/resource")
+                        .header("Authorization", "Bearer " + guestToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
     }
 
     @Test
@@ -374,6 +409,18 @@ public class ResourceControllerTest extends BaseResourceTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(500))
                 .andExpect(jsonPath("$.message").value("审核状态不合法"));
+    }
+
+    @Test
+    public void testAuditResourceWithoutPermissionShouldReturnForbidden() throws Exception {
+        Category category = createCategory("测试分类");
+        Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "审核测试"));
+
+        mockMvc.perform(put("/api/resource/{id}/audit", resource.getId())
+                        .header("Authorization", "Bearer " + userToken)
+                        .param("status", "1"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
     }
 
     @Test

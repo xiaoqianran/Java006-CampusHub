@@ -5,6 +5,7 @@ import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -64,6 +65,13 @@ public class GlobalExceptionHandler {
     public Result<Object> handleHttpRequestMethodNotSupportedException(HttpRequestMethodNotSupportedException e) {
         log.warn("HttpRequestMethodNotSupportedException: {}", e.getMessage());
         return Result.fail(405, "不支持该请求方法");
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public Result<Object> handleAccessDeniedException(AccessDeniedException e) {
+        log.warn("AccessDeniedException: {}", e.getMessage());
+        return Result.fail(403, "无权限访问");
     }
 
     @ExceptionHandler(Exception.class)
