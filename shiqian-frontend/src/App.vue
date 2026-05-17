@@ -106,8 +106,36 @@ function closeMenu(e: MouseEvent) {
   }
 }
 
-onMounted(() => document.addEventListener('click', closeMenu))
-onUnmounted(() => document.removeEventListener('click', closeMenu))
+onMounted(() => {
+  document.addEventListener('click', closeMenu)
+
+  // 监听全局 401 事件，实现自动登出
+  window.addEventListener('auth:unauthorized', handleUnauthorized)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', closeMenu)
+  window.removeEventListener('auth:unauthorized', handleUnauthorized)
+})
+
+// 全局 401 处理：自动退出登录并跳转
+function handleUnauthorized() {
+  // 如果已经在登录页，避免重复跳转
+  if (router.currentRoute.value.name === 'login') {
+    return
+  }
+
+  authStore.clearSession()
+
+  ElMessage.warning('登录已过期，请重新登录')
+
+  // 跳转登录页并携带当前页面路径
+  const currentPath = router.currentRoute.value.fullPath
+  router.replace({
+    name: 'login',
+    query: { redirect: currentPath }
+  })
+}
 </script>
 
 <style scoped>
