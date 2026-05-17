@@ -274,8 +274,90 @@ h1 {
   text-decoration: none;
 }
 
+.resource-page {
+  display: grid;
+  gap: 18px;
+}
+
+.resource-toolbar {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(160px, 220px) auto;
+  gap: 12px;
+}
+
+.resource-toolbar input,
+.resource-toolbar select {
+  min-height: 42px;
+  border: 1px solid #c6d1d8;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #ffffff;
+}
+
+.muted-state {
+  border: 1px dashed #b8c6ce;
+  border-radius: 8px;
+  padding: 24px;
+  color: #53666f;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.resource-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.resource-card {
+  display: grid;
+  gap: 16px;
+  border: 1px solid #d4dde3;
+  border-radius: 8px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.resource-card h2 {
+  margin: 0 0 8px;
+  font-size: 19px;
+}
+
+.resource-card p {
+  margin: 0;
+  color: #53666f;
+  line-height: 1.65;
+}
+
+.resource-card dl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 0;
+}
+
+.resource-card dt {
+  color: #65757d;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.resource-card dd {
+  margin: 4px 0 0;
+  font-weight: 800;
+}
+
+.list-footer {
+  color: #53666f;
+  font-size: 14px;
+}
+
 @media (max-width: 860px) {
   .profile-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .resource-toolbar,
+  .resource-grid {
     grid-template-columns: 1fr;
   }
 }
