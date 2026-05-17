@@ -9,20 +9,14 @@
         <span class="status">Vue3 + Vite</span>
       </header>
 
-      <div class="summary-grid" aria-label="平台能力概览">
-        <article>
-          <strong>资源沉淀</strong>
-          <span>分类、版本、检索链路已接入</span>
-        </article>
-        <article>
-          <strong>安全治理</strong>
-          <span>RBAC、敏感词、网关鉴权已就绪</span>
-        </article>
-        <article>
-          <strong>运行监控</strong>
-          <span>Prometheus 与 Grafana 可观测配置已完成</span>
-        </article>
-      </div>
+      <nav class="nav-tabs" aria-label="主导航">
+        <RouterLink to="/">首页</RouterLink>
+        <RouterLink to="/resources">资源</RouterLink>
+        <RouterLink to="/resources/upload">上传</RouterLink>
+        <RouterLink to="/profile">个人中心</RouterLink>
+      </nav>
+
+      <RouterView />
     </section>
   </main>
 </template>
