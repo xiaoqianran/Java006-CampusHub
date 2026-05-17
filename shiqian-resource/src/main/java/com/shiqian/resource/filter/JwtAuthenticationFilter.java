@@ -1,4 +1,4 @@
-package com.shiqian.user.filter;
+package com.shiqian.resource.filter;
 
 import com.shiqian.common.security.JwtUtil;
 import com.shiqian.common.security.LoginUser;
@@ -22,6 +22,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * JWT 认证过滤器
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -52,14 +55,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     List<SimpleGrantedAuthority> authorities = permissions.stream()
                             .map(p -> new SimpleGrantedAuthority(p.getCode()))
                             .collect(Collectors.toList());
-                    authorities.add(new SimpleGrantedAuthority("ROLE_" + (role != null ? role : "USER")));
+                    authorities.add(new SimpleGrantedAuthority(
+                            "ROLE_" + (role != null ? role : "USER")));
 
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(
-                                    loginUser,
-                                    null,
-                                    authorities
-                            );
+                                    loginUser, null, authorities);
 
                     SecurityContextHolder.getContext().setAuthentication(authentication);
                 }

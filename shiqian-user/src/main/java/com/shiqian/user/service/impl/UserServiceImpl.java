@@ -9,7 +9,8 @@ import com.shiqian.user.dto.UpdateUserDTO;
 import com.shiqian.user.entity.User;
 import com.shiqian.user.mapper.UserMapper;
 import com.shiqian.user.service.UserService;
-import com.shiqian.user.util.JwtUtil;
+import com.shiqian.common.security.JwtUtil;
+import com.shiqian.common.security.RoleEnum;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -59,7 +60,7 @@ public class UserServiceImpl implements UserService {
                 : registerDTO.getUsername());
         user.setEmail(registerDTO.getEmail());
         user.setPhone(registerDTO.getPhone());
-        user.setRole("USER");
+        user.setRole(RoleEnum.USER.name());
         user.setStatus(1);
 
         userMapper.insert(user);

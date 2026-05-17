@@ -36,6 +36,11 @@ spring:
       - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration
       - org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchRestClientAutoConfiguration
 
+jwt:
+  secret: test-secret-key-must-be-at-least-256-bits-long
+  access-token-expiration: 7200000
+  refresh-token-expiration: 604800000
+
 mybatis-plus:
   mapper-locations: classpath*:mapper/**/*.xml
   configuration:

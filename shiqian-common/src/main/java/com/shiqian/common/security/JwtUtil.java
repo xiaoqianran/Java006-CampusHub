@@ -1,10 +1,9 @@
-package com.shiqian.user.util;
+package com.shiqian.common.security;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.MalformedJwtException;
-import io.jsonwebtoken.SignatureException;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,6 +13,9 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
+/**
+ * JWT 工具类
+ */
 @Slf4j
 @Component
 public class JwtUtil {
@@ -72,7 +74,7 @@ public class JwtUtil {
         } catch (MalformedJwtException e) {
             log.warn("JWT token malformed: {}", e.getMessage());
             return null;
-        } catch (SignatureException e) {
+        } catch (io.jsonwebtoken.security.SecurityException e) {
             log.warn("JWT token signature invalid: {}", e.getMessage());
             return null;
         } catch (IllegalArgumentException e) {

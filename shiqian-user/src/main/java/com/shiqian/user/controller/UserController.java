@@ -5,7 +5,7 @@ import com.shiqian.user.dto.LoginDTO;
 import com.shiqian.user.dto.LoginVO;
 import com.shiqian.user.dto.RegisterDTO;
 import com.shiqian.user.dto.UpdateUserDTO;
-import com.shiqian.user.entity.LoginUser;
+import com.shiqian.common.security.LoginUser;
 import com.shiqian.user.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

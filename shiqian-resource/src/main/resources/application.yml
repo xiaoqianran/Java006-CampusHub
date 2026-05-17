@@ -41,6 +41,11 @@ spring:
           max-attempts: 3
           initial-interval: 1000ms
 
+jwt:
+  secret: shiqian-platform-jwt-secret-key-must-be-at-least-256-bits-for-hs256
+  access-token-expiration: 7200000
+  refresh-token-expiration: 604800000
+
 mybatis-plus:
   mapper-locations: classpath*:mapper/**/*.xml
   configuration:
