@@ -142,6 +142,98 @@ h1 {
   color: #53666f;
 }
 
+.form-panel {
+  width: min(520px, 100%);
+  border: 1px solid #d4dde3;
+  border-radius: 8px;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.form-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.form-heading h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.form-heading a {
+  color: #2b7b8c;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.form-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.form-stack label,
+.form-stack span {
+  display: grid;
+  gap: 8px;
+}
+
+.form-stack span {
+  color: #41545d;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.form-stack input {
+  width: 100%;
+  border: 1px solid #c6d1d8;
+  border-radius: 8px;
+  padding: 11px 12px;
+  color: #172026;
+  background: #ffffff;
+  outline: none;
+}
+
+.form-stack input:focus {
+  border-color: #2b7b8c;
+  box-shadow: 0 0 0 3px rgba(43, 123, 140, 0.14);
+}
+
+.form-error,
+.form-success {
+  margin: 0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.form-error {
+  color: #9b1c1c;
+  background: #fde8e8;
+}
+
+.form-success {
+  color: #17623b;
+  background: #e4f6ec;
+}
+
+.primary-button {
+  border: 0;
+  border-radius: 8px;
+  padding: 12px 16px;
+  color: #ffffff;
+  background: #2b7b8c;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
 @media (max-width: 720px) {
   .app-shell {
     padding: 20px;
