@@ -8,6 +8,11 @@
       </div>
 
       <div class="shiqian-card p-8">
+        <!-- 注册成功提示 -->
+        <div v-if="showRegisterSuccess" class="mb-6 p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-sm text-emerald-700">
+          注册成功！请使用账号 <span class="font-medium">{{ registeredUsername }}</span> 登录
+        </div>
+
         <el-form :model="form" :rules="rules" ref="loginForm" @submit.prevent="handleLogin" label-position="top">
           <el-form-item label="用户名" prop="username">
             <el-input 
@@ -65,12 +70,28 @@ const loginForm = ref()
 
 const form = reactive<LoginRequest>({ username: '', password: '' })
 const loading = ref(false)
+const showRegisterSuccess = ref(false)
+const registeredUsername = ref('')
 
-// 从注册页跳转时预填用户名
-const queryUsername = route.query.username as string
-if (queryUsername) {
-  form.username = queryUsername
+// 处理从注册页跳转过来的用户名预填（支持刷新不丢失）
+const initUsernameFromRegister = () => {
+  const queryUsername = route.query.username as string
+  const storageUsername = sessionStorage.getItem('justRegisteredUsername')
+
+  if (queryUsername || storageUsername) {
+    const username = queryUsername || storageUsername
+    form.username = username
+    registeredUsername.value = username
+    showRegisterSuccess.value = true
+
+    // 清理临时存储
+    if (storageUsername) {
+      sessionStorage.removeItem('justRegisteredUsername')
+    }
+  }
 }
+
+initUsernameFromRegister()
 
 const rules = {
   username: [

@@ -82,11 +82,14 @@ async function handleRegister() {
   try {
     await userApi.register(form)
     ElMessage.success('注册成功！请登录')
-    // 跳转登录页并尝试预填用户名
-    router.push({
-      path: '/login',
-      query: form.username ? { username: form.username } : {}
-    })
+
+    // 使用 sessionStorage 存储用户名，防止刷新丢失
+    if (form.username) {
+      sessionStorage.setItem('justRegisteredUsername', form.username)
+    }
+
+    // 跳转登录页（不再依赖 query 参数）
+    router.push('/login')
   } catch (e: any) {
     const msg = e.message || '注册失败'
     if (msg.includes('用户名') || msg.includes('已存在')) {
