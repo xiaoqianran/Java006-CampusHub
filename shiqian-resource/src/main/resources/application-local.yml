@@ -5,3 +5,8 @@ spring:
         enabled: false
       config:
         enabled: false
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 0
