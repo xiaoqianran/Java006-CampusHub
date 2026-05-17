@@ -33,3 +33,15 @@ gateway:
       - /api/user/login
       - /api/user/health
       - /actuator
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: shiqian-gateway

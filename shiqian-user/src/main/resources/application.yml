@@ -21,3 +21,15 @@ jwt:
   secret: shiqian-platform-jwt-secret-key-must-be-at-least-256-bits-for-hs256
   access-token-expiration: 7200000    # 2小时，单位毫秒
   refresh-token-expiration: 604800000 # 7天，单位毫秒
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: shiqian-user
