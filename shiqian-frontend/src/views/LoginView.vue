@@ -8,15 +8,34 @@
       </div>
 
       <div class="shiqian-card p-8">
-        <el-form :model="form" @submit.prevent="handleLogin" label-position="top">
-          <el-form-item label="用户名">
-            <el-input v-model="form.username" placeholder="学号或用户名" size="large" />
+        <el-form :model="form" :rules="rules" ref="loginForm" @submit.prevent="handleLogin" label-position="top">
+          <el-form-item label="用户名" prop="username">
+            <el-input 
+              v-model="form.username" 
+              placeholder="学号或用户名" 
+              size="large" 
+              clearable 
+              autocomplete="username" 
+            />
           </el-form-item>
-          <el-form-item label="密码">
-            <el-input v-model="form.password" type="password" placeholder="••••••" size="large" show-password />
+          <el-form-item label="密码" prop="password">
+            <el-input 
+              v-model="form.password" 
+              type="password" 
+              placeholder="••••••" 
+              size="large" 
+              show-password 
+              autocomplete="current-password" 
+            />
           </el-form-item>
 
-          <el-button type="primary" native-type="submit" class="w-full !h-12 !text-base mt-2" :loading="loading">
+          <el-button 
+            type="primary" 
+            native-type="submit" 
+            class="w-full !h-12 !text-base mt-2" 
+            :loading="loading"
+            :disabled="!form.username || !form.password"
+          >
             登录
           </el-button>
         </el-form>
@@ -42,19 +61,31 @@ import type { LoginRequest } from '../types/user'
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
+const loginForm = ref()
 
 const form = reactive<LoginRequest>({ username: '', password: '' })
 const loading = ref(false)
 
+const rules = {
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { min: 4, max: 20, message: '用户名长度为4-20位', trigger: 'blur' }
+  ],
+  password: [
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    { min: 6, max: 32, message: '密码长度为6-32位', trigger: 'blur' }
+  ]
+}
+
 async function handleLogin() {
-  if (!form.username || !form.password) {
-    ElMessage.warning('请输入用户名和密码')
-    return
-  }
+  // 先进行表单校验
+  await loginForm.value?.validate().catch(() => {
+    return Promise.reject()
+  })
+
   loading.value = true
   try {
     const res = await userApi.login(form)
-    // res 结构 { accessToken, refreshToken, userId, username, nickname, role }
     auth.setSession(
       { accessToken: res.accessToken, refreshToken: res.refreshToken },
       { userId: res.userId, username: res.username, nickname: res.nickname, role: res.role }
@@ -63,7 +94,13 @@ async function handleLogin() {
     const redirect = (route.query.redirect as string) || '/resources'
     router.replace(redirect)
   } catch (e: any) {
-    ElMessage.error(e.message || '登录失败，请检查用户名密码')
+    // 更友好的错误提示
+    const msg = e.message || '登录失败'
+    if (msg.includes('用户名') || msg.includes('密码')) {
+      ElMessage.error('用户名或密码错误')
+    } else {
+      ElMessage.error(msg)
+    }
   } finally {
     loading.value = false
   }
