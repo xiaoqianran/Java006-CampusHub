@@ -19,7 +19,15 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   <T>(response: AxiosResponse<ApiResult<T>>) => response.data.data,
   (error: AxiosError<ApiResult<unknown>>) => {
-    const message = error.response?.data?.message ?? error.message;
+    const status = error.response?.status;
+    const message = error.response?.data?.message ?? error.message ?? '请求失败';
+
+    // 401 统一处理（后续路由守卫会接管登出）
+    if (status === 401) {
+      // 触发全局事件，App 或守卫监听
+      window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+    }
+
     return Promise.reject(new Error(message));
   }
 );

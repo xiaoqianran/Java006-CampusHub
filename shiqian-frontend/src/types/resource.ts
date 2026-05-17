@@ -46,3 +46,5 @@ export interface ResourceCreateRequest {
   fileSize: number;
   fileType: string;
 }
+
+export interface ResourceUpdateRequest extends ResourceCreateRequest {}

@@ -1,84 +1,135 @@
+<template>
+  <div class="min-h-[70vh] flex items-center justify-center px-6 pt-10">
+    <div class="w-full max-w-md">
+      <div class="text-center mb-8">
+        <div class="inline-block w-12 h-12 rounded-2xl bg-[#0f766e] text-white text-3xl leading-[48px] mb-4">时</div>
+        <h1 class="text-3xl font-semibold tracking-tight">欢迎回来</h1>
+        <p class="text-[#5c4630] mt-1">登录后即可发布、收藏、下载资源</p>
+      </div>
+
+      <div class="shiqian-card p-8">
+        <!-- 注册成功提示 -->
+        <div v-if="showRegisterSuccess" class="mb-6 p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-sm text-emerald-700">
+          注册成功！请使用账号 <span class="font-medium">{{ registeredUsername }}</span> 登录
+        </div>
+
+        <el-form :model="form" :rules="rules" ref="loginForm" @submit.prevent="handleLogin" label-position="top">
+          <el-form-item label="用户名" prop="username">
+            <el-input 
+              v-model="form.username" 
+              placeholder="学号或用户名" 
+              size="large" 
+              clearable 
+              autocomplete="username" 
+            />
+          </el-form-item>
+          <el-form-item label="密码" prop="password">
+            <el-input 
+              v-model="form.password" 
+              type="password" 
+              placeholder="••••••" 
+              size="large" 
+              show-password 
+              autocomplete="current-password" 
+            />
+          </el-form-item>
+
+          <el-button 
+            type="primary" 
+            native-type="submit" 
+            class="w-full !h-12 !text-base mt-2" 
+            :loading="loading"
+            :disabled="!form.username || !form.password"
+          >
+            登录
+          </el-button>
+        </el-form>
+
+        <div class="text-center text-sm mt-6 text-[#5c4630]">
+          还没有账号？
+          <router-link to="/register" class="text-[#0f766e] font-medium hover:underline">立即注册</router-link>
+        </div>
+      </div>
+      <div class="text-[10px] text-center text-[#8a7155] mt-8">演示账号可使用任意已注册的学生信息</div>
+    </div>
+  </div>
+</template>
+
 <script setup lang="ts">
-import { reactive, ref } from 'vue';
-import { useRouter } from 'vue-router';
-import { userApi } from '../api/user';
-import { useAuthStore } from '../stores/auth';
+import { reactive, ref } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { userApi } from '../api/user'
+import { useAuthStore } from '../stores/auth'
+import type { LoginRequest } from '../types/user'
 
-const router = useRouter();
-const authStore = useAuthStore();
-const loading = ref(false);
-const errorMessage = ref('');
-const form = reactive({
-  username: '',
-  password: ''
-});
+const router = useRouter()
+const route = useRoute()
+const auth = useAuthStore()
+const loginForm = ref()
 
-function validateForm(): string {
-  if (!form.username.trim()) {
-    return '用户名不能为空';
+const form = reactive<LoginRequest>({ username: '', password: '' })
+const loading = ref(false)
+const showRegisterSuccess = ref(false)
+const registeredUsername = ref('')
+
+// 处理从注册页跳转过来的用户名预填（支持刷新不丢失）
+const initUsernameFromRegister = () => {
+  const queryUsername = route.query.username as string
+  const storageUsername = sessionStorage.getItem('justRegisteredUsername')
+
+  if (queryUsername || storageUsername) {
+    const username = queryUsername || storageUsername
+    form.username = username
+    registeredUsername.value = username
+    showRegisterSuccess.value = true
+
+    // 清理临时存储
+    if (storageUsername) {
+      sessionStorage.removeItem('justRegisteredUsername')
+    }
   }
-  if (!form.password) {
-    return '密码不能为空';
-  }
-  return '';
 }
 
-async function handleSubmit() {
-  errorMessage.value = validateForm();
-  if (errorMessage.value) {
-    return;
-  }
+initUsernameFromRegister()
 
-  loading.value = true;
+const rules = {
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { min: 4, max: 20, message: '用户名长度为4-20位', trigger: 'blur' }
+  ],
+  password: [
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    { min: 6, max: 32, message: '密码长度为6-32位', trigger: 'blur' }
+  ]
+}
+
+async function handleLogin() {
+  // 先进行表单校验
+  await loginForm.value?.validate().catch(() => {
+    return Promise.reject()
+  })
+
+  loading.value = true
   try {
-    const result = await userApi.login(form);
-    authStore.setSession(
-      {
-        accessToken: result.accessToken,
-        refreshToken: result.refreshToken
-      },
-      {
-        userId: result.userId,
-        username: result.username,
-        nickname: result.nickname,
-        role: result.role
-      }
-    );
-    await router.push('/resources');
-  } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '登录失败';
+    const res = await userApi.login(form)
+    auth.setSession(
+      { accessToken: res.accessToken, refreshToken: res.refreshToken },
+      { userId: res.userId, username: res.username, nickname: res.nickname, role: res.role }
+    )
+    ElMessage.success(`欢迎回来，${res.nickname || res.username}！`)
+    const redirect = (route.query.redirect as string) || '/resources'
+    router.replace(redirect)
+  } catch (e: any) {
+    // 更友好的错误提示
+    const msg = e.message || '登录失败'
+    if (msg.includes('用户名') || msg.includes('密码')) {
+      ElMessage.error('用户名或密码错误')
+    } else {
+      ElMessage.error(msg)
+    }
   } finally {
-    loading.value = false;
+    loading.value = false
   }
 }
 </script>
-
-<template>
-  <section class="form-panel" aria-labelledby="login-title">
-    <div class="form-heading">
-      <h2 id="login-title">登录</h2>
-      <RouterLink to="/register">创建账号</RouterLink>
-    </div>
-
-    <form class="form-stack" @submit.prevent="handleSubmit">
-      <label>
-        <span>用户名</span>
-        <input v-model="form.username" name="username" autocomplete="username" />
-      </label>
-      <label>
-        <span>密码</span>
-        <input
-          v-model="form.password"
-          name="password"
-          type="password"
-          autocomplete="current-password"
-        />
-      </label>
-
-      <p v-if="errorMessage" class="form-error" role="alert">{{ errorMessage }}</p>
-      <button class="primary-button" type="submit" :disabled="loading">
-        {{ loading ? '登录中' : '登录' }}
-      </button>
-    </form>
-  </section>
-</template>
