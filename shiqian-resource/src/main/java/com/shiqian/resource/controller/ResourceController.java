@@ -2,6 +2,7 @@ package com.shiqian.resource.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shiqian.common.result.Result;
+import com.shiqian.common.security.SecurityUtil;
 import com.shiqian.resource.config.RabbitMQConfig;
 import com.shiqian.resource.document.ResourceDocument;
 import com.shiqian.resource.dto.ResourceCreateDTO;
@@ -15,6 +16,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -39,8 +41,12 @@ public class ResourceController {
     private final RabbitTemplate rabbitTemplate;
 
     @PostMapping
+    @PreAuthorize("hasAuthority('resource:create')")
     public Result<Void> createResource(@RequestBody @Valid ResourceCreateDTO dto) {
-        Long userId = 1L;
+        Long userId = SecurityUtil.getCurrentUserId();
+        if (userId == null) {
+            return Result.fail(401, "未登录");
+        }
         resourceService.createResource(userId, dto);
         return Result.ok();
     }
@@ -62,23 +68,34 @@ public class ResourceController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('resource:update')")
     public Result<Void> updateResource(@PathVariable Long id,
                                        @RequestBody @Valid ResourceUpdateDTO dto) {
-        Long userId = 1L;
+        Long userId = SecurityUtil.getCurrentUserId();
+        if (userId == null) {
+            return Result.fail(401, "未登录");
+        }
         resourceService.updateResource(userId, id, dto);
         return Result.ok();
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('resource:delete')")
     public Result<Void> deleteResource(@PathVariable Long id) {
-        Long userId = 1L;
+        Long userId = SecurityUtil.getCurrentUserId();
+        if (userId == null) {
+            return Result.fail(401, "未登录");
+        }
         resourceService.deleteResource(userId, id);
         return Result.ok();
     }
 
     @PostMapping("/{id}/download")
     public Result<Void> downloadResource(@PathVariable Long id) {
-        Long userId = 1L;
+        Long userId = SecurityUtil.getCurrentUserId();
+        if (userId == null) {
+            userId = 1L;
+        }
         ResourceDownloadMessage message = new ResourceDownloadMessage(id, userId, LocalDateTime.now());
         rabbitTemplate.convertAndSend(
                 RabbitMQConfig.RESOURCE_TOPIC_EXCHANGE,
@@ -89,21 +106,30 @@ public class ResourceController {
 
     @PostMapping("/{id}/favorite")
     public Result<Void> addFavorite(@PathVariable Long id) {
-        Long userId = 1L;
+        Long userId = SecurityUtil.getCurrentUserId();
+        if (userId == null) {
+            return Result.fail(401, "未登录");
+        }
         favoriteService.addFavorite(userId, id);
         return Result.ok();
     }
 
     @DeleteMapping("/{id}/favorite")
     public Result<Void> removeFavorite(@PathVariable Long id) {
-        Long userId = 1L;
+        Long userId = SecurityUtil.getCurrentUserId();
+        if (userId == null) {
+            return Result.fail(401, "未登录");
+        }
         favoriteService.removeFavorite(userId, id);
         return Result.ok();
     }
 
     @GetMapping("/{id}/favorite")
     public Result<Boolean> isFavorited(@PathVariable Long id) {
-        Long userId = 1L;
+        Long userId = SecurityUtil.getCurrentUserId();
+        if (userId == null) {
+            return Result.fail(401, "未登录");
+        }
         return Result.ok(favoriteService.isFavorited(userId, id));
     }
 
@@ -117,9 +143,13 @@ public class ResourceController {
     }
 
     @PutMapping("/{id}/audit")
+    @PreAuthorize("hasAuthority('resource:audit')")
     public Result<Void> auditResource(@PathVariable Long id,
                                       @RequestParam Integer status) {
-        Long operatorId = 1L;
+        Long operatorId = SecurityUtil.getCurrentUserId();
+        if (operatorId == null) {
+            return Result.fail(401, "未登录");
+        }
         resourceService.auditResource(id, status, operatorId);
         return Result.ok();
     }

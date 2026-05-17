@@ -1,6 +1,7 @@
 package com.shiqian.resource.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.shiqian.common.security.JwtUtil;
 import com.shiqian.resource.BaseResourceTest;
 import com.shiqian.resource.document.ResourceDocument;
 import com.shiqian.resource.dto.ResourceCreateDTO;
@@ -45,9 +46,17 @@ public class ResourceControllerTest extends BaseResourceTest {
     @Autowired
     private ResourceService resourceService;
 
+    @Autowired
+    private JwtUtil jwtUtil;
+
+    private String userToken;
+    private String adminToken;
+
     @BeforeEach
     public void setUp() {
         when(resourceDocumentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        userToken = jwtUtil.generateAccessToken(1L, "testuser", "USER");
+        adminToken = jwtUtil.generateAccessToken(2L, "admin", "ADMIN");
     }
 
     @Test
@@ -63,6 +72,7 @@ public class ResourceControllerTest extends BaseResourceTest {
         dto.setFileType("application/pdf");
 
         mockMvc.perform(post("/api/resource")
+                        .header("Authorization", "Bearer " + userToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isOk())
@@ -79,6 +89,7 @@ public class ResourceControllerTest extends BaseResourceTest {
         dto.setFileType("");
 
         mockMvc.perform(post("/api/resource")
+                        .header("Authorization", "Bearer " + userToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isBadRequest());
@@ -94,6 +105,7 @@ public class ResourceControllerTest extends BaseResourceTest {
         dto.setFileType("application/pdf");
 
         mockMvc.perform(post("/api/resource")
+                        .header("Authorization", "Bearer " + userToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isOk())
@@ -159,6 +171,7 @@ public class ResourceControllerTest extends BaseResourceTest {
         dto.setFileType("application/pdf");
 
         mockMvc.perform(post("/api/resource")
+                        .header("Authorization", "Bearer " + userToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isOk());
@@ -197,6 +210,7 @@ public class ResourceControllerTest extends BaseResourceTest {
         dto.setFileType("application/pdf");
 
         mockMvc.perform(put("/api/resource/{id}", resource.getId())
+                        .header("Authorization", "Bearer " + userToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isOk())
@@ -213,6 +227,7 @@ public class ResourceControllerTest extends BaseResourceTest {
         dto.setFileType("");
 
         mockMvc.perform(put("/api/resource/{id}", 1)
+                        .header("Authorization", "Bearer " + userToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isBadRequest());
@@ -223,7 +238,8 @@ public class ResourceControllerTest extends BaseResourceTest {
         Category category = createCategory("测试分类");
         Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "删除测试"));
 
-        mockMvc.perform(delete("/api/resource/{id}", resource.getId()))
+        mockMvc.perform(delete("/api/resource/{id}", resource.getId())
+                        .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
 
@@ -234,7 +250,8 @@ public class ResourceControllerTest extends BaseResourceTest {
 
     @Test
     public void testDeleteResourceNotExist() throws Exception {
-        mockMvc.perform(delete("/api/resource/{id}", 99999))
+        mockMvc.perform(delete("/api/resource/{id}", 99999)
+                        .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(500))
                 .andExpect(jsonPath("$.message").value("资源不存在"));
@@ -245,7 +262,8 @@ public class ResourceControllerTest extends BaseResourceTest {
         Category category = createCategory("测试分类");
         Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "下载测试"));
 
-        mockMvc.perform(post("/api/resource/{id}/download", resource.getId()))
+        mockMvc.perform(post("/api/resource/{id}/download", resource.getId())
+                        .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
 
@@ -260,7 +278,8 @@ public class ResourceControllerTest extends BaseResourceTest {
         Category category = createCategory("测试分类");
         Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "下载测试"));
 
-        mockMvc.perform(post("/api/resource/{id}/download", resource.getId()))
+        mockMvc.perform(post("/api/resource/{id}/download", resource.getId())
+                        .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isOk());
 
         verify(rabbitTemplate).convertAndSend(
@@ -274,11 +293,13 @@ public class ResourceControllerTest extends BaseResourceTest {
         Category category = createCategory("测试分类");
         Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "收藏测试"));
 
-        mockMvc.perform(post("/api/resource/{id}/favorite", resource.getId()))
+        mockMvc.perform(post("/api/resource/{id}/favorite", resource.getId())
+                        .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
 
-        mockMvc.perform(get("/api/resource/{id}/favorite", resource.getId()))
+        mockMvc.perform(get("/api/resource/{id}/favorite", resource.getId())
+                        .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").value(true));
@@ -289,10 +310,12 @@ public class ResourceControllerTest extends BaseResourceTest {
         Category category = createCategory("测试分类");
         Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "收藏测试"));
 
-        mockMvc.perform(post("/api/resource/{id}/favorite", resource.getId()))
+        mockMvc.perform(post("/api/resource/{id}/favorite", resource.getId())
+                        .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(post("/api/resource/{id}/favorite", resource.getId()))
+        mockMvc.perform(post("/api/resource/{id}/favorite", resource.getId())
+                        .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(500))
                 .andExpect(jsonPath("$.message").value("已收藏该资源"));
@@ -303,14 +326,17 @@ public class ResourceControllerTest extends BaseResourceTest {
         Category category = createCategory("测试分类");
         Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "收藏测试"));
 
-        mockMvc.perform(post("/api/resource/{id}/favorite", resource.getId()))
+        mockMvc.perform(post("/api/resource/{id}/favorite", resource.getId())
+                        .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(delete("/api/resource/{id}/favorite", resource.getId()))
+        mockMvc.perform(delete("/api/resource/{id}/favorite", resource.getId())
+                        .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
 
-        mockMvc.perform(get("/api/resource/{id}/favorite", resource.getId()))
+        mockMvc.perform(get("/api/resource/{id}/favorite", resource.getId())
+                        .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").value(false));
     }
@@ -321,6 +347,7 @@ public class ResourceControllerTest extends BaseResourceTest {
         Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "审核测试"));
 
         mockMvc.perform(put("/api/resource/{id}/audit", resource.getId())
+                        .header("Authorization", "Bearer " + adminToken)
                         .param("status", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
@@ -329,6 +356,7 @@ public class ResourceControllerTest extends BaseResourceTest {
     @Test
     public void testAuditResourceNotExist() throws Exception {
         mockMvc.perform(put("/api/resource/{id}/audit", 99999)
+                        .header("Authorization", "Bearer " + adminToken)
                         .param("status", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(500))
@@ -341,6 +369,7 @@ public class ResourceControllerTest extends BaseResourceTest {
         Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "审核测试"));
 
         mockMvc.perform(put("/api/resource/{id}/audit", resource.getId())
+                        .header("Authorization", "Bearer " + adminToken)
                         .param("status", "99"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(500))
@@ -395,6 +424,7 @@ public class ResourceControllerTest extends BaseResourceTest {
         dto.setFileSize(1024L);
         dto.setFileType("application/pdf");
         mockMvc.perform(post("/api/resource")
+                        .header("Authorization", "Bearer " + userToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isOk());
