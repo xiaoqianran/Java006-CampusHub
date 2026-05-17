@@ -17,10 +17,13 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+@Tag(name = "分类管理", description = "资源分类的增删改查接口")
 @Slf4j
 @RestController
 @RequestMapping("/api/category")
@@ -29,6 +32,7 @@ public class CategoryController {
 
     private final CategoryService categoryService;
 
+    @Operation(summary = "新增分类")
     @PostMapping
     public Result<Void> addCategory(@RequestBody @Valid CategoryDTO categoryDTO) {
         Category category = new Category();
@@ -37,6 +41,7 @@ public class CategoryController {
         return Result.ok();
     }
 
+    @Operation(summary = "更新分类")
     @PutMapping("/{id}")
     public Result<Void> updateCategory(@PathVariable Long id,
                                        @RequestBody @Valid CategoryDTO categoryDTO) {
@@ -47,24 +52,28 @@ public class CategoryController {
         return Result.ok();
     }
 
+    @Operation(summary = "删除分类")
     @DeleteMapping("/{id}")
     public Result<Void> deleteCategory(@PathVariable Long id) {
         categoryService.deleteCategory(id);
         return Result.ok();
     }
 
+    @Operation(summary = "根据ID获取分类")
     @GetMapping("/{id}")
     public Result<Category> getCategoryById(@PathVariable Long id) {
         Category category = categoryService.getCategoryById(id);
         return Result.ok(category);
     }
 
+    @Operation(summary = "获取分类树")
     @GetMapping("/tree")
     public Result<List<Category>> getCategoryTree() {
         List<Category> tree = categoryService.getCategoryTree();
         return Result.ok(tree);
     }
 
+    @Operation(summary = "分页查询分类列表")
     @GetMapping
     public Result<Page<Category>> pageCategories(
             @RequestParam(defaultValue = "1") Integer page,

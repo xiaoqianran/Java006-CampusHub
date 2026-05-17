@@ -36,6 +36,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/resource/**").permitAll()
                 .requestMatchers("/api/category/**").permitAll()
                 .requestMatchers("/actuator/**").permitAll()
+                .requestMatchers("/doc.html", "/webjars/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/favicon.ico").permitAll()
                 .requestMatchers("/api/resource/**").authenticated()
                 .requestMatchers("/error").permitAll()
                 .anyRequest().authenticated()

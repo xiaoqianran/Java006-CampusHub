@@ -16,11 +16,14 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.HashMap;
 import java.util.Map;
 
+@Tag(name = "用户管理", description = "用户注册、登录、信息管理等接口")
 @Slf4j
 @RestController
 @RequestMapping("/api/user")
@@ -29,6 +32,7 @@ public class UserController {
 
     private final UserService userService;
 
+    @Operation(summary = "健康检查")
     @GetMapping("/health")
     public Result<Map<String, Object>> health() {
         boolean dbConnected = userService.checkDatabaseConnection();
@@ -40,18 +44,21 @@ public class UserController {
         return Result.ok(data);
     }
 
+    @Operation(summary = "用户注册")
     @PostMapping("/register")
     public Result<Void> register(@RequestBody @Valid RegisterDTO registerDTO) {
         userService.register(registerDTO);
         return Result.ok();
     }
 
+    @Operation(summary = "用户登录")
     @PostMapping("/login")
     public Result<LoginVO> login(@RequestBody @Valid LoginDTO loginDTO) {
         LoginVO loginVO = userService.login(loginDTO);
         return Result.ok(loginVO);
     }
 
+    @Operation(summary = "更新当前用户信息")
     @PutMapping("/me")
     public Result<Void> updateCurrentUser(@RequestBody @Valid UpdateUserDTO updateUserDTO) {
         LoginUser loginUser = (LoginUser) SecurityContextHolder.getContext()

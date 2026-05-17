@@ -33,7 +33,13 @@ public class SecurityConfig {
                     "/api/user/register",
                     "/api/user/login",
                     "/api/user/health",
-                    "/actuator/**"
+                    "/actuator/**",
+                    "/doc.html",
+                    "/webjars/**",
+                    "/v3/api-docs/**",
+                    "/swagger-ui/**",
+                    "/swagger-ui.html",
+                    "/favicon.ico"
                 ).permitAll()
                 .anyRequest().authenticated()
             )
