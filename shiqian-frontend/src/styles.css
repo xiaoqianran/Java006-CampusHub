@@ -71,6 +71,30 @@ h1 {
   font-weight: 600;
 }
 
+.nav-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 8px 0 24px;
+}
+
+.nav-tabs a {
+  border: 1px solid #cad5db;
+  border-radius: 8px;
+  padding: 9px 14px;
+  color: #35515c;
+  background: rgba(255, 255, 255, 0.78);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.nav-tabs a.router-link-active {
+  border-color: #2b7b8c;
+  color: #ffffff;
+  background: #2b7b8c;
+}
+
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -99,6 +123,23 @@ h1 {
 .summary-grid span {
   color: #53666f;
   line-height: 1.65;
+}
+
+.page-panel {
+  border: 1px solid #d4dde3;
+  border-radius: 8px;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.page-panel h2 {
+  margin: 0 0 12px;
+  font-size: 22px;
+}
+
+.page-panel p {
+  margin: 0;
+  color: #53666f;
 }
 
 @media (max-width: 720px) {
