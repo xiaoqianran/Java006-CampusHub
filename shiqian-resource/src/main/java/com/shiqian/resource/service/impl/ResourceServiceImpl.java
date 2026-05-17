@@ -3,6 +3,7 @@ package com.shiqian.resource.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.shiqian.common.content.SensitiveWordFilter;
 import com.shiqian.common.exception.BusinessException;
 import com.shiqian.resource.config.RabbitMQConfig;
 import com.shiqian.resource.document.ResourceDocument;
@@ -35,9 +36,11 @@ public class ResourceServiceImpl implements ResourceService {
     private final CategoryService categoryService;
     private final ResourceDocumentRepository resourceDocumentRepository;
     private final RabbitTemplate rabbitTemplate;
+    private final SensitiveWordFilter sensitiveWordFilter;
 
     @Override
     public Resource createResource(Long userId, ResourceCreateDTO dto) {
+        validateContent(dto.getTitle(), dto.getDescription());
         Category category = categoryService.getCategoryById(dto.getCategoryId());
         if (category == null || category.getDeleted() == 1) {
             throw new BusinessException("分类不存在");
@@ -69,6 +72,7 @@ public class ResourceServiceImpl implements ResourceService {
         if (existing == null || existing.getDeleted() == 1) {
             throw new BusinessException("资源不存在");
         }
+        validateContent(dto.getTitle(), dto.getDescription());
 
         Category category = categoryService.getCategoryById(dto.getCategoryId());
         if (category == null || category.getDeleted() == 1) {
@@ -159,6 +163,12 @@ public class ResourceServiceImpl implements ResourceService {
 
         wrapper.orderByDesc("create_time");
         return resourceMapper.selectPage(pageParam, wrapper);
+    }
+
+    private void validateContent(String title, String description) {
+        if (sensitiveWordFilter.contains(title) || sensitiveWordFilter.contains(description)) {
+            throw new BusinessException("资源内容包含敏感词");
+        }
     }
 
     private ResourceDocument buildResourceDocument(Resource resource) {
