@@ -16,6 +16,7 @@ import com.shiqian.resource.service.ResourceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -56,6 +57,7 @@ public class ResourceServiceImpl implements ResourceService {
     }
 
     @Override
+    @CacheEvict(value = "resource:detail", key = "#id")
     public void updateResource(Long userId, Long id, ResourceUpdateDTO dto) {
         Resource existing = resourceMapper.selectById(id);
         if (existing == null || existing.getDeleted() == 1) {
@@ -82,6 +84,7 @@ public class ResourceServiceImpl implements ResourceService {
     }
 
     @Override
+    @CacheEvict(value = "resource:detail", key = "#id")
     public void deleteResource(Long userId, Long id) {
         Resource existing = resourceMapper.selectById(id);
         if (existing == null || existing.getDeleted() == 1) {

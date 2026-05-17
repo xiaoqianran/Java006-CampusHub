@@ -8,6 +8,7 @@ import com.shiqian.resource.mapper.CategoryMapper;
 import com.shiqian.resource.service.CategoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
@@ -26,6 +27,7 @@ public class CategoryServiceImpl implements CategoryService {
     private final CategoryMapper categoryMapper;
 
     @Override
+    @CacheEvict(value = "category:tree", allEntries = true)
     public void addCategory(Category category) {
         if (category.getParentId() != null && category.getParentId() != 0) {
             Category parent = categoryMapper.selectById(category.getParentId());
@@ -40,6 +42,7 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @CacheEvict(value = "category:tree", allEntries = true)
     public void updateCategory(Category category) {
         Category existing = categoryMapper.selectById(category.getId());
         if (existing == null || existing.getDeleted() == 1) {
@@ -59,6 +62,7 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @CacheEvict(value = "category:tree", allEntries = true)
     public void deleteCategory(Long id) {
         Category existing = categoryMapper.selectById(id);
         if (existing == null || existing.getDeleted() == 1) {
