@@ -18,4 +18,6 @@ public interface ResourceService {
     void deleteResource(Long userId, Long id);
 
     void incrementDownloadCount(Long id);
+
+    void auditResource(Long resourceId, Integer status, Long operatorId);
 }

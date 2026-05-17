@@ -4,7 +4,9 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shiqian.common.exception.BusinessException;
+import com.shiqian.resource.config.RabbitMQConfig;
 import com.shiqian.resource.document.ResourceDocument;
+import com.shiqian.resource.dto.ResourceAuditMessage;
 import com.shiqian.resource.dto.ResourceCreateDTO;
 import com.shiqian.resource.dto.ResourceUpdateDTO;
 import com.shiqian.resource.entity.Category;
@@ -13,8 +15,11 @@ import com.shiqian.resource.mapper.ResourceMapper;
 import com.shiqian.resource.repository.ResourceDocumentRepository;
 import com.shiqian.resource.service.CategoryService;
 import com.shiqian.resource.service.ResourceService;
+
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.BeanUtils;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -29,6 +34,7 @@ public class ResourceServiceImpl implements ResourceService {
     private final ResourceMapper resourceMapper;
     private final CategoryService categoryService;
     private final ResourceDocumentRepository resourceDocumentRepository;
+    private final RabbitTemplate rabbitTemplate;
 
     @Override
     public Resource createResource(Long userId, ResourceCreateDTO dto) {
@@ -109,6 +115,32 @@ public class ResourceServiceImpl implements ResourceService {
         wrapper.setSql("download_count = download_count + 1");
         resourceMapper.update(null, wrapper);
         log.info("资源下载计数增加: id={}", id);
+    }
+
+    @Override
+    @CacheEvict(value = "resource:detail", key = "#resourceId")
+    public void auditResource(Long resourceId, Integer status, Long operatorId) {
+        Resource existing = resourceMapper.selectById(resourceId);
+        if (existing == null || existing.getDeleted() == 1) {
+            throw new BusinessException("资源不存在");
+        }
+        if (status == null || (status != 0 && status != 1 && status != 2)) {
+            throw new BusinessException("审核状态不合法");
+        }
+
+        Resource update = new Resource();
+        update.setId(resourceId);
+        update.setStatus(status);
+        resourceMapper.updateById(update);
+
+        ResourceAuditMessage message = new ResourceAuditMessage(
+                resourceId, status, operatorId, LocalDateTime.now());
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.RESOURCE_TOPIC_EXCHANGE,
+                RabbitMQConfig.RESOURCE_AUDIT_ROUTING_KEY,
+                message);
+        log.info("资源审核消息已发送: resourceId={}, status={}, operatorId={}",
+                resourceId, status, operatorId);
     }
 
     @Override

@@ -105,4 +105,12 @@ public class ResourceController {
         org.springframework.data.domain.Page<ResourceDocument> result = resourceSearchService.search(keyword, page, size);
         return Result.ok(result);
     }
+
+    @PutMapping("/{id}/audit")
+    public Result<Void> auditResource(@PathVariable Long id,
+                                      @RequestParam Integer status) {
+        Long operatorId = 1L;
+        resourceService.auditResource(id, status, operatorId);
+        return Result.ok();
+    }
 }

@@ -303,6 +303,38 @@ public class ResourceControllerTest extends BaseResourceTest {
     }
 
     @Test
+    public void testAuditResourceSuccess() throws Exception {
+        Category category = createCategory("测试分类");
+        Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "审核测试"));
+
+        mockMvc.perform(put("/api/resource/{id}/audit", resource.getId())
+                        .param("status", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+    }
+
+    @Test
+    public void testAuditResourceNotExist() throws Exception {
+        mockMvc.perform(put("/api/resource/{id}/audit", 99999)
+                        .param("status", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(500))
+                .andExpect(jsonPath("$.message").value("资源不存在"));
+    }
+
+    @Test
+    public void testAuditResourceInvalidStatus() throws Exception {
+        Category category = createCategory("测试分类");
+        Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "审核测试"));
+
+        mockMvc.perform(put("/api/resource/{id}/audit", resource.getId())
+                        .param("status", "99"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(500))
+                .andExpect(jsonPath("$.message").value("审核状态不合法"));
+    }
+
+    @Test
     @Disabled("需要 Elasticsearch 服务")
     public void testSearchResourceByKeyword() throws Exception {
         Category category = createCategory("测试分类");
