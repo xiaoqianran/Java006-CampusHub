@@ -1,6 +1,7 @@
 package com.shiqian.resource;
 
 import com.shiqian.resource.repository.ResourceDocumentRepository;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
@@ -18,4 +19,7 @@ public abstract class BaseResourceTest {
 
     @MockBean
     protected ElasticsearchOperations elasticsearchOperations;
+
+    @MockBean
+    protected RabbitTemplate rabbitTemplate;
 }

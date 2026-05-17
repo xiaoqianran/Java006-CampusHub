@@ -20,8 +20,11 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.isA;
 
 @Transactional
 public class ResourceServiceTest extends BaseResourceTest {
@@ -305,6 +308,48 @@ public class ResourceServiceTest extends BaseResourceTest {
         category.setStatus(1);
         categoryService.addCategory(category);
         return category;
+    }
+
+    @Test
+    public void testAuditResourceSuccess() {
+        Category category = createCategory("测试分类");
+        Resource resource = createResource("待审核资源", category.getId());
+        assertEquals(0, resource.getStatus());
+
+        resourceService.auditResource(resource.getId(), 1, 2L);
+
+        Resource updated = resourceService.getResourceById(resource.getId());
+        assertEquals(1, updated.getStatus());
+    }
+
+    @Test
+    public void testAuditResourceNotExist() {
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> resourceService.auditResource(99999L, 1, 1L));
+        assertEquals("资源不存在", exception.getMessage());
+    }
+
+    @Test
+    public void testAuditResourceInvalidStatus() {
+        Category category = createCategory("测试分类");
+        Resource resource = createResource("待审核资源", category.getId());
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> resourceService.auditResource(resource.getId(), 99, 1L));
+        assertEquals("审核状态不合法", exception.getMessage());
+    }
+
+    @Test
+    public void testAuditResourceSendMessage() {
+        Category category = createCategory("测试分类");
+        Resource resource = createResource("待审核资源", category.getId());
+
+        resourceService.auditResource(resource.getId(), 2, 3L);
+
+        verify(rabbitTemplate).convertAndSend(
+                eq("resource.topic"),
+                eq("resource.audit"),
+                isA(com.shiqian.resource.dto.ResourceAuditMessage.class));
     }
 
     private Resource createResource(String title, Long categoryId) {

@@ -1,10 +1,11 @@
 package com.shiqian.resource.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shiqian.common.result.Result;
+import com.shiqian.resource.config.RabbitMQConfig;
 import com.shiqian.resource.document.ResourceDocument;
 import com.shiqian.resource.dto.ResourceCreateDTO;
+import com.shiqian.resource.dto.ResourceDownloadMessage;
 import com.shiqian.resource.dto.ResourceUpdateDTO;
 import com.shiqian.resource.entity.Resource;
 import com.shiqian.resource.service.FavoriteService;
@@ -13,6 +14,7 @@ import com.shiqian.resource.service.ResourceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,6 +25,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDateTime;
+
 @Slf4j
 @RestController
 @RequestMapping("/api/resource")
@@ -32,6 +36,7 @@ public class ResourceController {
     private final ResourceService resourceService;
     private final FavoriteService favoriteService;
     private final ResourceSearchService resourceSearchService;
+    private final RabbitTemplate rabbitTemplate;
 
     @PostMapping
     public Result<Void> createResource(@RequestBody @Valid ResourceCreateDTO dto) {
@@ -73,7 +78,12 @@ public class ResourceController {
 
     @PostMapping("/{id}/download")
     public Result<Void> downloadResource(@PathVariable Long id) {
-        resourceService.incrementDownloadCount(id);
+        Long userId = 1L;
+        ResourceDownloadMessage message = new ResourceDownloadMessage(id, userId, LocalDateTime.now());
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.RESOURCE_TOPIC_EXCHANGE,
+                RabbitMQConfig.RESOURCE_DOWNLOAD_ROUTING_KEY,
+                message);
         return Result.ok();
     }
 
@@ -104,5 +114,13 @@ public class ResourceController {
             @RequestParam(defaultValue = "10") Integer size) {
         org.springframework.data.domain.Page<ResourceDocument> result = resourceSearchService.search(keyword, page, size);
         return Result.ok(result);
+    }
+
+    @PutMapping("/{id}/audit")
+    public Result<Void> auditResource(@PathVariable Long id,
+                                      @RequestParam Integer status) {
+        Long operatorId = 1L;
+        resourceService.auditResource(id, status, operatorId);
+        return Result.ok();
     }
 }
