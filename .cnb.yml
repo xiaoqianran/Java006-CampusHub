@@ -3,15 +3,36 @@
     - name: maven-ci
       runner:
         cpus: 4
+      services:
+        - docker
       docker:
         image: maven:3.9-eclipse-temurin-17
         volumes:
           - .m2:/root/.m2:rw
+      env:
+        SPRING_PROFILES_ACTIVE: test
+        SPRING_DATA_REDIS_HOST: 127.0.0.1
+        SPRING_DATA_REDIS_PORT: 6379
       stages:
         - name: validate
           script: mvn validate -B
         - name: compile
           script: mvn compile -B
+        - name: start-redis
+          script: |
+            docker rm -f redis-ci 2>/dev/null || true
+            docker run -d --name redis-ci -p 6379:6379 redis:7-alpine
+            for i in $(seq 1 30); do
+              if docker exec redis-ci redis-cli ping | grep -q PONG; then
+                echo "Redis is ready"
+                exit 0
+              fi
+              echo "Waiting Redis $i/30..."
+              sleep 2
+            done
+            echo "Redis failed to start"
+            docker logs redis-ci
+            exit 1
         - name: test
           script: mvn test -B
         - name: package
@@ -23,15 +44,36 @@
     - name: maven-ci
       runner:
         cpus: 4
+      services:
+        - docker
       docker:
         image: maven:3.9-eclipse-temurin-17
         volumes:
           - .m2:/root/.m2:rw
+      env:
+        SPRING_PROFILES_ACTIVE: test
+        SPRING_DATA_REDIS_HOST: 127.0.0.1
+        SPRING_DATA_REDIS_PORT: 6379
       stages:
         - name: validate
           script: mvn validate -B
         - name: compile
           script: mvn compile -B
+        - name: start-redis
+          script: |
+            docker rm -f redis-ci 2>/dev/null || true
+            docker run -d --name redis-ci -p 6379:6379 redis:7-alpine
+            for i in $(seq 1 30); do
+              if docker exec redis-ci redis-cli ping | grep -q PONG; then
+                echo "Redis is ready"
+                exit 0
+              fi
+              echo "Waiting Redis $i/30..."
+              sleep 2
+            done
+            echo "Redis failed to start"
+            docker logs redis-ci
+            exit 1
         - name: test
           script: mvn test -B
         - name: package
