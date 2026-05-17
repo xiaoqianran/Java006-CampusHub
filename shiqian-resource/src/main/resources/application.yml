@@ -27,6 +27,19 @@ spring:
           max-idle: 8
           min-idle: 0
           max-wait: 5s
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+    virtual-host: /
+    listener:
+      simple:
+        acknowledge-mode: auto
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 1000ms
 
 mybatis-plus:
   mapper-locations: classpath*:mapper/**/*.xml
