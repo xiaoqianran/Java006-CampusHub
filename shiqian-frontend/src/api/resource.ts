@@ -17,6 +17,9 @@ export const resourceApi = {
   createResource(params: ResourceCreateRequest) {
     return http.post<unknown, void>('/resource', params);
   },
+  downloadResource(id: number) {
+    return http.post<unknown, void>(`/resource/${id}/download`);
+  },
   listCategoryTree() {
     return http.get<unknown, Category[]>('/category/tree');
   }

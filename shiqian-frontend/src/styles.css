@@ -196,7 +196,19 @@ h1 {
   outline: none;
 }
 
-.form-stack input:focus {
+.form-stack textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #c6d1d8;
+  border-radius: 8px;
+  padding: 11px 12px;
+  color: #172026;
+  background: #ffffff;
+  outline: none;
+}
+
+.form-stack input:focus,
+.form-stack textarea:focus {
   border-color: #2b7b8c;
   box-shadow: 0 0 0 3px rgba(43, 123, 140, 0.14);
 }
@@ -349,6 +361,44 @@ h1 {
 .list-footer {
   color: #53666f;
   font-size: 14px;
+}
+
+.upload-panel {
+  width: min(720px, 100%);
+}
+
+.detail-page {
+  display: grid;
+  gap: 16px;
+}
+
+.detail-panel {
+  display: grid;
+  gap: 18px;
+  border: 1px solid #d4dde3;
+  border-radius: 8px;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.detail-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.detail-panel h2,
+.detail-panel p {
+  margin: 0;
+}
+
+.detail-panel header span {
+  border-radius: 8px;
+  padding: 6px 10px;
+  color: #2b7b8c;
+  background: #e5f1f3;
+  font-weight: 800;
 }
 
 @media (max-width: 860px) {
