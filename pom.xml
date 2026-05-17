@@ -113,6 +113,7 @@
         <module>shiqian-common</module>
         <module>shiqian-user</module>
         <module>shiqian-resource</module>
+        <module>shiqian-gateway</module>
     </modules>
 
     <build>

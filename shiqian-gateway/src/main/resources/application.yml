@@ -1,0 +1,22 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: shiqian-gateway
+  profiles:
+    active: local
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+    gateway:
+      routes:
+        - id: shiqian-user
+          uri: lb://shiqian-user
+          predicates:
+            - Path=/api/user/**
+        - id: shiqian-resource
+          uri: lb://shiqian-resource
+          predicates:
+            - Path=/api/resource/**,/api/category/**
