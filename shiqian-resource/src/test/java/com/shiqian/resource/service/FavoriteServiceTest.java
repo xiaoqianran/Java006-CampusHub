@@ -1,21 +1,18 @@
 package com.shiqian.resource.service;
 
 import com.shiqian.common.exception.BusinessException;
+import com.shiqian.resource.BaseResourceTest;
 import com.shiqian.resource.dto.ResourceCreateDTO;
 import com.shiqian.resource.entity.Category;
 import com.shiqian.resource.entity.Resource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
-@ActiveProfiles("test")
 @Transactional
-public class FavoriteServiceTest {
+public class FavoriteServiceTest extends BaseResourceTest {
 
     @Autowired
     private FavoriteService favoriteService;

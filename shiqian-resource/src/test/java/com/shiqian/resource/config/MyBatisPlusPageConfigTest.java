@@ -2,19 +2,16 @@ package com.shiqian.resource.config;
 
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
+import com.shiqian.resource.BaseResourceTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 
 import java.lang.reflect.Field;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
-@ActiveProfiles("test")
-public class MyBatisPlusPageConfigTest {
+public class MyBatisPlusPageConfigTest extends BaseResourceTest {
 
     @Autowired
     private MybatisPlusInterceptor mybatisPlusInterceptor;

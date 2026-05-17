@@ -1,25 +1,25 @@
 package com.shiqian.resource.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.shiqian.resource.BaseResourceTest;
+import com.shiqian.resource.document.ResourceDocument;
 import com.shiqian.resource.dto.ResourceCreateDTO;
 import com.shiqian.resource.dto.ResourceUpdateDTO;
 import com.shiqian.resource.entity.Category;
 import com.shiqian.resource.entity.Resource;
-import com.shiqian.resource.document.ResourceDocument;
-import com.shiqian.resource.repository.ResourceDocumentRepository;
 import com.shiqian.resource.service.CategoryService;
 import com.shiqian.resource.service.ResourceService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -27,11 +27,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
 @AutoConfigureMockMvc
-@ActiveProfiles("test")
 @Transactional
-public class ResourceControllerTest {
+public class ResourceControllerTest extends BaseResourceTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -45,15 +43,9 @@ public class ResourceControllerTest {
     @Autowired
     private ResourceService resourceService;
 
-    @Autowired
-    private ResourceDocumentRepository resourceDocumentRepository;
-
-    @Autowired
-    private ElasticsearchOperations elasticsearchOperations;
-
     @BeforeEach
     public void setUp() {
-        resourceDocumentRepository.deleteAll();
+        when(resourceDocumentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
     }
 
     @Test
@@ -311,6 +303,7 @@ public class ResourceControllerTest {
     }
 
     @Test
+    @Disabled("需要 Elasticsearch 服务")
     public void testSearchResourceByKeyword() throws Exception {
         Category category = createCategory("测试分类");
         resourceService.createResource(1L, buildCreateDto(category.getId(), "Java入门教程"));
