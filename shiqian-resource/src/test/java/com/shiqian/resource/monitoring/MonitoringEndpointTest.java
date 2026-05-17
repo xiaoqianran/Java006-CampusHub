@@ -25,6 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                 + "org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration")
 @AutoConfigureMockMvc
 @AutoConfigureObservability
+@org.springframework.test.context.ActiveProfiles("test")
 class MonitoringEndpointTest {
 
     @Autowired
