@@ -93,7 +93,7 @@ services:
     image: prom/prometheus:v2.52.0
     container_name: shiqian-prometheus
     ports:
-      - "9090:9090"
+      - "19090:9090"
     volumes:
       - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
