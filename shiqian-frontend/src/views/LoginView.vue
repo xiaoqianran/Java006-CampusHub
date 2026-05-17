@@ -66,6 +66,12 @@ const loginForm = ref()
 const form = reactive<LoginRequest>({ username: '', password: '' })
 const loading = ref(false)
 
+// 从注册页跳转时预填用户名
+const queryUsername = route.query.username as string
+if (queryUsername) {
+  form.username = queryUsername
+}
+
 const rules = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
