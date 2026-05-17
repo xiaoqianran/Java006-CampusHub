@@ -116,6 +116,26 @@ public class ResourceControllerTest extends BaseResourceTest {
     }
 
     @Test
+    public void testCreateResourceSensitiveContent() throws Exception {
+        Category category = createCategory("测试分类");
+
+        ResourceCreateDTO dto = new ResourceCreateDTO();
+        dto.setTitle("违规资料");
+        dto.setCategoryId(category.getId());
+        dto.setFileUrl("http://example.com/file.pdf");
+        dto.setFileSize(1024L);
+        dto.setFileType("application/pdf");
+
+        mockMvc.perform(post("/api/resource")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(500))
+                .andExpect(jsonPath("$.message").value("资源内容包含敏感词"));
+    }
+
+    @Test
     public void testCreateResourceWithoutTokenShouldReturnUnauthorized() throws Exception {
         ResourceCreateDTO dto = new ResourceCreateDTO();
         dto.setTitle("测试资源");

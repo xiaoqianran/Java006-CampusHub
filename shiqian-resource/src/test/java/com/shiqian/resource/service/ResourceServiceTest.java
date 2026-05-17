@@ -105,6 +105,37 @@ public class ResourceServiceTest extends BaseResourceTest {
     }
 
     @Test
+    public void testCreateResourceSensitiveTitle() {
+        Category category = createCategory("测试分类");
+        ResourceCreateDTO dto = new ResourceCreateDTO();
+        dto.setTitle("违规资料");
+        dto.setCategoryId(category.getId());
+        dto.setFileUrl("http://example.com/file.pdf");
+        dto.setFileSize(1024L);
+        dto.setFileType("application/pdf");
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> resourceService.createResource(1L, dto));
+        assertEquals("资源内容包含敏感词", exception.getMessage());
+    }
+
+    @Test
+    public void testCreateResourceSensitiveDescription() {
+        Category category = createCategory("测试分类");
+        ResourceCreateDTO dto = new ResourceCreateDTO();
+        dto.setTitle("测试资源");
+        dto.setDescription("包含敏感词的描述");
+        dto.setCategoryId(category.getId());
+        dto.setFileUrl("http://example.com/file.pdf");
+        dto.setFileSize(1024L);
+        dto.setFileType("application/pdf");
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> resourceService.createResource(1L, dto));
+        assertEquals("资源内容包含敏感词", exception.getMessage());
+    }
+
+    @Test
     public void testPageResourcesNoCondition() {
         Category category = createCategory("测试分类");
         for (int i = 1; i <= 5; i++) {
@@ -205,6 +236,24 @@ public class ResourceServiceTest extends BaseResourceTest {
         BusinessException exception = assertThrows(BusinessException.class,
                 () -> resourceService.updateResource(1L, resource.getId(), dto));
         assertEquals("分类不存在", exception.getMessage());
+    }
+
+    @Test
+    public void testUpdateResourceSensitiveDescription() {
+        Category category = createCategory("测试分类");
+        Resource resource = createResource("旧标题", category.getId());
+
+        ResourceUpdateDTO dto = new ResourceUpdateDTO();
+        dto.setTitle("新标题");
+        dto.setDescription("这是一条广告描述");
+        dto.setCategoryId(category.getId());
+        dto.setFileUrl("http://example.com/new.pdf");
+        dto.setFileSize(1024L);
+        dto.setFileType("application/pdf");
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> resourceService.updateResource(1L, resource.getId(), dto));
+        assertEquals("资源内容包含敏感词", exception.getMessage());
     }
 
     @Test
