@@ -16,6 +16,7 @@ import com.shiqian.resource.service.ResourceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -49,6 +50,7 @@ public class ResourceServiceImpl implements ResourceService {
     }
 
     @Override
+    @Cacheable(value = "resource:detail", key = "#id")
     public Resource getResourceById(Long id) {
         return resourceMapper.selectById(id);
     }

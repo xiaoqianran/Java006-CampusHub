@@ -8,6 +8,7 @@ import com.shiqian.resource.mapper.CategoryMapper;
 import com.shiqian.resource.service.CategoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
@@ -80,6 +81,7 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @Cacheable(value = "category:tree")
     public List<Category> getCategoryTree() {
         QueryWrapper<Category> wrapper = new QueryWrapper<>();
         wrapper.eq("deleted", 0).eq("status", 1);
