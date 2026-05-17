@@ -1,5 +1,7 @@
 import {
   validateOptionalEmail,
+  validateOptionalAvatar,
+  validateOptionalNickname,
   validateOptionalPhone,
   validatePassword,
   validateUsername
@@ -26,5 +28,12 @@ describe('validators', () => {
     expect(validateOptionalPhone()).toBe('');
     expect(validateOptionalPhone('13800138000')).toBe('');
     expect(validateOptionalPhone('12800138000')).toBe('手机号格式不正确');
+  });
+
+  it('validates profile optional fields', () => {
+    expect(validateOptionalNickname('昵称')).toBe('');
+    expect(validateOptionalNickname('a'.repeat(21))).toBe('昵称不能超过20个字符');
+    expect(validateOptionalAvatar('https://example.com/a.png')).toBe('');
+    expect(validateOptionalAvatar('a'.repeat(501))).toBe('头像URL不能超过500个字符');
   });
 });

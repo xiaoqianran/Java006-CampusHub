@@ -1,5 +1,10 @@
 import { http } from './http';
-import type { LoginRequest, LoginResponse, RegisterRequest } from '../types/user';
+import type {
+  LoginRequest,
+  LoginResponse,
+  RegisterRequest,
+  UpdateUserRequest
+} from '../types/user';
 
 export const userApi = {
   login(params: LoginRequest) {
@@ -7,5 +12,8 @@ export const userApi = {
   },
   register(params: RegisterRequest) {
     return http.post<unknown, void>('/user/register', params);
+  },
+  updateCurrentUser(params: UpdateUserRequest) {
+    return http.put<unknown, void>('/user/me', params);
   }
 };
