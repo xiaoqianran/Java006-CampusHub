@@ -63,13 +63,25 @@ router.beforeEach((to, _from, next) => {
   const auth = useAuthStore();
   auth.hydrateFromStorage();
 
-  if (to.meta.requiresAuth && !auth.isAuthenticated) {
+  const isAuthenticated = auth.isAuthenticated;
+
+  // 已登录用户访问登录/注册页，自动跳转首页
+  if ((to.name === 'login' || to.name === 'register') && isAuthenticated) {
+    next({ name: 'home' });
+    return;
+  }
+
+  // 需要登录但未登录
+  if (to.meta.requiresAuth && !isAuthenticated) {
     next({ name: 'login', query: { redirect: to.fullPath } });
     return;
   }
+
+  // 需要管理员权限但不是管理员
   if (to.meta.requiresAdmin && !auth.isAdmin) {
     next({ name: 'home' });
     return;
   }
+
   next();
 });
