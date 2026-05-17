@@ -2,27 +2,29 @@ package com.shiqian.resource.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shiqian.common.exception.BusinessException;
+import com.shiqian.resource.BaseResourceTest;
 import com.shiqian.resource.document.ResourceDocument;
 import com.shiqian.resource.dto.ResourceCreateDTO;
 import com.shiqian.resource.dto.ResourceUpdateDTO;
 import com.shiqian.resource.entity.Category;
 import com.shiqian.resource.entity.Resource;
-import com.shiqian.resource.repository.ResourceDocumentRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.when;
 
-@SpringBootTest
-@ActiveProfiles("test")
 @Transactional
-public class ResourceServiceTest {
+public class ResourceServiceTest extends BaseResourceTest {
 
     @Autowired
     private ResourceService resourceService;
@@ -30,12 +32,30 @@ public class ResourceServiceTest {
     @Autowired
     private CategoryService categoryService;
 
-    @Autowired
-    private ResourceDocumentRepository resourceDocumentRepository;
+    private final Map<Long, ResourceDocument> esDocs = new HashMap<>();
 
     @BeforeEach
     public void setUp() {
-        resourceDocumentRepository.deleteAll();
+        esDocs.clear();
+
+        when(resourceDocumentRepository.save(any(ResourceDocument.class)))
+                .thenAnswer(inv -> {
+                    ResourceDocument doc = inv.getArgument(0);
+                    esDocs.put(doc.getId(), doc);
+                    return doc;
+                });
+
+        when(resourceDocumentRepository.findById(anyLong()))
+                .thenAnswer(inv -> Optional.ofNullable(esDocs.get(inv.getArgument(0))));
+
+        doAnswer(inv -> {
+            esDocs.remove(inv.getArgument(0));
+            return null;
+        }).when(resourceDocumentRepository).deleteById(anyLong());
+        doAnswer(inv -> {
+            esDocs.clear();
+            return null;
+        }).when(resourceDocumentRepository).deleteAll();
     }
 
     @Test

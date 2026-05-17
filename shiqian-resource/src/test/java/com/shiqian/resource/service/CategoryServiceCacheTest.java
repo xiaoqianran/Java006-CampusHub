@@ -1,15 +1,15 @@
 package com.shiqian.resource.service;
 
+import com.shiqian.resource.BaseResourceTest;
 import com.shiqian.resource.entity.Category;
 import com.shiqian.resource.mapper.CategoryMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
 
@@ -21,9 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 /**
  * CategoryService 缓存集成测试
  */
-@SpringBootTest
-@ActiveProfiles("test")
-class CategoryServiceCacheTest {
+class CategoryServiceCacheTest extends BaseResourceTest {
 
     @Autowired
     private CategoryService categoryService;
@@ -39,6 +37,15 @@ class CategoryServiceCacheTest {
 
     @BeforeEach
     void setUp() {
+        cleanDatabase();
+    }
+
+    @AfterEach
+    void tearDown() {
+        cleanDatabase();
+    }
+
+    private void cleanDatabase() {
         jdbcTemplate.execute("DELETE FROM t_category");
         jdbcTemplate.execute("ALTER TABLE t_category ALTER COLUMN id RESTART WITH 1");
         Cache cache = cacheManager.getCache("category:tree");
