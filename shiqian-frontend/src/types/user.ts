@@ -19,3 +19,10 @@ export interface LoginResponse {
   nickname?: string;
   role: string;
 }
+
+export interface UpdateUserRequest {
+  nickname?: string;
+  email?: string;
+  phone?: string;
+  avatar?: string;
+}

@@ -41,3 +41,17 @@ export function validateOptionalPhone(phone?: string): string {
   }
   return '';
 }
+
+export function validateOptionalNickname(nickname?: string): string {
+  if (nickname && nickname.length > 20) {
+    return '昵称不能超过20个字符';
+  }
+  return '';
+}
+
+export function validateOptionalAvatar(avatar?: string): string {
+  if (avatar && avatar.length > 500) {
+    return '头像URL不能超过500个字符';
+  }
+  return '';
+}
