@@ -13,3 +13,16 @@ spring:
           uri: http://localhost:8082
           predicates:
             - Path=/api/resource/**,/api/category/**
+
+jwt:
+  secret: test-secret-key-must-be-at-least-256-bits-long
+  access-token-expiration: 7200000
+  refresh-token-expiration: 604800000
+
+gateway:
+  auth:
+    whitelist:
+      - /api/user/register
+      - /api/user/login
+      - /api/user/health
+      - /actuator

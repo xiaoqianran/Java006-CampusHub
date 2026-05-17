@@ -20,3 +20,16 @@ spring:
           uri: lb://shiqian-resource
           predicates:
             - Path=/api/resource/**,/api/category/**
+
+jwt:
+  secret: shiqian-platform-jwt-secret-key-must-be-at-least-256-bits-for-hs256
+  access-token-expiration: 7200000
+  refresh-token-expiration: 604800000
+
+gateway:
+  auth:
+    whitelist:
+      - /api/user/register
+      - /api/user/login
+      - /api/user/health
+      - /actuator
