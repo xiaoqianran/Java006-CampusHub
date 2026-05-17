@@ -70,9 +70,29 @@ services:
       timeout: 5s
       retries: 5
 
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: shiqian-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+      TZ: Asia/Shanghai
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   mysql-data:
   redis-data:
   nacos-logs:
   nacos-data:
   es-data:
+  rabbitmq-data:

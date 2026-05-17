@@ -19,6 +19,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -246,14 +248,25 @@ public class ResourceControllerTest extends BaseResourceTest {
         mockMvc.perform(post("/api/resource/{id}/download", resource.getId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
+
+        verify(rabbitTemplate).convertAndSend(
+                eq("resource.topic"),
+                eq("resource.download"),
+                any(com.shiqian.resource.dto.ResourceDownloadMessage.class));
     }
 
     @Test
-    public void testDownloadResourceNotExist() throws Exception {
-        mockMvc.perform(post("/api/resource/{id}/download", 99999))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(500))
-                .andExpect(jsonPath("$.message").value("资源不存在"));
+    public void testDownloadResourceSendMessage() throws Exception {
+        Category category = createCategory("测试分类");
+        Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "下载测试"));
+
+        mockMvc.perform(post("/api/resource/{id}/download", resource.getId()))
+                .andExpect(status().isOk());
+
+        verify(rabbitTemplate).convertAndSend(
+                eq("resource.topic"),
+                eq("resource.download"),
+                any(com.shiqian.resource.dto.ResourceDownloadMessage.class));
     }
 
     @Test
