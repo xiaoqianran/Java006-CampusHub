@@ -11,6 +11,7 @@ import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -23,11 +24,39 @@ public class ResourceSearchServiceImpl implements ResourceSearchService {
 
     @Override
     public Page<ResourceDocument> search(String keyword, Integer page, Integer size) {
+        String text = StringUtils.hasText(keyword) ? keyword.trim() : "";
         NativeQuery query = NativeQuery.builder()
                 .withQuery(q -> q
-                        .multiMatch(m -> m
-                                .query(keyword)
-                                .fields("title", "description")
+                        .bool(b -> b
+                                .should(s -> s.multiMatch(m -> m
+                                        .query(text)
+                                        .fields("title^3", "description^2", "fileType")
+                                        .fuzziness("AUTO")
+                                ))
+                                .should(s -> s.matchPhrase(m -> m
+                                        .field("title")
+                                        .query(text)
+                                        .boost(4.0f)
+                                ))
+                                .should(s -> s.matchPhrase(m -> m
+                                        .field("description")
+                                        .query(text)
+                                        .boost(2.0f)
+                                ))
+                                .should(s -> s.wildcard(w -> w
+                                        .field("title")
+                                        .value("*" + text + "*")
+                                        .boost(1.5f)
+                                ))
+                                .should(s -> s.wildcard(w -> w
+                                        .field("description")
+                                        .value("*" + text + "*")
+                                ))
+                                .should(s -> s.wildcard(w -> w
+                                        .field("fileType")
+                                        .value("*" + text + "*")
+                                ))
+                                .minimumShouldMatch("1")
                         )
                 )
                 .withPageable(PageRequest.of(page - 1, size))

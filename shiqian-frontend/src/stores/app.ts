@@ -20,6 +20,23 @@ export interface ResourceApiItem {
   updateTime?: string
 }
 
+export interface ResourceSearchItem {
+  id: number
+  userId: number
+  title: string
+  description?: string
+  categoryId?: number
+  fileType?: string
+  status: number
+}
+
+export interface UploadedFileItem {
+  originalName: string
+  fileUrl: string
+  fileSize: number
+  fileType: string
+}
+
 export interface CategoryApiItem {
   id: number
   parentId: number
@@ -89,8 +106,7 @@ interface ResourceSubmitPayload {
   cat: string
   type: string
   desc: string
-  fileUrl?: string
-  fileSize?: number
+  files: UploadedFileItem[]
 }
 
 const fallbackCategories = ['计算机科学', '高等数学', '大学英语', '考研资料', '课程笔记', '实验报告', '竞赛资料', '校园生活']
@@ -118,6 +134,7 @@ export const useAppStore = defineStore('app', () => {
   const users = ref<UserItem[]>([])
   const favoriteIds = ref<number[]>([])
   const myResourceIds = ref<number[]>([])
+  const searchResultIds = ref<number[] | null>(null)
 
   const flatCategories = computed(() => flattenCategories(categoryTree.value))
   const categories = computed(() => flatCategories.value.length ? flatCategories.value.map(item => item.name) : fallbackCategories)
@@ -128,10 +145,12 @@ export const useAppStore = defineStore('app', () => {
 
   const filteredResources = computed(() => {
     const text = keyword.value.trim()
-    return publishedResources.value.filter(item => {
+    const source = searchResultIds.value
+      ? publishedResources.value.filter(item => searchResultIds.value?.includes(item.id))
+      : publishedResources.value
+    return source.filter(item => {
       const matchCategory = activeCategory.value === '全部分类' || item.cat === activeCategory.value
-      const matchText = !text || `${item.title}${item.cat}${item.type}${item.desc}`.includes(text)
-      return matchCategory && matchText
+      return matchCategory && (!text || searchResultIds.value || `${item.title}${item.cat}${item.type}${item.desc}`.includes(text))
     })
   })
 
@@ -159,6 +178,19 @@ export const useAppStore = defineStore('app', () => {
       desc: item.description || '',
       fileUrl: item.fileUrl,
       fileSize: item.fileSize
+    }
+  }
+
+  function mapSearchItem(item: ResourceSearchItem): ResourceApiItem {
+    return {
+      id: item.id,
+      title: item.title,
+      userId: item.userId,
+      description: item.description,
+      categoryId: item.categoryId,
+      fileType: item.fileType,
+      status: item.status,
+      downloadCount: 0
     }
   }
 
@@ -205,7 +237,20 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function searchResources() {
-    await loadResources({ categoryId: categoryId(activeCategory.value), keyword: keyword.value })
+    const text = keyword.value.trim()
+    if (!text) {
+      searchResultIds.value = null
+      await loadResources({ categoryId: categoryId(activeCategory.value) })
+      return
+    }
+
+    const data = await request<PageResult<ResourceSearchItem>>('/api/resource/search', {
+      query: { keyword: text, page: 1, size: 100 }
+    })
+    searchResultIds.value = data.records.map(item => item.id)
+    mergeResources(data.records.map(mapSearchItem))
+
+    await Promise.allSettled(data.records.map(item => loadResourceDetail(item.id)))
   }
 
   async function loadResourceDetail(id: number) {
@@ -334,22 +379,38 @@ export const useAppStore = defineStore('app', () => {
     if (item) item.status = '已驳回'
   }
 
+  async function uploadFiles(files: File[]) {
+    const body = new FormData()
+    files.forEach(file => body.append('files', file))
+    return request<UploadedFileItem[]>('/api/resource/files', {
+      method: 'POST',
+      body
+    })
+  }
+
   async function submitResource(payload: ResourceSubmitPayload) {
     const id = categoryId(payload.cat)
     if (!id) {
       throw new Error('请选择有效分类')
     }
-    await request<void>('/api/resource', {
-      method: 'POST',
-      body: jsonBody({
-        title: payload.title,
-        description: payload.desc,
-        categoryId: id,
-        fileUrl: payload.fileUrl || 'https://example.com/demo-resource.pdf',
-        fileSize: payload.fileSize || 0,
-        fileType: payload.type
+    if (!payload.files.length) {
+      throw new Error('请先上传至少一个附件')
+    }
+
+    for (const file of payload.files) {
+      const batchTitle = payload.files.length === 1 ? payload.title : `${payload.title} - ${file.originalName}`
+      await request<void>('/api/resource', {
+        method: 'POST',
+        body: jsonBody({
+          title: batchTitle,
+          description: payload.desc,
+          categoryId: id,
+          fileUrl: file.fileUrl,
+          fileSize: file.fileSize,
+          fileType: payload.type || file.fileType
+        })
       })
-    })
+    }
     await loadMyResources()
   }
 
@@ -417,6 +478,7 @@ export const useAppStore = defineStore('app', () => {
     removeMyResource,
     approveResource,
     rejectResource,
+    uploadFiles,
     submitResource,
     createCategory,
     updateCategory,

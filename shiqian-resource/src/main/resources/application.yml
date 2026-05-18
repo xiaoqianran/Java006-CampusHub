@@ -40,6 +40,13 @@ spring:
           enabled: true
           max-attempts: 3
           initial-interval: 1000ms
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 500MB
+
+resource:
+  upload-dir: uploads/resources
 
 jwt:
   secret: shiqian-platform-jwt-secret-key-must-be-at-least-256-bits-for-hs256
