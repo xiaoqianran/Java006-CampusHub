@@ -20,7 +20,7 @@ const form = reactive({
   desc: ''
 })
 
-const canSubmit = computed(() => Boolean(form.title && form.cat && form.desc && selectedFiles.value.length))
+const canSubmit = computed(() => Boolean(form.title && form.cat && form.desc))
 
 watch(selectedFiles, () => {
   uploadedFiles.value = []
@@ -57,13 +57,13 @@ async function submit() {
     return
   }
   if (!canSubmit.value) {
-    ElMessage.warning('请补充标题、分类、简介并选择附件')
+    ElMessage.warning('请补充标题、分类和简介')
     return
   }
 
   submitting.value = true
   try {
-    if (!uploadedFiles.value.length) {
+    if (selectedFiles.value.length && !uploadedFiles.value.length) {
       await uploadSelectedFiles()
     }
     await store.submitResource({
@@ -74,7 +74,7 @@ async function submit() {
       files: uploadedFiles.value
     })
     localStorage.removeItem('shiqian_publish_draft')
-    ElMessage.success(uploadedFiles.value.length > 1 ? '批量资源已提交审核' : '资源已提交审核')
+    ElMessage.success('资源已提交审核')
     router.push('/mine')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '提交失败')
@@ -94,7 +94,7 @@ function saveDraft() {
     <div class="page-title">
       <div>
         <h1>发布资源</h1>
-        <p class="sub">选择一个或多个附件后提交；多个附件会按文件分别创建待审核资源。</p>
+        <p class="sub">附件为可选项；填写标题、分类和简介后即可提交审核。</p>
       </div>
     </div>
     <el-alert v-if="!store.logged" title="请先登录后发布资源。" type="warning" show-icon :closable="false" style="margin-bottom: 16px" />
@@ -119,7 +119,7 @@ function saveDraft() {
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="附件">
+            <el-form-item label="附件（可选）">
               <el-upload
                 v-model:file-list="selectedFiles"
                 drag
@@ -151,7 +151,6 @@ function saveDraft() {
         </div>
 
         <el-button type="primary" :loading="submitting || uploading" :disabled="!canSubmit" @click="submit">提交审核</el-button>
-        <el-button :loading="uploading" :disabled="!selectedFiles.length" @click="uploadSelectedFiles">仅上传附件</el-button>
         <el-button @click="saveDraft">保存草稿</el-button>
       </el-form>
     </el-card>
