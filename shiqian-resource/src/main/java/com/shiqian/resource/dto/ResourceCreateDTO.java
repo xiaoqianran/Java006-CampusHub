@@ -6,6 +6,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 public class ResourceCreateDTO {
 
@@ -13,13 +15,17 @@ public class ResourceCreateDTO {
     @Size(max = 200, message = "资源标题最多200个字符")
     private String title;
 
-    @Size(max = 1000, message = "资源描述最多1000个字符")
-    private String description;
+    @Size(max = 500, message = "资源摘要最多500个字符")
+    private String summary;
+
+    @NotBlank(message = "Markdown 正文不能为空")
+    private String contentMarkdown;
 
     @NotNull(message = "分类ID不能为空")
     @Min(value = 1, message = "分类ID必须大于0")
     private Long categoryId;
 
+    // 以下字段保留向后兼容，未来会迁移到 resource_attachment 表
     @Size(max = 500, message = "文件地址最多500个字符")
     private String fileUrl;
 
@@ -28,4 +34,7 @@ public class ResourceCreateDTO {
 
     @Size(max = 100, message = "文件类型最多100个字符")
     private String fileType;
+
+    // 附件列表（第二阶段正式支持）
+    private List<AttachmentCreateDTO> attachments;
 }

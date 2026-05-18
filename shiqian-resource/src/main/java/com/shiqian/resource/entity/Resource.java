@@ -16,14 +16,17 @@ public class Resource {
 
     private String title;
 
-    private String description;
+    private String summary;
+
+    private String contentMarkdown;
+
+    private String contentType;   // MARKDOWN / HTML 等，默认为 MARKDOWN
 
     private Long categoryId;
 
+    // 以下旧字段保留兼容，未来逐步废弃
     private String fileUrl;
-
     private Long fileSize;
-
     private String fileType;
 
     private Integer downloadCount;
