@@ -104,15 +104,16 @@ public class ResourceServiceImpl implements ResourceService {
     }
 
     @Override
-    @Cacheable(value = "resource:detail", key = "#id")
+    @Cacheable(value = "resource:detail", key = "#id", unless = "#result == null")
     public Resource getResourceById(Long id) {
         Resource resource = resourceMapper.selectById(id);
-        if (resource != null) {
-            List<ResourceAttachment> attachments = resourceAttachmentMapper.selectList(
-                new QueryWrapper<ResourceAttachment>().eq("resource_id", id).orderByAsc("sort_order")
-            );
-            resource.setAttachments(attachments);
+        if (resource == null || resource.getDeleted() == 1) {
+            return null;
         }
+        List<ResourceAttachment> attachments = resourceAttachmentMapper.selectList(
+            new QueryWrapper<ResourceAttachment>().eq("resource_id", id).orderByAsc("sort_order")
+        );
+        resource.setAttachments(attachments);
         return resource;
     }
 
@@ -154,8 +155,8 @@ public class ResourceServiceImpl implements ResourceService {
         if (existing == null || existing.getDeleted() == 1) {
             throw new BusinessException("资源不存在");
         }
-        if (!canModify(existing, userId)) {
-            throw new BusinessException("无权删除该资源");
+        if (!existing.getUserId().equals(userId)) {
+            throw new BusinessException(403, "无权删除该资源");
         }
         resourceMapper.deleteById(id);
         resourceDocumentRepository.deleteById(id);

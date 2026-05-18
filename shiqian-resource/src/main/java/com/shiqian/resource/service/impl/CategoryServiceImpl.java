@@ -102,10 +102,12 @@ public class CategoryServiceImpl implements CategoryService {
         if (cache != null) {
             Cache.ValueWrapper wrapper = cache.get(SPRING_CACHE_KEY);
             if (wrapper != null && wrapper.get() instanceof List<?> cachedList) {
-                return cachedList.stream()
+                List<Category> tree = cachedList.stream()
                     .filter(Category.class::isInstance)
                     .map(Category.class::cast)
                     .toList();
+                redisTemplate.opsForValue().set(CATEGORY_TREE_CACHE_KEY, tree, CATEGORY_TREE_TTL);
+                return tree;
             }
         }
 

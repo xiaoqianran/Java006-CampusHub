@@ -13,6 +13,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.stream.Collectors;
 
@@ -21,10 +22,16 @@ import java.util.stream.Collectors;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
-    @ResponseStatus(HttpStatus.OK)
-    public Result<Object> handleBusinessException(BusinessException e) {
+    public org.springframework.http.ResponseEntity<Result<Object>> handleBusinessException(BusinessException e) {
         log.warn("BusinessException: code={}, message={}", e.getCode(), e.getMessage());
-        return Result.fail(e.getCode(), e.getMessage());
+        HttpStatus status = switch (e.getCode()) {
+            case 401 -> HttpStatus.UNAUTHORIZED;
+            case 403 -> HttpStatus.FORBIDDEN;
+            default -> HttpStatus.OK;
+        };
+        return org.springframework.http.ResponseEntity
+                .status(status)
+                .body(Result.fail(e.getCode(), e.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -72,6 +79,16 @@ public class GlobalExceptionHandler {
     public Result<Object> handleAccessDeniedException(AccessDeniedException e) {
         log.warn("AccessDeniedException: {}", e.getMessage());
         return Result.fail(403, "无权限访问");
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public org.springframework.http.ResponseEntity<Result<Object>> handleResponseStatusException(ResponseStatusException e) {
+        int status = e.getStatusCode().value();
+        String message = e.getReason() != null ? e.getReason() : e.getMessage();
+        log.warn("ResponseStatusException: status={}, message={}", status, message);
+        return org.springframework.http.ResponseEntity
+                .status(e.getStatusCode())
+                .body(Result.fail(status, message));
     }
 
     @ExceptionHandler(Exception.class)

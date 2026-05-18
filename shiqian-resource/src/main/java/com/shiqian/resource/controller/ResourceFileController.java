@@ -12,7 +12,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -20,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.util.UriUtils;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.nio.charset.StandardCharsets;
@@ -45,20 +45,30 @@ public class ResourceFileController {
     @Operation(summary = "批量上传资源附件")
     @PostMapping
     @PreAuthorize("hasAuthority('resource:create')")
-    public Result<List<FileUploadVO>> uploadFiles(@RequestParam("files") List<MultipartFile> files) throws IOException {
-        if (files == null || files.isEmpty()) {
+    public Result<List<FileUploadVO>> uploadFiles(
+            @RequestParam(value = "files", required = false) List<MultipartFile> files,
+            @RequestParam(value = "file", required = false) MultipartFile file) throws IOException {
+        List<MultipartFile> uploadFiles = new ArrayList<>();
+        if (files != null) {
+            uploadFiles.addAll(files);
+        }
+        if (file != null) {
+            uploadFiles.add(file);
+        }
+
+        if (uploadFiles.isEmpty()) {
             return Result.fail(400, "请选择要上传的文件");
         }
 
         Files.createDirectories(uploadPath);
         List<FileUploadVO> result = new ArrayList<>();
-        for (MultipartFile file : files) {
-            if (file.isEmpty()) {
+        for (MultipartFile uploadFile : uploadFiles) {
+            if (uploadFile.isEmpty()) {
                 continue;
             }
-            String originalName = StringUtils.cleanPath(file.getOriginalFilename() == null
+            String originalName = StringUtils.cleanPath(uploadFile.getOriginalFilename() == null
                     ? "resource-file"
-                    : file.getOriginalFilename());
+                    : uploadFile.getOriginalFilename());
             String ext = "";
             int dotIndex = originalName.lastIndexOf('.');
             if (dotIndex >= 0) {
@@ -69,13 +79,13 @@ public class ResourceFileController {
             if (!target.startsWith(uploadPath)) {
                 return Result.fail(400, "非法文件名");
             }
-            Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
+            Files.copy(uploadFile.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
 
             FileUploadVO vo = new FileUploadVO();
             vo.setOriginalName(originalName);
             vo.setFileUrl("/api/resource/files/" + UriUtils.encodePathSegment(storedName, StandardCharsets.UTF_8));
-            vo.setFileSize(file.getSize());
-            vo.setFileType(resolveFileType(file, originalName));
+            vo.setFileSize(uploadFile.getSize());
+            vo.setFileType(resolveFileType(uploadFile, originalName));
             result.add(vo);
         }
         log.info("资源附件上传成功: count={}", result.size());
@@ -83,10 +93,14 @@ public class ResourceFileController {
     }
 
     @Operation(summary = "访问资源附件")
-    @GetMapping("/{filename:.+}")
-    public ResponseEntity<org.springframework.core.io.Resource> getFile(@PathVariable String filename) throws MalformedURLException {
+    @GetMapping("/**")
+    public ResponseEntity<org.springframework.core.io.Resource> getFile(HttpServletRequest request) throws MalformedURLException {
+        String prefix = "/api/resource/files/";
+        String uri = request.getRequestURI();
+        String filename = uri.startsWith(prefix) ? uri.substring(prefix.length()) : "";
+        filename = UriUtils.decode(filename, StandardCharsets.UTF_8);
         Path target = uploadPath.resolve(filename).normalize();
-        if (!target.startsWith(uploadPath) || !Files.exists(target)) {
+        if (!StringUtils.hasText(filename) || filename.contains("..") || !target.startsWith(uploadPath) || !Files.exists(target)) {
             return ResponseEntity.notFound().build();
         }
 
