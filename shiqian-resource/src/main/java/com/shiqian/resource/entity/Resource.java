@@ -17,6 +17,8 @@ public class Resource {
 
     private String title;
 
+    private String description;
+
     private String summary;
 
     private String contentMarkdown;

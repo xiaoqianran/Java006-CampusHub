@@ -23,6 +23,7 @@ export interface ResourceApiItem {
   status: number
   createTime?: string
   updateTime?: string
+  attachments?: ResourceAttachmentItem[]
 }
 
 export interface ResourceSearchItem {
@@ -249,7 +250,7 @@ export const useAppStore = defineStore('app', () => {
       contentType: item.contentType,
       fileUrl: item.fileUrl,
       fileSize: item.fileSize,
-      attachments: (item as any).attachments || []
+      attachments: item.attachments || []
     }
   }
 
@@ -473,7 +474,7 @@ export const useAppStore = defineStore('app', () => {
       fileUrl: file.fileUrl,
       fileSize: file.fileSize,
       fileType: file.fileType,
-      mimeType: (file as any).mimeType || '',
+      mimeType: file.mimeType || file.fileType || '',
       assetKind: (file as any).assetKind || 'FILE',
       usageType: (file as any).usageType || 'ATTACHMENT',
       sortOrder: (file as any).sortOrder ?? index

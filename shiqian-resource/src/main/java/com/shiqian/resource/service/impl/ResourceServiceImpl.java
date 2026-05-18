@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shiqian.common.content.SensitiveWordFilter;
 import com.shiqian.common.exception.BusinessException;
+import com.shiqian.common.security.SecurityUtil;
 import com.shiqian.resource.config.RabbitMQConfig;
 import com.shiqian.resource.document.ResourceDocument;
 import com.shiqian.resource.dto.ResourceAuditMessage;
@@ -122,6 +123,9 @@ public class ResourceServiceImpl implements ResourceService {
         if (existing == null || existing.getDeleted() == 1) {
             throw new BusinessException("资源不存在");
         }
+        if (!canModify(existing, userId)) {
+            throw new BusinessException("无权更新该资源");
+        }
         validateContent(dto.getTitle(), dto.getSummary(), dto.getContentMarkdown());
 
         Category category = categoryService.getCategoryById(dto.getCategoryId());
@@ -132,7 +136,7 @@ public class ResourceServiceImpl implements ResourceService {
         Resource resource = new Resource();
         BeanUtils.copyProperties(dto, resource);
         resource.setId(id);
-        resource.setUserId(userId);
+        resource.setUserId(existing.getUserId());
         resource.setVersion(existing.getVersion() + 1);
         resource.setDownloadCount(existing.getDownloadCount());
         resource.setStatus(existing.getStatus());
@@ -150,7 +154,7 @@ public class ResourceServiceImpl implements ResourceService {
         if (existing == null || existing.getDeleted() == 1) {
             throw new BusinessException("资源不存在");
         }
-        if (!existing.getUserId().equals(userId)) {
+        if (!canModify(existing, userId)) {
             throw new BusinessException("无权删除该资源");
         }
         resourceMapper.deleteById(id);
@@ -235,6 +239,13 @@ public class ResourceServiceImpl implements ResourceService {
             (contentMarkdown != null && sensitiveWordFilter.contains(contentMarkdown))) {
             throw new BusinessException("资源内容包含敏感词");
         }
+    }
+
+    private boolean canModify(Resource resource, Long userId) {
+        if (resource == null || userId == null) {
+            return false;
+        }
+        return userId.equals(resource.getUserId()) || "ADMIN".equals(SecurityUtil.getCurrentRole());
     }
 
     private ResourceDocument buildResourceDocument(Resource resource) {
