@@ -9,10 +9,13 @@ import com.shiqian.resource.service.CategoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -24,7 +27,13 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CategoryServiceImpl implements CategoryService {
 
+    private static final String CATEGORY_TREE_CACHE_KEY = "category:tree";
+    private static final Duration CATEGORY_TREE_TTL = Duration.ofMinutes(30);
+    private static final String SPRING_CACHE_KEY = "SimpleKey []";
+
     private final CategoryMapper categoryMapper;
+    private final RedisTemplate<String, Object> redisTemplate;
+    private final CacheManager cacheManager;
 
     @Override
     @CacheEvict(value = "category:tree", allEntries = true)
@@ -39,6 +48,7 @@ public class CategoryServiceImpl implements CategoryService {
         category.setStatus(category.getStatus() != null ? category.getStatus() : 1);
         category.setSortOrder(category.getSortOrder() != null ? category.getSortOrder() : 0);
         categoryMapper.insert(category);
+        evictCategoryTreeCache();
     }
 
     @Override
@@ -59,6 +69,7 @@ public class CategoryServiceImpl implements CategoryService {
 
         category.setCreateTime(null);
         categoryMapper.updateById(category);
+        evictCategoryTreeCache();
     }
 
     @Override
@@ -77,6 +88,7 @@ public class CategoryServiceImpl implements CategoryService {
         }
 
         categoryMapper.deleteById(id);
+        evictCategoryTreeCache();
     }
 
     @Override
@@ -85,11 +97,27 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
-    @Cacheable(value = "category:tree")
     public List<Category> getCategoryTree() {
-        // 分类树使用 Redis 缓存（key: "category:tree"）。修复 t_category 中文乱码后，
-        // 需清理缓存：docker restart shiqian-redis 或 redis-cli DEL "category:tree"。
-        // 增删改操作已通过 @CacheEvict(value = "category:tree", allEntries = true) 自动失效。
+        Cache cache = cacheManager.getCache(CATEGORY_TREE_CACHE_KEY);
+        if (cache != null) {
+            Cache.ValueWrapper wrapper = cache.get(SPRING_CACHE_KEY);
+            if (wrapper != null && wrapper.get() instanceof List<?> cachedList) {
+                return cachedList.stream()
+                    .filter(Category.class::isInstance)
+                    .map(Category.class::cast)
+                    .toList();
+            }
+        }
+
+        List<Category> tree = loadCategoryTree();
+        if (cache != null) {
+            cache.put(SPRING_CACHE_KEY, tree);
+        }
+        redisTemplate.opsForValue().set(CATEGORY_TREE_CACHE_KEY, tree, CATEGORY_TREE_TTL);
+        return tree;
+    }
+
+    private List<Category> loadCategoryTree() {
         QueryWrapper<Category> wrapper = new QueryWrapper<>();
         wrapper.eq("deleted", 0).eq("status", 1);
         List<Category> allCategories = categoryMapper.selectList(wrapper);
@@ -102,6 +130,14 @@ public class CategoryServiceImpl implements CategoryService {
                 .collect(Collectors.groupingBy(Category::getParentId));
 
         return buildTree(childrenMap, 0L);
+    }
+
+    private void evictCategoryTreeCache() {
+        Cache cache = cacheManager.getCache(CATEGORY_TREE_CACHE_KEY);
+        if (cache != null) {
+            cache.clear();
+        }
+        redisTemplate.delete(CATEGORY_TREE_CACHE_KEY);
     }
 
     private List<Category> buildTree(Map<Long, List<Category>> childrenMap, Long parentId) {
