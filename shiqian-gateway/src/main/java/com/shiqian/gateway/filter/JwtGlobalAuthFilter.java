@@ -36,6 +36,8 @@ public class JwtGlobalAuthFilter implements GlobalFilter, Ordered {
             "/api/user/register",
             "/api/user/login",
             "/api/user/health",
+            "/api/resource",
+            "/api/category",
             "/actuator"
     );
 
@@ -78,6 +80,14 @@ public class JwtGlobalAuthFilter implements GlobalFilter, Ordered {
             return true;
         }
         String path = exchange.getRequest().getURI().getPath();
+        HttpMethod method = exchange.getRequest().getMethod();
+        if (HttpMethod.GET.equals(method)
+                && (path.startsWith("/api/resource") || path.startsWith("/api/category"))) {
+            return true;
+        }
+        if (HttpMethod.POST.equals(method) && path.matches("/api/resource/\\d+/download")) {
+            return true;
+        }
         List<String> effective = (whitelist != null && !whitelist.isEmpty()) ? whitelist : DEFAULT_WHITELIST;
         return effective.stream().anyMatch(path::startsWith);
     }
