@@ -66,6 +66,32 @@ public class ResourceController {
         return Result.ok(result);
     }
 
+    @Operation(summary = "分页查询当前用户发布的资源")
+    @GetMapping("/mine")
+    @PreAuthorize("hasAuthority('resource:read')")
+    public Result<Page<Resource>> pageMyResources(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer size) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        if (userId == null) {
+            return Result.fail(401, "未登录");
+        }
+        return Result.ok(resourceService.pageUserResources(userId, page, size));
+    }
+
+    @Operation(summary = "分页查询当前用户收藏的资源")
+    @GetMapping("/favorites")
+    @PreAuthorize("hasAuthority('resource:favorite')")
+    public Result<Page<Resource>> pageFavoriteResources(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer size) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        if (userId == null) {
+            return Result.fail(401, "未登录");
+        }
+        return Result.ok(favoriteService.pageFavorites(userId, page, size));
+    }
+
     @Operation(summary = "根据ID获取资源详情")
     @GetMapping("/{id}")
     public Result<Resource> getResourceById(@PathVariable Long id) {

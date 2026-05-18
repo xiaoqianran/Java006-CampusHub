@@ -1,6 +1,7 @@
 package com.shiqian.resource.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shiqian.common.exception.BusinessException;
 import com.shiqian.resource.entity.Favorite;
 import com.shiqian.resource.entity.Resource;
@@ -10,6 +11,12 @@ import com.shiqian.resource.service.FavoriteService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -54,5 +61,32 @@ public class FavoriteServiceImpl implements FavoriteService {
         wrapper.eq("user_id", userId);
         wrapper.eq("resource_id", resourceId);
         return favoriteMapper.selectCount(wrapper) > 0;
+    }
+
+    @Override
+    public Page<Resource> pageFavorites(Long userId, Integer page, Integer size) {
+        Page<Favorite> favoritePage = new Page<>(page, size);
+        QueryWrapper<Favorite> wrapper = new QueryWrapper<>();
+        wrapper.eq("user_id", userId);
+        wrapper.orderByDesc("create_time");
+        Page<Favorite> favorites = favoriteMapper.selectPage(favoritePage, wrapper);
+
+        Page<Resource> result = new Page<>(favorites.getCurrent(), favorites.getSize(), favorites.getTotal());
+        List<Long> resourceIds = favorites.getRecords().stream()
+                .map(Favorite::getResourceId)
+                .toList();
+        if (resourceIds.isEmpty()) {
+            result.setRecords(Collections.emptyList());
+            return result;
+        }
+
+        Map<Long, Resource> resourceMap = resourceMapper.selectBatchIds(resourceIds).stream()
+                .filter(resource -> resource.getDeleted() == null || resource.getDeleted() == 0)
+                .collect(Collectors.toMap(Resource::getId, Function.identity()));
+        result.setRecords(resourceIds.stream()
+                .map(resourceMap::get)
+                .filter(resource -> resource != null)
+                .collect(Collectors.toList()));
+        return result;
     }
 }

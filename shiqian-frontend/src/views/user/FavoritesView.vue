@@ -1,8 +1,17 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
 import ResourceCard from '@/components/ResourceCard.vue'
 import { useAppStore } from '@/stores/app'
 
 const store = useAppStore()
+
+onMounted(() => {
+  if (!store.logged) return
+  store.loadFavorites().catch(error => {
+    ElMessage.error(error instanceof Error ? error.message : '收藏加载失败')
+  })
+})
 </script>
 
 <template>

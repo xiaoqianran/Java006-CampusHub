@@ -1,11 +1,13 @@
 package com.shiqian.user.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shiqian.common.exception.BusinessException;
 import com.shiqian.user.dto.LoginDTO;
 import com.shiqian.user.dto.LoginVO;
 import com.shiqian.user.dto.RegisterDTO;
 import com.shiqian.user.dto.UpdateUserDTO;
+import com.shiqian.user.dto.UserInfoVO;
 import com.shiqian.user.entity.User;
 import com.shiqian.user.mapper.UserMapper;
 import com.shiqian.user.service.UserService;
@@ -15,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 @Slf4j
 @Service
@@ -146,5 +149,48 @@ public class UserServiceImpl implements UserService {
         }
 
         userMapper.updateById(user);
+    }
+
+    @Override
+    public UserInfoVO getUserInfo(Long userId) {
+        User user = userMapper.selectById(userId);
+        if (user == null || user.getDeleted() == 1) {
+            throw new BusinessException(404, "用户不存在");
+        }
+        return toUserInfoVO(user);
+    }
+
+    @Override
+    public Page<UserInfoVO> pageUsers(Integer page, Integer size, String keyword) {
+        Page<User> pageParam = new Page<>(page, size);
+        QueryWrapper<User> wrapper = new QueryWrapper<>();
+        wrapper.eq("deleted", 0);
+        if (StringUtils.hasText(keyword)) {
+            wrapper.and(w -> w.like("username", keyword)
+                    .or()
+                    .like("nickname", keyword)
+                    .or()
+                    .like("email", keyword));
+        }
+        wrapper.orderByDesc("create_time");
+        Page<User> userPage = userMapper.selectPage(pageParam, wrapper);
+
+        Page<UserInfoVO> result = new Page<>(userPage.getCurrent(), userPage.getSize(), userPage.getTotal());
+        result.setRecords(userPage.getRecords().stream().map(this::toUserInfoVO).toList());
+        return result;
+    }
+
+    private UserInfoVO toUserInfoVO(User user) {
+        UserInfoVO vo = new UserInfoVO();
+        vo.setUserId(user.getId());
+        vo.setUsername(user.getUsername());
+        vo.setNickname(user.getNickname());
+        vo.setEmail(user.getEmail());
+        vo.setPhone(user.getPhone());
+        vo.setAvatar(user.getAvatar());
+        vo.setRole(user.getRole());
+        vo.setStatus(user.getStatus());
+        vo.setCreateTime(user.getCreateTime());
+        return vo;
     }
 }

@@ -21,5 +21,7 @@ public class UserInfoVO {
 
     private String role;
 
+    private Integer status;
+
     private LocalDateTime createTime;
 }

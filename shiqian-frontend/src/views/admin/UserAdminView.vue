@@ -1,9 +1,17 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
 import AdminLayout from '@/components/AdminLayout.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import { useAppStore } from '@/stores/app'
 
 const store = useAppStore()
+
+onMounted(() => {
+  store.loadUsers().catch(error => {
+    ElMessage.error(error instanceof Error ? error.message : '用户加载失败')
+  })
+})
 </script>
 
 <template>

@@ -1,12 +1,33 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import AdminLayout from '@/components/AdminLayout.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import { useAppStore } from '@/stores/app'
 
 const store = useAppStore()
-function approve(id: number) { store.approveResource(id); ElMessage.success('已通过，资源将进入资源广场') }
-function reject(id: number) { store.rejectResource(id); ElMessage.warning('已驳回，发布者可在我的发布中查看') }
+
+onMounted(() => {
+  store.loadResources().catch(() => undefined)
+})
+
+async function approve(id: number) {
+  try {
+    await store.approveResource(id)
+    ElMessage.success('已通过，资源将进入资源广场')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '审核失败')
+  }
+}
+
+async function reject(id: number) {
+  try {
+    await store.rejectResource(id)
+    ElMessage.warning('已驳回，发布者可在我的发布中查看')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '审核失败')
+  }
+}
 </script>
 
 <template>
