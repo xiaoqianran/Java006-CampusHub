@@ -1,20 +1,17 @@
 <script setup lang="ts">
 import { useRoute, useRouter } from 'vue-router'
-import { useAppStore } from '@/stores/app'
 
 const route = useRoute()
 const router = useRouter()
-const store = useAppStore()
 const links = [
   { path: '/admin', label: '后台首页' },
-  { path: '/audit', label: '资源审核' },
-  { path: '/resource-admin', label: '资源管理' },
-  { path: '/category-admin', label: '分类管理' },
-  { path: '/user-admin', label: '用户管理' }
+  { path: '/admin/audit', label: '资源审核' },
+  { path: '/admin/resources', label: '资源管理' },
+  { path: '/admin/categories', label: '分类管理' },
+  { path: '/admin/users', label: '用户管理' }
 ]
 
 function backToStudent() {
-  store.setRole('student')
   router.push('/home')
 }
 </script>
