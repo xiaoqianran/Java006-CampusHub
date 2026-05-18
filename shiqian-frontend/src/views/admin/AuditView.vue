@@ -163,28 +163,31 @@ async function reject(id: number) {
       v-model="detailVisible"
       title="资源审核详情"
       width="720px"
-      destroy-on-close
+      class="audit-detail-dialog"
+      modal-class="audit-detail-modal"
+      :destroy-on-close="false"
       :lock-scroll="false"
+      :close-on-click-modal="false"
       @closed="current = null"
     >
-      <div v-if="current" v-loading="detailLoading" class="audit-detail">
-        <h2>{{ current.title }}</h2>
+      <div v-loading="detailLoading" class="audit-detail no-white-flash">
+        <h2>{{ current?.title || '资源审核详情' }}</h2>
 
         <div class="audit-meta">
-          <span>分类：{{ current.cat }}</span>
-          <span>类型：{{ current.type }}</span>
-          <span>发布者：{{ current.author }}</span>
-          <span>文件大小：{{ current.fileSize || 0 }} 字节</span>
+          <span>分类：{{ current?.cat || '-' }}</span>
+          <span>类型：{{ current?.type || '-' }}</span>
+          <span>发布者：{{ current?.author || '-' }}</span>
+          <span>文件大小：{{ current?.fileSize || 0 }} 字节</span>
         </div>
 
         <div class="audit-section">
           <h3>资源简介</h3>
-          <p>{{ current.desc || '暂无简介' }}</p>
+          <p>{{ current?.desc || '暂无简介' }}</p>
         </div>
 
         <div class="audit-section">
           <h3>原文件</h3>
-          <p v-if="current.fileUrl" class="audit-file-url">{{ current.fileUrl }}</p>
+          <p v-if="current?.fileUrl" class="audit-file-url">{{ current?.fileUrl }}</p>
           <p v-else class="sub">该资源没有可查看的文件地址。</p>
         </div>
       </div>
