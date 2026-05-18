@@ -16,6 +16,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,6 +29,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 
@@ -46,13 +48,13 @@ public class ResourceController {
     @Operation(summary = "创建资源")
     @PostMapping
     @PreAuthorize("hasAuthority('resource:create')")
-    public Result<Void> createResource(@RequestBody @Valid ResourceCreateDTO dto) {
+    public Result<Long> createResource(@RequestBody @Valid ResourceCreateDTO dto) {
         Long userId = SecurityUtil.getCurrentUserId();
         if (userId == null) {
             return Result.fail(401, "未登录");
         }
-        resourceService.createResource(userId, dto);
-        return Result.ok();
+        Resource resource = resourceService.createResource(userId, dto);
+        return Result.ok(resource.getId());
     }
 
     @Operation(summary = "分页查询资源列表")
@@ -96,6 +98,9 @@ public class ResourceController {
     @GetMapping("/{id}")
     public Result<Resource> getResourceById(@PathVariable Long id) {
         Resource resource = resourceService.getResourceById(id);
+        if (resource == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "资源不存在或已删除");
+        }
         return Result.ok(resource);
     }
 

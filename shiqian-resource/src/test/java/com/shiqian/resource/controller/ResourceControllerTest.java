@@ -242,7 +242,10 @@ public class ResourceControllerTest extends BaseResourceTest {
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/api/resource/{id}", 1))
+        var page = resourceService.pageResources(1, 1, category.getId(), "详情测试资源");
+        Long id = page.getRecords().get(0).getId();
+
+        mockMvc.perform(get("/api/resource/{id}", id))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
     }
@@ -250,9 +253,8 @@ public class ResourceControllerTest extends BaseResourceTest {
     @Test
     public void testGetResourceByIdNotExist() throws Exception {
         mockMvc.perform(get("/api/resource/{id}", 99999))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data").isEmpty());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(404));
     }
 
     @Test
@@ -305,8 +307,8 @@ public class ResourceControllerTest extends BaseResourceTest {
                 .andExpect(jsonPath("$.code").value(200));
 
         mockMvc.perform(get("/api/resource/{id}", resource.getId()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data").isEmpty());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(404));
     }
 
     @Test
