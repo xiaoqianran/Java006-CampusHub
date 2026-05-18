@@ -1128,6 +1128,293 @@ html[data-theme='dark'] .admin-main .el-button:not(.el-button--primary):hover {
   }
 }
 
+/* ===== 管理端分类管理：文件夹式卡片 + 分类内容预览 ===== */
+
+.admin-category-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  align-items: stretch;
+}
+
+.admin-category-folder {
+  position: relative;
+  min-height: 178px;
+  cursor: pointer;
+  overflow: visible;
+  transition:
+    transform .18s ease,
+    box-shadow .18s ease,
+    border-color .18s ease,
+    background-color .18s ease;
+}
+
+.admin-category-folder .el-card__body {
+  height: 100%;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-category-folder:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  border-color: rgba(37, 99, 235, 0.32);
+}
+
+.folder-action {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+  opacity: .72;
+  transition: opacity .18s ease;
+}
+
+.admin-category-folder:hover .folder-action {
+  opacity: 1;
+}
+
+.folder-more {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+}
+
+.folder-icon {
+  width: 58px;
+  height: 58px;
+  border-radius: 20px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  font-size: 28px;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.folder-name {
+  margin-top: 16px;
+  min-height: 48px;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.35;
+  color: var(--text);
+  word-break: break-all;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.folder-meta {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.folder-hint {
+  margin-top: auto;
+  padding-top: 14px;
+  color: var(--muted);
+  font-size: 13px;
+  opacity: .78;
+}
+
+.category-detail-head {
+  margin-bottom: 16px;
+}
+
+.category-back {
+  margin-bottom: 8px;
+  padding-left: 0;
+  font-weight: 700;
+}
+
+.category-breadcrumb {
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.category-detail-title {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.category-detail-title h1 {
+  margin: 0;
+  line-height: 1.2;
+}
+
+.category-detail-panel {
+  min-height: 420px;
+}
+
+.category-resource-desc {
+  margin: 6px 0 0;
+  max-width: 520px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 深色模式 */
+html[data-theme='dark'] .admin-category-folder {
+  background-color: #1e2329;
+  border-color: #2b3139;
+}
+
+html[data-theme='dark'] .admin-category-folder:hover {
+  border-color: rgba(252, 213, 53, 0.42);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.28);
+}
+
+html[data-theme='dark'] .folder-icon {
+  background-color: rgba(252, 213, 53, 0.12);
+  color: #fcd535;
+}
+
+html[data-theme='dark'] .folder-name {
+  color: #eaecef;
+}
+
+html[data-theme='dark'] .folder-more {
+  background-color: #1e2329 !important;
+  border-color: #2b3139 !important;
+  color: #eaecef !important;
+}
+
+html[data-theme='dark'] .folder-more:hover {
+  background-color: rgba(252, 213, 53, 0.12) !important;
+  border-color: #fcd535 !important;
+  color: #fcd535 !important;
+}
+
+html[data-theme='dark'] .category-detail-panel {
+  background-color: #1e2329;
+  border-color: #2b3139;
+}
+
+@media (max-width: 1180px) {
+  .admin-category-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .admin-category-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .category-detail-title {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 560px) {
+  .admin-category-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===== 深色模式防闪白补丁：Dialog / Loading / Table / 视图切换 ===== */
+
+/* 1. 根节点、应用壳、后台主区域全部兜底为深色，避免组件切换瞬间露白 */
+html[data-theme='dark'],
+html[data-theme='dark'] body,
+html[data-theme='dark'] #app,
+html[data-theme='dark'] .app-shell,
+html[data-theme='dark'] .main-content,
+html[data-theme='dark'] .admin-main {
+  background-color: #0b0e11 !important;
+}
+
+/* 2. 所有可能被 v-loading 覆盖的区域，先固定深色底 */
+html[data-theme='dark'] .no-white-flash,
+html[data-theme='dark'] .audit-detail,
+html[data-theme='dark'] .category-detail-panel,
+html[data-theme='dark'] .el-card,
+html[data-theme='dark'] .el-card__body {
+  background-color: #1e2329 !important;
+  color: #eaecef !important;
+}
+
+/* 3. Element Plus Loading 默认是白色遮罩，这里必须强制改掉 */
+html[data-theme='dark'] .el-loading-mask {
+  background-color: rgba(30, 35, 41, 0.88) !important;
+  backdrop-filter: blur(2px);
+}
+
+html[data-theme='dark'] .el-loading-spinner .path {
+  stroke: #fcd535 !important;
+}
+
+html[data-theme='dark'] .el-loading-spinner .el-loading-text {
+  color: #fcd535 !important;
+}
+
+/* 4. Dialog 从 overlay 到 body 全链路深色，避免打开详情时闪白 */
+html[data-theme='dark'] .audit-detail-modal {
+  background-color: rgba(0, 0, 0, 0.58) !important;
+}
+
+html[data-theme='dark'] .audit-detail-dialog,
+html[data-theme='dark'] .audit-detail-dialog .el-dialog,
+html[data-theme='dark'] .el-dialog {
+  background-color: #1e2329 !important;
+  border: 1px solid #2b3139 !important;
+  border-radius: 18px;
+  color: #eaecef !important;
+}
+
+html[data-theme='dark'] .el-dialog__header,
+html[data-theme='dark'] .el-dialog__body,
+html[data-theme='dark'] .el-dialog__footer {
+  background-color: #1e2329 !important;
+  color: #eaecef !important;
+}
+
+html[data-theme='dark'] .el-dialog__title {
+  color: #eaecef !important;
+}
+
+/* 5. Table 初始化时也不能露白 */
+html[data-theme='dark'] .el-table,
+html[data-theme='dark'] .el-table__inner-wrapper,
+html[data-theme='dark'] .el-table__body-wrapper,
+html[data-theme='dark'] .el-table__header-wrapper,
+html[data-theme='dark'] .el-table tr,
+html[data-theme='dark'] .el-table td.el-table__cell {
+  background-color: #1e2329 !important;
+  color: #eaecef !important;
+}
+
+html[data-theme='dark'] .el-table th.el-table__cell {
+  background-color: #161b22 !important;
+  color: #eaecef !important;
+}
+
+html[data-theme='dark'] .el-table__empty-block {
+  background-color: #1e2329 !important;
+}
+
+html[data-theme='dark'] .el-empty {
+  background-color: #1e2329 !important;
+}
+
+/* 6. 减少 Dialog 打开时的白色过渡感 */
+html[data-theme='dark'] .dialog-fade-enter-active,
+html[data-theme='dark'] .dialog-fade-leave-active {
+  transition:
+    opacity .12s ease,
+    transform .12s ease !important;
+}
+
 /* ===== 资源审核页 通过/驳回 按钮 深色模式高优先级覆盖 =====
    必须放在所有通用 .el-button 暗色规则之后
 */
