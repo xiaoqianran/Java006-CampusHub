@@ -53,6 +53,17 @@ public class ResourceServiceImpl implements ResourceService {
         resource.setVersion(1);
         resource.setStatus(0);
 
+        // 无附件资源处理：允许纯文字/链接/经验分享型资源
+        if (!StringUtils.hasText(resource.getFileUrl())) {
+            resource.setFileUrl("");
+        }
+        if (resource.getFileSize() == null) {
+            resource.setFileSize(0L);
+        }
+        if (!StringUtils.hasText(resource.getFileType())) {
+            resource.setFileType("文字资源");
+        }
+
         resourceMapper.insert(resource);
         resourceDocumentRepository.save(buildResourceDocument(resource));
         log.info("资源创建成功: id={}, title={}, userId={}", resource.getId(), resource.getTitle(), userId);

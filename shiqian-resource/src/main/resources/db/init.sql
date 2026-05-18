@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS t_resource (
     title VARCHAR(200) NOT NULL COMMENT '资源标题',
     description VARCHAR(1000) DEFAULT NULL COMMENT '资源描述',
     category_id BIGINT DEFAULT NULL COMMENT '分类ID',
-    file_url VARCHAR(500) NOT NULL COMMENT '文件地址',
+    file_url VARCHAR(500) DEFAULT NULL COMMENT '文件地址（可选，文字资源可为空）',
     file_size BIGINT NOT NULL DEFAULT 0 COMMENT '文件大小（字节）',
     file_type VARCHAR(100) DEFAULT NULL COMMENT '文件MIME类型或扩展名',
     download_count INT NOT NULL DEFAULT 0 COMMENT '下载次数',

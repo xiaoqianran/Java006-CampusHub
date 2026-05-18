@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS t_resource (
     title VARCHAR(200) NOT NULL,
     description VARCHAR(1000) DEFAULT NULL,
     category_id BIGINT DEFAULT NULL,
-    file_url VARCHAR(500) NOT NULL,
+    file_url VARCHAR(500) DEFAULT NULL,
     file_size BIGINT NOT NULL DEFAULT 0,
     file_type VARCHAR(100) DEFAULT NULL,
     download_count INT NOT NULL DEFAULT 0,
