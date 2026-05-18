@@ -32,6 +32,13 @@ public class JwtGlobalAuthFilter implements GlobalFilter, Ordered {
     @Value("${gateway.auth.whitelist:}")
     private List<String> whitelist;
 
+    private final List<String> DEFAULT_WHITELIST = List.of(
+            "/api/user/register",
+            "/api/user/login",
+            "/api/user/health",
+            "/actuator"
+    );
+
     public JwtGlobalAuthFilter(JwtUtil jwtUtil) {
         this.jwtUtil = jwtUtil;
     }
@@ -71,7 +78,8 @@ public class JwtGlobalAuthFilter implements GlobalFilter, Ordered {
             return true;
         }
         String path = exchange.getRequest().getURI().getPath();
-        return whitelist != null && whitelist.stream().anyMatch(path::startsWith);
+        List<String> effective = (whitelist != null && !whitelist.isEmpty()) ? whitelist : DEFAULT_WHITELIST;
+        return effective.stream().anyMatch(path::startsWith);
     }
 
     private String extractToken(ServerWebExchange exchange) {

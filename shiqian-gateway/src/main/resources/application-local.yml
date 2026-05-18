@@ -1,0 +1,20 @@
+spring:
+  cloud:
+    nacos:
+      discovery:
+        enabled: false
+      config:
+        enabled: false
+    gateway:
+      routes:
+        - id: shiqian-user
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/user/**
+        - id: shiqian-resource
+          uri: http://localhost:8082
+          predicates:
+            - Path=/api/resource/**,/api/category/**
+
+# 本地开发模式：直连后端服务，避免依赖 Nacos 服务发现
+# 生产环境可切换 profile 或移除本文件使用 lb:// + Nacos
