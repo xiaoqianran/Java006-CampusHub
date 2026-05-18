@@ -165,6 +165,16 @@ public class ResourceServiceImpl implements ResourceService {
         return resourceMapper.selectPage(pageParam, wrapper);
     }
 
+    @Override
+    public Page<Resource> pageUserResources(Long userId, Integer page, Integer size) {
+        Page<Resource> pageParam = new Page<>(page, size);
+        QueryWrapper<Resource> wrapper = new QueryWrapper<>();
+        wrapper.eq("deleted", 0);
+        wrapper.eq("user_id", userId);
+        wrapper.orderByDesc("create_time");
+        return resourceMapper.selectPage(pageParam, wrapper);
+    }
+
     private void validateContent(String title, String description) {
         if (sensitiveWordFilter.contains(title) || sensitiveWordFilter.contains(description)) {
             throw new BusinessException("资源内容包含敏感词");

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { StarFilled, Star, View, Download } from '@element-plus/icons-vue'
 import type { ResourceItem } from '@/stores/app'
@@ -14,9 +15,18 @@ function openDetail() {
   router.push(`/detail/${props.item.id}`)
 }
 
-function toggleFavorite(event: MouseEvent) {
+async function toggleFavorite(event: MouseEvent) {
   event.stopPropagation()
-  store.toggleFavorite(props.item.id)
+  if (!store.logged) {
+    ElMessage.warning('请先登录')
+    router.push('/login')
+    return
+  }
+  try {
+    await store.toggleFavorite(props.item.id)
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '收藏操作失败')
+  }
 }
 </script>
 

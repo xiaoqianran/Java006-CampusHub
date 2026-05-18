@@ -1,21 +1,26 @@
 package com.shiqian.user.controller;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shiqian.common.result.Result;
+import com.shiqian.common.security.SecurityUtil;
 import com.shiqian.user.dto.LoginDTO;
 import com.shiqian.user.dto.LoginVO;
 import com.shiqian.user.dto.RegisterDTO;
 import com.shiqian.user.dto.UpdateUserDTO;
+import com.shiqian.user.dto.UserInfoVO;
 import com.shiqian.common.security.LoginUser;
 import com.shiqian.user.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.RestController;
@@ -65,5 +70,25 @@ public class UserController {
                 .getAuthentication().getPrincipal();
         userService.updateUserInfo(loginUser.getUserId(), updateUserDTO);
         return Result.ok();
+    }
+
+    @Operation(summary = "获取当前用户信息")
+    @GetMapping("/me")
+    public Result<UserInfoVO> getCurrentUser() {
+        Long userId = SecurityUtil.getCurrentUserId();
+        if (userId == null) {
+            return Result.fail(401, "未登录");
+        }
+        return Result.ok(userService.getUserInfo(userId));
+    }
+
+    @Operation(summary = "管理员分页查询用户")
+    @GetMapping("/admin/users")
+    @PreAuthorize("hasAuthority('user:manage')")
+    public Result<Page<UserInfoVO>> pageUsers(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(required = false) String keyword) {
+        return Result.ok(userService.pageUsers(page, size, keyword));
     }
 }

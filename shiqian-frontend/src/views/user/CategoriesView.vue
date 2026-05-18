@@ -1,10 +1,15 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 
 const router = useRouter()
 const store = useAppStore()
 const icons = ['💻', '∑', 'A', '🎓', '📝', '🧪', '🏆', '🏫']
+
+onMounted(() => {
+  store.loadHomeData().catch(() => undefined)
+})
 
 function openCategory(category: string) {
   store.setCategory(category)

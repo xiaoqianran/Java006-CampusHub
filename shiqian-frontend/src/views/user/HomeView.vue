@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, Upload, Star } from '@element-plus/icons-vue'
 import ResourceCard from '@/components/ResourceCard.vue'
@@ -8,7 +9,12 @@ const router = useRouter()
 const store = useAppStore()
 const icons = ['💻', '∑', 'A', '🎓']
 
+onMounted(() => {
+  store.loadHomeData().catch(() => undefined)
+})
+
 function search() {
+  store.searchResources().catch(() => undefined)
   router.push('/plaza')
 }
 

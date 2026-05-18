@@ -1,14 +1,26 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import StatusTag from '@/components/StatusTag.vue'
 import { useAppStore } from '@/stores/app'
 
 const store = useAppStore()
 
+onMounted(() => {
+  if (!store.logged) return
+  store.loadMyResources().catch(error => {
+    ElMessage.error(error instanceof Error ? error.message : '我的发布加载失败')
+  })
+})
+
 async function remove(id: number) {
   await ElMessageBox.confirm('确定删除这条发布记录吗？', '删除确认', { type: 'warning' })
-  store.removeMyResource(id)
-  ElMessage.success('已删除')
+  try {
+    await store.removeMyResource(id)
+    ElMessage.success('已删除')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '删除失败')
+  }
 }
 </script>
 

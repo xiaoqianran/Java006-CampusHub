@@ -1,9 +1,14 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import { useAppStore } from '@/stores/app'
 
 const store = useAppStore()
+
+onMounted(() => {
+  store.loadResources().catch(() => undefined)
+})
 </script>
 
 <template>

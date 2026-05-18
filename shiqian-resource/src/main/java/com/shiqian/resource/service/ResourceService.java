@@ -13,6 +13,8 @@ public interface ResourceService {
 
     Page<Resource> pageResources(Integer page, Integer size, Long categoryId, String keyword);
 
+    Page<Resource> pageUserResources(Long userId, Integer page, Integer size);
+
     void updateResource(Long userId, Long id, ResourceUpdateDTO dto);
 
     void deleteResource(Long userId, Long id);

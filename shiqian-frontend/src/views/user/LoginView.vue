@@ -1,15 +1,29 @@
 <script setup lang="ts">
+import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 
 const router = useRouter()
 const store = useAppStore()
+const submitting = ref(false)
+const form = reactive({ username: '', password: '' })
 
-function login() {
-  store.login()
-  ElMessage.success('登录成功')
-  router.push('/home')
+async function login() {
+  if (!form.username || !form.password) {
+    ElMessage.warning('请输入账号和密码')
+    return
+  }
+  submitting.value = true
+  try {
+    await store.login(form.username, form.password)
+    ElMessage.success('登录成功')
+    router.push(store.role === 'admin' ? '/admin' : '/home')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '登录失败')
+  } finally {
+    submitting.value = false
+  }
 }
 </script>
 
@@ -19,9 +33,9 @@ function login() {
     <div class="auth-form">
       <h2>登录</h2>
       <el-form label-position="top">
-        <el-form-item label="邮箱 / 用户名"><el-input placeholder="请输入账号" /></el-form-item>
-        <el-form-item label="密码"><el-input type="password" placeholder="请输入密码" show-password /></el-form-item>
-        <el-button type="primary" class="full" @click="login">登录</el-button>
+        <el-form-item label="用户名"><el-input v-model="form.username" placeholder="请输入用户名" /></el-form-item>
+        <el-form-item label="密码"><el-input v-model="form.password" type="password" placeholder="请输入密码" show-password @keyup.enter="login" /></el-form-item>
+        <el-button type="primary" class="full" :loading="submitting" @click="login">登录</el-button>
       </el-form>
       <p class="sub">没有账号？<router-link to="/register">去注册</router-link></p>
     </div>

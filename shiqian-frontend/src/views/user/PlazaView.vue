@@ -1,8 +1,17 @@
 <script setup lang="ts">
+import { onMounted, watch } from 'vue'
 import ResourceCard from '@/components/ResourceCard.vue'
 import { useAppStore } from '@/stores/app'
 
 const store = useAppStore()
+
+onMounted(() => {
+  store.loadHomeData().catch(() => undefined)
+})
+
+watch(() => [store.activeCategory, store.keyword], () => {
+  store.searchResources().catch(() => undefined)
+})
 </script>
 
 <template>

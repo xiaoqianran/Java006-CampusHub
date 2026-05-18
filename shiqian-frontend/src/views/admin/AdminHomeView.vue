@@ -1,9 +1,33 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
 import AdminLayout from '@/components/AdminLayout.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import { useAppStore } from '@/stores/app'
 
 const store = useAppStore()
+
+onMounted(() => {
+  store.loadHomeData().catch(() => undefined)
+})
+
+async function approve(id: number) {
+  try {
+    await store.approveResource(id)
+    ElMessage.success('已通过')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '审核失败')
+  }
+}
+
+async function reject(id: number) {
+  try {
+    await store.rejectResource(id)
+    ElMessage.warning('已驳回')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '审核失败')
+  }
+}
 </script>
 
 <template>
@@ -29,8 +53,8 @@ const store = useAppStore()
         <el-table-column label="状态" width="120"><template #default="{ row }"><StatusTag :status="row.status" /></template></el-table-column>
         <el-table-column label="操作" width="180">
           <template #default="{ row }">
-            <el-button size="small" type="primary" @click="store.approveResource(row.id)">通过</el-button>
-            <el-button size="small" type="danger" @click="store.rejectResource(row.id)">驳回</el-button>
+            <el-button size="small" type="primary" @click="approve(row.id)">通过</el-button>
+            <el-button size="small" type="danger" @click="reject(row.id)">驳回</el-button>
           </template>
         </el-table-column>
       </el-table>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import { Star, StarFilled, Download } from '@element-plus/icons-vue'
 import StatusTag from '@/components/StatusTag.vue'
@@ -8,12 +9,45 @@ import { useAppStore } from '@/stores/app'
 const route = useRoute()
 const router = useRouter()
 const store = useAppStore()
-const resource = computed(() => store.getResource(Number(route.params.id)) || store.resources[0])
-const related = computed(() => store.resources.filter(item => item.cat === resource.value.cat && item.id !== resource.value.id).slice(0, 3))
+const resource = computed(() => store.getResource(Number(route.params.id)))
+const related = computed(() => resource.value
+  ? store.resources.filter(item => item.cat === resource.value?.cat && item.id !== resource.value.id).slice(0, 3)
+  : [])
+
+onMounted(() => {
+  store.loadResourceDetail(Number(route.params.id)).catch(error => {
+    ElMessage.error(error instanceof Error ? error.message : '资源加载失败')
+  })
+})
+
+async function toggleFavorite() {
+  if (!store.logged) {
+    ElMessage.warning('请先登录')
+    router.push('/login')
+    return
+  }
+  try {
+    if (!resource.value) return
+    await store.toggleFavorite(resource.value.id)
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '收藏操作失败')
+  }
+}
+
+async function download() {
+  try {
+    if (!resource.value) return
+    await store.downloadResource(resource.value.id)
+    if (resource.value.fileUrl) window.open(resource.value.fileUrl, '_blank')
+    ElMessage.success('下载请求已提交')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '下载失败')
+  }
+}
 </script>
 
 <template>
-  <section class="detail-layout">
+  <section v-if="resource" class="detail-layout">
     <el-card class="detail-card" shadow="never">
       <el-tag>{{ resource.cat }}</el-tag>
       <h1 class="detail-title">{{ resource.title }}</h1>
@@ -25,8 +59,8 @@ const related = computed(() => store.resources.filter(item => item.cat === resou
         <span>收藏 {{ resource.favs }}</span>
       </div>
       <div style="margin: 24px 0; display: flex; gap: 12px">
-        <el-button type="primary" :icon="Download">下载资源</el-button>
-        <el-button :icon="store.isFavorite(resource.id) ? StarFilled : Star" @click="store.toggleFavorite(resource.id)">
+        <el-button type="primary" :icon="Download" @click="download">下载资源</el-button>
+        <el-button :icon="store.isFavorite(resource.id) ? StarFilled : Star" @click="toggleFavorite">
           {{ store.isFavorite(resource.id) ? '取消收藏' : '加入收藏' }}
         </el-button>
       </div>
@@ -51,4 +85,5 @@ const related = computed(() => store.resources.filter(item => item.cat === resou
       </el-card>
     </aside>
   </section>
+  <el-empty v-else description="资源加载中或不存在" />
 </template>

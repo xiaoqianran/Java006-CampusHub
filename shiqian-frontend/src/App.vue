@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Plus, User, Switch } from '@element-plus/icons-vue'
 import { useAppStore } from '@/stores/app'
@@ -7,6 +7,10 @@ import { useAppStore } from '@/stores/app'
 const route = useRoute()
 const router = useRouter()
 const store = useAppStore()
+
+onMounted(() => {
+  store.loadHomeData().catch(() => undefined)
+})
 
 const studentLinks = [
   { path: '/home', label: '首页' },
