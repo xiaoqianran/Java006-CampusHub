@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Plus, User, Setting } from '@element-plus/icons-vue'
+import { Plus, User, Switch } from '@element-plus/icons-vue'
 import { useAppStore } from '@/stores/app'
 
 const route = useRoute()
@@ -21,23 +21,29 @@ const studentLinks = [
   { path: '/mine', label: '我的发布' }
 ]
 
-const canAccessAdmin = computed(() => store.currentUser?.role === 'ADMIN')
+const adminLinks = [
+  { path: '/admin', label: '后台首页' },
+  { path: '/audit', label: '资源审核' },
+  { path: '/resource-admin', label: '资源管理' },
+  { path: '/category-admin', label: '分类管理' },
+  { path: '/user-admin', label: '用户管理' }
+]
+
+const navLinks = computed(() => store.role === 'admin' ? adminLinks : studentLinks)
+
+function switchRole() {
+  const next = store.role === 'student' ? 'admin' : 'student'
+  store.setRole(next)
+  router.push(next === 'admin' ? '/admin' : '/home')
+}
 
 function goLogin() {
   router.push('/login')
 }
 
 function goPublish() {
+  store.setRole('student')
   router.push('/publish')
-}
-
-function goAdmin() {
-  router.push('/admin')
-}
-
-function logout() {
-  store.logout()
-  router.push('/home')
 }
 </script>
 
@@ -45,13 +51,13 @@ function logout() {
   <el-container class="app-shell">
     <el-header class="topbar">
       <div class="nav-inner">
-        <router-link class="brand" to="/home">
+        <router-link class="brand" to="/home" @click="store.setRole('student')">
           <span class="logo">迁</span>
           <span>时迁校园</span>
         </router-link>
         <nav class="nav-links">
           <router-link
-            v-for="item in studentLinks"
+            v-for="item in navLinks"
             :key="item.path"
             :to="item.path"
             :class="{ active: route.path === item.path }"
@@ -60,9 +66,9 @@ function logout() {
           </router-link>
         </nav>
         <div class="nav-actions">
-          <el-button v-if="canAccessAdmin" :icon="Setting" @click="goAdmin">管理端</el-button>
+          <el-button :icon="Switch" @click="switchRole">{{ store.role === 'student' ? '学生端' : '管理端' }}</el-button>
           <el-button v-if="!store.logged" :icon="User" @click="goLogin">登录</el-button>
-          <el-button v-else @click="logout">退出</el-button>
+          <el-button v-else @click="store.logout()">退出</el-button>
           <el-button type="primary" :icon="Plus" @click="goPublish">发布资源</el-button>
         </div>
       </div>
