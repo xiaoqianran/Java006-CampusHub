@@ -428,8 +428,22 @@ export const useAppStore = defineStore('app', () => {
     if (!id) {
       throw new Error('请选择有效分类')
     }
+
     if (!payload.files.length) {
-      throw new Error('请先上传至少一个附件')
+      // 无附件资源（文字/链接/经验分享等）
+      await request<void>('/api/resource', {
+        method: 'POST',
+        body: jsonBody({
+          title: payload.title,
+          description: payload.desc,
+          categoryId: id,
+          fileUrl: '',
+          fileSize: 0,
+          fileType: payload.type || '文字资源'
+        })
+      })
+      await loadMyResources()
+      return
     }
 
     for (const file of payload.files) {
