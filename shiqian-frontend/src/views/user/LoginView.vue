@@ -18,7 +18,8 @@ async function login() {
   try {
     await store.login(form.username, form.password)
     ElMessage.success('登录成功')
-    router.push(store.role === 'admin' ? '/admin' : '/home')
+    const target = store.currentUser?.role === 'ADMIN' ? '/admin' : '/home'
+    router.push(target)
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '登录失败')
   } finally {
