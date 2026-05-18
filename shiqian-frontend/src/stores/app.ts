@@ -129,6 +129,41 @@ export const useAppStore = defineStore('app', () => {
   const keyword = ref('')
   const loading = ref(false)
 
+  // ===== 主题系统 (Search-First + Element Plus 暗色适配) =====
+  const theme = ref<'light' | 'dark'>(
+    (localStorage.getItem('shiqian_theme') as 'light' | 'dark' | null) || 'light'
+  )
+  const isDark = computed(() => theme.value === 'dark')
+
+  function applyThemeToDOM(t: 'light' | 'dark') {
+    const root = document.documentElement
+    root.dataset.theme = t
+    // 同步更新 body 背景，减少闪烁
+    if (t === 'dark') {
+      root.style.setProperty('color-scheme', 'dark')
+    } else {
+      root.style.setProperty('color-scheme', 'light')
+    }
+  }
+
+  function initTheme() {
+    const saved = localStorage.getItem('shiqian_theme') as 'light' | 'dark' | null
+    const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches
+    const initial = saved || (prefersDark ? 'dark' : 'light')
+    theme.value = initial
+    applyThemeToDOM(initial)
+  }
+
+  function setTheme(t: 'light' | 'dark') {
+    theme.value = t
+    localStorage.setItem('shiqian_theme', t)
+    applyThemeToDOM(t)
+  }
+
+  function toggleTheme() {
+    setTheme(theme.value === 'dark' ? 'light' : 'dark')
+  }
+
   const categoryTree = ref<CategoryApiItem[]>([])
   const resources = ref<ResourceItem[]>([])
   const users = ref<UserItem[]>([])
@@ -437,6 +472,13 @@ export const useAppStore = defineStore('app', () => {
   }
 
   return {
+    // 主题
+    theme,
+    isDark,
+    initTheme,
+    setTheme,
+    toggleTheme,
+    // 原有
     role,
     logged,
     currentUser,
