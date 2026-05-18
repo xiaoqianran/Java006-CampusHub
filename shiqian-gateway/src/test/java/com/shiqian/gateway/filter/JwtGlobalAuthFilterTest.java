@@ -41,7 +41,7 @@ class JwtGlobalAuthFilterTest {
     @Test
     void shouldRejectProtectedRequestWithoutToken() {
         MockServerWebExchange exchange = MockServerWebExchange.from(
-                MockServerHttpRequest.get("/api/resource"));
+                MockServerHttpRequest.get("/api/user/me"));
 
         filter.filter(exchange, chain -> Mono.empty()).block();
 
@@ -51,7 +51,7 @@ class JwtGlobalAuthFilterTest {
     @Test
     void shouldRejectProtectedRequestWithInvalidToken() {
         MockServerWebExchange exchange = MockServerWebExchange.from(
-                MockServerHttpRequest.get("/api/resource")
+                MockServerHttpRequest.get("/api/user/me")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer invalid-token"));
 
         filter.filter(exchange, chain -> Mono.empty()).block();
@@ -109,7 +109,7 @@ class JwtGlobalAuthFilterTest {
     void shouldAppendUserHeadersWhenTokenValid() {
         String token = jwtUtil.generateAccessToken(1L, "testuser", "USER");
         MockServerWebExchange exchange = MockServerWebExchange.from(
-                MockServerHttpRequest.get("/api/resource")
+                MockServerHttpRequest.get("/api/user/me")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token));
         AtomicReference<ServerWebExchange> captured = new AtomicReference<>();
 
