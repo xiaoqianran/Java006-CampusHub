@@ -44,6 +44,12 @@ function openFile(row?: ResourceItem | null) {
   window.open(row.fileUrl, '_blank')
 }
 
+function openAttachment(att: any) {
+  if (att?.fileUrl) {
+    window.open(att.fileUrl, '_blank')
+  }
+}
+
 function goDetail(row?: ResourceItem | null) {
   if (!row) return
   router.push(`/detail/${row.id}`)
@@ -198,16 +204,17 @@ async function reject(id: number) {
           </div>
         </div>
 
-        <!-- 文件 / 附件（阶段一兼容） -->
+        <!-- 第二阶段：附件列表 -->
         <div class="audit-section">
-          <h3>附件 / 文件</h3>
-          <div v-if="current?.fileUrl">
-            <p class="audit-file-url">{{ current?.fileUrl }}</p>
-            <el-button size="small" type="primary" @click="openFile(current)">打开文件</el-button>
+          <h3>附件</h3>
+          <div v-if="current?.attachments && current.attachments.length > 0">
+            <div v-for="att in current.attachments" :key="att.id || att.fileUrl" class="audit-attachment-item">
+              <span>{{ att.fileName }}</span>
+              <el-button size="small" type="primary" @click="openAttachment(att)">下载</el-button>
+            </div>
           </div>
           <div v-else>
-            <p class="sub">该资源为纯 Markdown 内容，无附件文件。</p>
-            <el-button size="small" disabled>无附件</el-button>
+            <p class="sub">该资源暂无附件</p>
           </div>
         </div>
       </div>
@@ -300,5 +307,20 @@ async function reject(id: number) {
 
 [data-theme="dark"] .audit-detail-dialog :deep(.el-loading-mask) {
   background-color: rgba(31, 41, 55, 0.85);
+}
+
+.audit-attachment-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: var(--bg-subtle, #f8f9fa);
+  border-radius: 4px;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+
+[data-theme="dark"] .audit-attachment-item {
+  background: #111827;
 }
 </style>
