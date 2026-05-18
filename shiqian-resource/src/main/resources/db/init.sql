@@ -69,3 +69,22 @@ CREATE TABLE IF NOT EXISTS t_category (
     PRIMARY KEY (id),
     INDEX idx_parent_id (parent_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='资源分类表';
+
+-- 分类种子数据（UTF-8 / utf8mb4 安全）
+-- 如果直接导入时仍出现乱码，请使用：
+--   mysql --default-character-set=utf8mb4 -uroot -proot shiqian_resource < .../init.sql
+INSERT INTO t_category (id, parent_id, name, sort_order, icon, status, deleted)
+VALUES
+    (1, 0, '计算机科学', 10, NULL, 1, 0),
+    (2, 0, '高等数学', 20, NULL, 1, 0),
+    (3, 0, '大学英语', 30, NULL, 1, 0),
+    (4, 0, '考研资料', 40, NULL, 1, 0),
+    (5, 0, '课程笔记', 50, NULL, 1, 0),
+    (6, 0, '实验报告', 60, NULL, 1, 0),
+    (7, 0, '竞赛资料', 70, NULL, 1, 0),
+    (8, 0, '校园生活', 80, NULL, 1, 0)
+ON DUPLICATE KEY UPDATE
+    name = VALUES(name),
+    sort_order = VALUES(sort_order),
+    status = VALUES(status),
+    deleted = 0;

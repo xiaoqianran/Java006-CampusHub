@@ -87,6 +87,9 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     @Cacheable(value = "category:tree")
     public List<Category> getCategoryTree() {
+        // 分类树使用 Redis 缓存（key: "category:tree"）。修复 t_category 中文乱码后，
+        // 需清理缓存：docker restart shiqian-redis 或 redis-cli DEL "category:tree"。
+        // 增删改操作已通过 @CacheEvict(value = "category:tree", allEntries = true) 自动失效。
         QueryWrapper<Category> wrapper = new QueryWrapper<>();
         wrapper.eq("deleted", 0).eq("status", 1);
         List<Category> allCategories = categoryMapper.selectList(wrapper);

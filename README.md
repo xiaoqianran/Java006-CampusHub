@@ -108,3 +108,89 @@ mvn spring-boot:run -Dspring-boot.run.profiles=local
 - [ ] 资源服务模块（shiqian-resource）
 - [ ] 网关服务（shiqian-gateway）
 - [ ] 消息通知模块
+
+## 完整本地开发环境启动（当前架构）
+
+> **注意**：分类名称乱码问题（mojibake）通常由 SQL 导入时客户端字符集错误导致，而非前端问题。前端静态中文正常，动态 `category.name` 来自数据库。
+
+### 1. 一键启动基础设施（推荐）
+
+```bash
+docker compose up -d mysql redis
+```
+
+MySQL 已通过 `docker/mysql/init/*.sql` 自动初始化（含 utf8mb4 + 分类种子数据）。
+
+### 2. 手动导入 SQL 时必须强制 UTF-8（防止乱码）
+
+如果手动执行 SQL 或修复已有乱码数据：
+
+```bash
+# 1. 删除旧库（可选，谨慎操作）
+docker exec -i shiqian-mysql mysql -uroot -proot --default-character-set=utf8mb4 \
+  -e "DROP DATABASE IF EXISTS shiqian_user; DROP DATABASE IF EXISTS shiqian_resource;"
+
+# 2. 使用 --default-character-set=utf8mb4 重新导入
+docker exec -i shiqian-mysql sh -c 'mysql -uroot -proot --default-character-set=utf8mb4' < docker/mysql/init/init.sql
+docker exec -i shiqian-mysql sh -c 'mysql -uroot -proot --default-character-set=utf8mb4' < docker/mysql/init/z-demo-data.sql
+
+# 或者直接在 MySQL 客户端内执行：
+#   SET NAMES utf8mb4;
+#   SOURCE /path/to/z-demo-data.sql;
+```
+
+**验证中文是否正常**：
+```sql
+USE shiqian_resource;
+SELECT id, name, HEX(name) FROM t_category LIMIT 3;
+-- 正确时 name 显示“计算机科学”，HEX 以 E4 B8 AD ... 开头
+```
+
+### 3. 修复分类乱码后的必要操作（Redis 缓存）
+
+分类树使用了 Spring `@Cacheable("category:tree")` 缓存（见 `CategoryServiceImpl.java`）。
+
+修复数据库数据后，**必须清理缓存**：
+
+```bash
+# 方案 A：重启 Redis
+docker restart shiqian-redis
+
+# 方案 B：手动删除缓存键（进入 redis-cli）
+docker exec -it shiqian-redis redis-cli DEL "category:tree"
+
+# 方案 C：重启 resource 服务
+```
+
+### 4. 启动后端服务
+
+```bash
+mvn clean package -DskipTests -pl shiqian-common,shiqian-user,shiqian-resource,shiqian-gateway -am
+
+# 分别启动（local profile）
+java -jar shiqian-user/target/shiqian-user-1.0.0-SNAPSHOT.jar --spring.profiles.active=local
+java -jar shiqian-resource/target/shiqian-resource-1.0.0-SNAPSHOT.jar --spring.profiles.active=local
+java -jar shiqian-gateway/target/shiqian-gateway-1.0.0-SNAPSHOT.jar --spring.profiles.active=local
+```
+
+访问：
+- Gateway: http://localhost:8080
+- Resource 健康：http://localhost:8082/api/category/tree （应返回正常中文分类）
+- 用户服务：http://localhost:8081
+
+### 5. 启动前端
+
+```bash
+cd shiqian-frontend
+npm install
+npm run dev
+```
+
+---
+
+**根本原因总结**：
+- JDBC URL 已统一加强为 `characterEncoding=utf8mb4&connectionCollation=utf8mb4_general_ci`
+- 数据库/表 DDL 均为 `utf8mb4_general_ci`
+- 问题多发生于“旧数据”或“错误编码的 SQL 客户端导入”
+- 前端从不修改 `category.name`，仅原样渲染后端返回的值
+
