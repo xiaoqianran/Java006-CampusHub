@@ -45,6 +45,24 @@ async function download() {
     ElMessage.error(error instanceof Error ? error.message : '下载失败')
   }
 }
+
+function downloadAttachment(att: any) {
+  if (att?.fileUrl) {
+    window.open(att.fileUrl, '_blank')
+  }
+}
+
+function formatFileSize(size: number) {
+  if (!size) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  let i = 0
+  let s = size
+  while (s >= 1024 && i < units.length - 1) {
+    s /= 1024
+    i++
+  }
+  return `${s.toFixed(1)} ${units[i]}`
+}
 </script>
 
 <template>
@@ -83,6 +101,20 @@ async function download() {
       </div>
       <div v-else class="empty-content">
         暂无正文内容
+      </div>
+
+      <!-- 第二阶段：附件列表 -->
+      <div v-if="resource.attachments && resource.attachments.length > 0" class="attachment-section">
+        <h2>附件</h2>
+        <div v-for="att in resource.attachments" :key="att.id || att.fileUrl" class="attachment-item">
+          <span class="file-name">{{ att.fileName }}</span>
+          <span class="file-meta">{{ att.fileType }} · {{ formatFileSize(att.fileSize) }}</span>
+          <el-button size="small" type="primary" @click="downloadAttachment(att)">下载</el-button>
+        </div>
+      </div>
+      <div v-else class="attachment-section">
+        <h2>附件</h2>
+        <p class="sub">该资源暂无附件</p>
       </div>
 
       <!-- 旧的占位说明已移除，真实内容由 Markdown 渲染 -->
@@ -146,5 +178,33 @@ async function download() {
   text-align: center;
   border: 1px dashed var(--line, #e5e7eb);
   border-radius: 8px;
+}
+
+.attachment-section {
+  margin-top: 24px;
+}
+
+.attachment-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--bg-subtle, #f8f9fa);
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+[data-theme="dark"] .attachment-item {
+  background: #1f2937;
+}
+
+.attachment-item .file-name {
+  font-weight: 500;
+  flex: 1;
+}
+
+.attachment-item .file-meta {
+  color: var(--text-secondary, #6b7280);
+  font-size: 13px;
 }
 </style>

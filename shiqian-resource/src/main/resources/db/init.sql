@@ -27,6 +27,23 @@ CREATE TABLE IF NOT EXISTS t_resource (
     INDEX idx_category_id (category_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='资源主表';
 
+-- 资源附件表（第二阶段）
+CREATE TABLE IF NOT EXISTS t_resource_attachment (
+    id BIGINT AUTO_INCREMENT COMMENT '主键',
+    resource_id BIGINT NOT NULL COMMENT '所属资源ID',
+    file_name VARCHAR(255) NOT NULL COMMENT '原始文件名',
+    file_url VARCHAR(500) NOT NULL COMMENT '文件访问地址（对象存储或本地路径）',
+    file_size BIGINT DEFAULT 0 COMMENT '文件大小（字节）',
+    file_type VARCHAR(100) COMMENT '扩展名或MIME简写',
+    mime_type VARCHAR(100) COMMENT '完整MIME类型',
+    asset_kind VARCHAR(30) DEFAULT 'FILE' COMMENT '资产类型：IMAGE/VIDEO/DOCUMENT/ARCHIVE/CODE/OTHER',
+    usage_type VARCHAR(30) DEFAULT 'ATTACHMENT' COMMENT '用途：ATTACHMENT/INLINE/COVER',
+    sort_order INT DEFAULT 0 COMMENT '排序',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '上传时间',
+    PRIMARY KEY (id),
+    INDEX idx_resource_id (resource_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='资源附件表';
+
 -- 资源收藏表
 CREATE TABLE IF NOT EXISTS t_favorite (
     id BIGINT AUTO_INCREMENT COMMENT '主键',

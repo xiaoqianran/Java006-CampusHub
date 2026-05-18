@@ -8,16 +8,21 @@ import com.shiqian.common.exception.BusinessException;
 import com.shiqian.resource.config.RabbitMQConfig;
 import com.shiqian.resource.document.ResourceDocument;
 import com.shiqian.resource.dto.ResourceAuditMessage;
+import com.shiqian.resource.dto.AttachmentCreateDTO;
 import com.shiqian.resource.dto.ResourceCreateDTO;
 import com.shiqian.resource.dto.ResourceUpdateDTO;
 import com.shiqian.resource.entity.Category;
 import com.shiqian.resource.entity.Resource;
+import com.shiqian.resource.entity.ResourceAttachment;
+import com.shiqian.resource.mapper.ResourceAttachmentMapper;
 import com.shiqian.resource.mapper.ResourceMapper;
 import com.shiqian.resource.repository.ResourceDocumentRepository;
 import com.shiqian.resource.service.CategoryService;
 import com.shiqian.resource.service.ResourceService;
 
 import java.time.LocalDateTime;
+import java.util.List;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -33,6 +38,7 @@ import org.springframework.util.StringUtils;
 public class ResourceServiceImpl implements ResourceService {
 
     private final ResourceMapper resourceMapper;
+    private final ResourceAttachmentMapper resourceAttachmentMapper;
     private final CategoryService categoryService;
     private final ResourceDocumentRepository resourceDocumentRepository;
     private final RabbitTemplate rabbitTemplate;
@@ -71,15 +77,42 @@ public class ResourceServiceImpl implements ResourceService {
         }
 
         resourceMapper.insert(resource);
+
+        // 第二阶段：保存附件
+        if (dto.getAttachments() != null && !dto.getAttachments().isEmpty()) {
+            for (var attDto : dto.getAttachments()) {
+                ResourceAttachment att = new ResourceAttachment();
+                att.setResourceId(resource.getId());
+                att.setFileName(attDto.getFileName());
+                att.setFileUrl(attDto.getFileUrl());
+                att.setFileSize(attDto.getFileSize());
+                att.setFileType(attDto.getFileType());
+                att.setMimeType(attDto.getMimeType());
+                att.setAssetKind(attDto.getAssetKind() != null ? attDto.getAssetKind() : "FILE");
+                att.setUsageType(attDto.getUsageType() != null ? attDto.getUsageType() : "ATTACHMENT");
+                att.setSortOrder(attDto.getSortOrder() != null ? attDto.getSortOrder() : 0);
+                resourceAttachmentMapper.insert(att);
+            }
+        }
+
         resourceDocumentRepository.save(buildResourceDocument(resource));
-        log.info("资源创建成功: id={}, title={}, userId={}", resource.getId(), resource.getTitle(), userId);
+        log.info("资源创建成功: id={}, title={}, userId={}, attachments={}", 
+                 resource.getId(), resource.getTitle(), userId, 
+                 dto.getAttachments() != null ? dto.getAttachments().size() : 0);
         return resource;
     }
 
     @Override
     @Cacheable(value = "resource:detail", key = "#id")
     public Resource getResourceById(Long id) {
-        return resourceMapper.selectById(id);
+        Resource resource = resourceMapper.selectById(id);
+        if (resource != null) {
+            List<ResourceAttachment> attachments = resourceAttachmentMapper.selectList(
+                new QueryWrapper<ResourceAttachment>().eq("resource_id", id).orderByAsc("sort_order")
+            );
+            resource.setAttachments(attachments);
+        }
+        return resource;
     }
 
     @Override

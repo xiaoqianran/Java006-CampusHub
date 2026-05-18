@@ -4,8 +4,11 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shiqian.common.exception.BusinessException;
 import com.shiqian.resource.BaseResourceTest;
 import com.shiqian.resource.document.ResourceDocument;
+import com.shiqian.resource.dto.AttachmentCreateDTO;
 import com.shiqian.resource.dto.ResourceCreateDTO;
 import com.shiqian.resource.dto.ResourceUpdateDTO;
+
+import java.util.List;
 import com.shiqian.resource.entity.Category;
 import com.shiqian.resource.entity.Resource;
 import org.junit.jupiter.api.BeforeEach;
@@ -223,6 +226,45 @@ public class ResourceServiceTest extends BaseResourceTest {
         Page<Resource> pageByContent = resourceService.pageResources(1, 10, null, "markdown-content-keyword");
         assertTrue(pageByContent.getTotal() >= 1);
         assertTrue(pageByContent.getRecords().stream().anyMatch(r -> r.getId().equals(created.getId())));
+    }
+
+    @Test
+    public void testCreateResourceWithAttachments() {
+        Category category = createCategory("带附件测试分类");
+
+        AttachmentCreateDTO att1 = new AttachmentCreateDTO();
+        att1.setFileName("课件.pdf");
+        att1.setFileUrl("https://example.com/files/课件.pdf");
+        att1.setFileSize(2048000L);
+        att1.setFileType("pdf");
+        att1.setMimeType("application/pdf");
+        att1.setAssetKind("DOCUMENT");
+        att1.setUsageType("ATTACHMENT");
+
+        AttachmentCreateDTO att2 = new AttachmentCreateDTO();
+        att2.setFileName("示例代码.zip");
+        att2.setFileUrl("https://example.com/files/code.zip");
+        att2.setFileSize(512000L);
+        att2.setAssetKind("ARCHIVE");
+
+        ResourceCreateDTO dto = new ResourceCreateDTO();
+        dto.setTitle("带两个附件的 Markdown 资源");
+        dto.setSummary("包含多个附件的示例资源");
+        dto.setContentMarkdown("# 说明\n\n这是一个带附件的资源。");
+        dto.setCategoryId(category.getId());
+        dto.setAttachments(List.of(att1, att2));
+
+        Resource created = resourceService.createResource(1L, dto);
+
+        assertNotNull(created);
+        assertNotNull(created.getId());
+
+        // 查询详情验证附件是否落库
+        Resource detail = resourceService.getResourceById(created.getId());
+        assertNotNull(detail.getAttachments());
+        assertEquals(2, detail.getAttachments().size());
+        assertEquals("课件.pdf", detail.getAttachments().get(0).getFileName());
+        assertEquals("示例代码.zip", detail.getAttachments().get(1).getFileName());
     }
 
     @Test

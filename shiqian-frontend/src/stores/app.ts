@@ -42,6 +42,24 @@ export interface UploadedFileItem {
   fileUrl: string
   fileSize: number
   fileType: string
+  mimeType?: string
+  assetKind?: string
+  usageType?: string
+  sortOrder?: number
+}
+
+// 第二阶段：资源附件（用于详情展示）
+export interface ResourceAttachmentItem {
+  id?: number
+  resourceId?: number
+  fileName: string
+  fileUrl: string
+  fileSize: number
+  fileType?: string
+  mimeType?: string
+  assetKind?: string
+  usageType?: string
+  sortOrder?: number
 }
 
 export interface CategoryApiItem {
@@ -84,6 +102,8 @@ export interface ResourceItem {
   contentType?: string
   fileUrl?: string
   fileSize?: number
+  // 第二阶段：附件列表
+  attachments?: ResourceAttachmentItem[]
 }
 
 export interface UserItem {
@@ -228,7 +248,8 @@ export const useAppStore = defineStore('app', () => {
       contentMarkdown: item.contentMarkdown,
       contentType: item.contentType,
       fileUrl: item.fileUrl,
-      fileSize: item.fileSize
+      fileSize: item.fileSize,
+      attachments: (item as any).attachments || []
     }
   }
 
@@ -442,55 +463,37 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function submitResource(payload: ResourceSubmitPayload) {
-    const id = categoryId(payload.cat)
-    if (!id) {
+    const categoryIdValue = categoryId(payload.cat)
+    if (!categoryIdValue) {
       throw new Error('请选择有效分类')
     }
 
-    const attachments = payload.attachments ?? payload.files ?? []
+    const attachments = (payload.attachments ?? payload.files ?? []).map((file, index) => ({
+      fileName: (file as any).originalName || (file as any).fileName,
+      fileUrl: file.fileUrl,
+      fileSize: file.fileSize,
+      fileType: file.fileType,
+      mimeType: (file as any).mimeType || '',
+      assetKind: (file as any).assetKind || 'FILE',
+      usageType: (file as any).usageType || 'ATTACHMENT',
+      sortOrder: (file as any).sortOrder ?? index
+    }))
+
     const contentType = 'MARKDOWN'
 
-    // 第一阶段兼容逻辑：
-    // - 无附件：fileUrl/fileSize/fileType 使用 Markdown 兜底
-    // - 有附件：仍使用旧的单 file* 字段（取第一个），多附件时按旧逻辑创建多条（第二阶段会迁移到 resource_attachment）
-    if (attachments.length === 0) {
-      // 纯 Markdown 资源（第一阶段主场景）
-      await request<void>('/api/resource', {
-        method: 'POST',
-        body: jsonBody({
-          title: payload.title,
-          categoryId: id,
-          summary: payload.summary,
-          contentMarkdown: payload.contentMarkdown,
-          contentType,
-          fileUrl: '',
-          fileSize: 0,
-          fileType: 'Markdown资源',
-          attachments: []
-        })
+    // 第二阶段：一个资源 + attachments 数组
+    await request<void>('/api/resource', {
+      method: 'POST',
+      body: jsonBody({
+        title: payload.title,
+        categoryId: categoryIdValue,
+        summary: payload.summary,
+        contentMarkdown: payload.contentMarkdown,
+        contentType,
+        attachments
       })
-      await loadMyResources()
-      return
-    }
+    })
 
-    // 有附件时（阶段一仍走兼容路径）
-    for (const file of attachments) {
-      const batchTitle = attachments.length === 1 ? payload.title : `${payload.title} - ${file.originalName}`
-      await request<void>('/api/resource', {
-        method: 'POST',
-        body: jsonBody({
-          title: batchTitle,
-          categoryId: id,
-          summary: payload.summary,
-          contentMarkdown: payload.contentMarkdown,
-          contentType,
-          fileUrl: file.fileUrl,
-          fileSize: file.fileSize,
-          fileType: file.fileType,
-          attachments: []   // 第二阶段再真正支持 attachments 数组
-        })
-      })
-    }
     await loadMyResources()
   }
 
