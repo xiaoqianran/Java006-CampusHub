@@ -189,7 +189,7 @@ npm run dev
 ---
 
 **根本原因总结**：
-- JDBC URL 已统一加强为 `characterEncoding=UTF-8&connectionCollation=utf8mb4_general_ci`
-- 数据库/表 DDL 均为 `utf8mb4_general_ci`
+- JDBC URL 已统一加强为 `characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci`
+- 数据库/表 DDL 均为 `utf8mb4_unicode_ci`
 - 问题多发生于“旧数据”或“错误编码的 SQL 客户端导入”
 - 前端从不修改 `category.name`，仅原样渲染后端返回的值

@@ -21,8 +21,8 @@ docker/mysql/init/z-demo-data.sql
 
 如果你不是全新 volume，或者想手动重刷 SQL，执行：
 
-docker exec -i shiqian-mysql mysql -uroot -proot < docker/mysql/init/init.sql
-docker exec -i shiqian-mysql mysql -uroot -proot < docker/mysql/init/z-demo-data.sql
+docker exec -i shiqian-mysql mysql -uroot -proot --default-character-set=utf8mb4 < docker/mysql/init/init.sql
+docker exec -i shiqian-mysql mysql -uroot -proot --default-character-set=utf8mb4 < docker/mysql/init/z-demo-data.sql
 
 3. 构建后端 jar
 

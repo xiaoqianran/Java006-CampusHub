@@ -1,5 +1,7 @@
 -- 创建数据库
-CREATE DATABASE IF NOT EXISTS shiqian_resource DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+CREATE DATABASE IF NOT EXISTS shiqian_resource DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 USE shiqian_resource;
 
@@ -25,7 +27,7 @@ CREATE TABLE IF NOT EXISTS t_resource (
     PRIMARY KEY (id),
     INDEX idx_user_id (user_id),
     INDEX idx_category_id (category_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='资源主表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='资源主表';
 
 -- 资源附件表（第二阶段）
 CREATE TABLE IF NOT EXISTS t_resource_attachment (
@@ -42,7 +44,7 @@ CREATE TABLE IF NOT EXISTS t_resource_attachment (
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '上传时间',
     PRIMARY KEY (id),
     INDEX idx_resource_id (resource_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='资源附件表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='资源附件表';
 
 -- 资源收藏表
 CREATE TABLE IF NOT EXISTS t_favorite (
@@ -53,7 +55,7 @@ CREATE TABLE IF NOT EXISTS t_favorite (
     PRIMARY KEY (id),
     UNIQUE KEY uk_user_resource (user_id, resource_id),
     INDEX idx_resource_id (resource_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='资源收藏表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='资源收藏表';
 
 -- 资源分类表
 CREATE TABLE IF NOT EXISTS t_category (
@@ -68,7 +70,7 @@ CREATE TABLE IF NOT EXISTS t_category (
     deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除（0=正常, 1=已删除）',
     PRIMARY KEY (id),
     INDEX idx_parent_id (parent_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='资源分类表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='资源分类表';
 
 -- 分类种子数据（UTF-8 / utf8mb4 安全）
 -- 如果直接导入时仍出现乱码，请使用：

@@ -1,5 +1,7 @@
 -- 创建数据库
-CREATE DATABASE IF NOT EXISTS shiqian_user DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+CREATE DATABASE IF NOT EXISTS shiqian_user DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 USE shiqian_user;
 
@@ -19,4 +21,4 @@ CREATE TABLE IF NOT EXISTS t_user (
     deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除（0=正常, 1=已删除）',
     PRIMARY KEY (id),
     UNIQUE INDEX idx_username (username)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='用户表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
