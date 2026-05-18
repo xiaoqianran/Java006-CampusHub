@@ -21,7 +21,9 @@ public class ResourceMapperTest extends BaseResourceTest {
         Resource resource = new Resource();
         resource.setUserId(1L);
         resource.setTitle("测试资源");
-        resource.setDescription("测试描述");
+        resource.setSummary("测试摘要");
+        resource.setContentMarkdown("测试正文");
+        resource.setContentType("MARKDOWN");
         resource.setCategoryId(1L);
         resource.setFileUrl("http://example.com/file.pdf");
         resource.setFileSize(1024L);
