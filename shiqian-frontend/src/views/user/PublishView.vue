@@ -135,7 +135,10 @@ function saveDraft() {
           </el-col>
           <el-col :span="24">
             <el-form-item label="资源简介">
-              <el-input v-model="form.desc" type="textarea" :rows="5" placeholder="说明适用课程、内容范围、使用方法；搜索会覆盖标题、简介和文件类型" />
+              <el-input v-model="form.desc" type="textarea" :rows="5" placeholder="请说明适用课程、内容范围及使用方法&#10;例如：数据结构课程 · 红黑树可视化实现 · 支持直接导入 IDEA 运行" />
+              <div class="sub" style="margin-top: 4px; font-size: 12px;">
+                搜索会覆盖标题、简介和文件类型，建议写得清晰具体
+              </div>
             </el-form-item>
           </el-col>
         </el-row>
