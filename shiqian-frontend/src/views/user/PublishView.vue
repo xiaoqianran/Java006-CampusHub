@@ -5,6 +5,7 @@ import type { UploadRawFile, UploadUserFile } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { UploadFilled } from '@element-plus/icons-vue'
 import { useAppStore, type UploadedFileItem } from '@/stores/app'
+import MarkdownEditor from '@/components/MarkdownEditor.vue'
 
 const router = useRouter()
 const store = useAppStore()
@@ -16,11 +17,13 @@ const uploadedFiles = ref<UploadedFileItem[]>([])
 const form = reactive({
   title: '',
   cat: '计算机科学',
-  type: '',
-  desc: ''
+  summary: '',           // 资源摘要（用于卡片和搜索）
+  contentMarkdown: ''    // Markdown 正文
 })
 
-const canSubmit = computed(() => Boolean(form.title && form.cat && form.desc))
+const canSubmit = computed(() => {
+  return Boolean(form.title && form.cat && form.summary && form.contentMarkdown)
+})
 
 watch(selectedFiles, () => {
   uploadedFiles.value = []
@@ -57,7 +60,7 @@ async function submit() {
     return
   }
   if (!canSubmit.value) {
-    ElMessage.warning('请补充标题、分类和简介')
+    ElMessage.warning('请补充标题、分类、摘要和 Markdown 正文')
     return
   }
 
@@ -66,12 +69,14 @@ async function submit() {
     if (selectedFiles.value.length && !uploadedFiles.value.length) {
       await uploadSelectedFiles()
     }
+
+    // 直接提交新字段（后端第一阶段已支持 summary + contentMarkdown）
     await store.submitResource({
       title: form.title,
       cat: form.cat,
-      type: form.type,
-      desc: form.desc,
-      files: uploadedFiles.value
+      summary: form.summary,
+      contentMarkdown: form.contentMarkdown,
+      attachments: uploadedFiles.value
     })
     localStorage.removeItem('shiqian_publish_draft')
     ElMessage.success('资源已提交审核')
@@ -94,7 +99,7 @@ function saveDraft() {
     <div class="page-title">
       <div>
         <h1>发布资源</h1>
-        <p class="sub">附件为可选项；填写标题、分类和简介后即可提交审核。</p>
+        <p class="sub">附件为可选项。填写标题、分类、摘要和 Markdown 正文后即可提交审核。</p>
       </div>
     </div>
     <el-alert v-if="!store.logged" title="请先登录后发布资源。" type="warning" show-icon :closable="false" style="margin-bottom: 16px" />
@@ -114,9 +119,7 @@ function saveDraft() {
             </el-form-item>
           </el-col>
           <el-col :xs="24" :md="12">
-            <el-form-item label="资源类型">
-              <el-input v-model="form.type" placeholder="不填时按附件类型自动识别" />
-            </el-form-item>
+
           </el-col>
           <el-col :span="24">
             <el-form-item label="附件（可选）">
@@ -134,11 +137,19 @@ function saveDraft() {
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="资源简介">
-              <el-input v-model="form.desc" type="textarea" :rows="5" placeholder="请说明适用课程、内容范围及使用方法&#10;例如：数据结构课程 · 红黑树可视化实现 · 支持直接导入 IDEA 运行" />
-              <div class="sub" style="margin-top: 4px; font-size: 12px;">
-                搜索会覆盖标题、简介和文件类型，建议写得清晰具体
-              </div>
+            <el-form-item label="资源摘要">
+              <el-input 
+                v-model="form.summary" 
+                type="textarea" 
+                :rows="2" 
+                placeholder="一句话总结这个资源（用于卡片展示和搜索结果）" 
+              />
+            </el-form-item>
+          </el-col>
+
+          <el-col :span="24">
+            <el-form-item label="Markdown 正文">
+              <MarkdownEditor v-model="form.contentMarkdown" />
             </el-form-item>
           </el-col>
         </el-row>

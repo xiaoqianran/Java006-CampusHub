@@ -9,7 +9,12 @@ export interface ResourceApiItem {
   id: number
   userId: number
   title: string
+  // 旧字段（兼容历史数据）
   description?: string
+  // 新字段（第一阶段主推）
+  summary?: string
+  contentMarkdown?: string
+  contentType?: string
   categoryId?: number
   fileUrl?: string
   fileSize?: number
@@ -25,6 +30,8 @@ export interface ResourceSearchItem {
   userId: number
   title: string
   description?: string
+  summary?: string
+  contentMarkdown?: string
   categoryId?: number
   fileType?: string
   status: number
@@ -71,6 +78,10 @@ export interface ResourceItem {
   favs: number
   status: ResourceStatus
   desc: string
+  // 新字段（详情页渲染用）
+  summary?: string
+  contentMarkdown?: string
+  contentType?: string
   fileUrl?: string
   fileSize?: number
 }
@@ -104,9 +115,10 @@ interface RegisterPayload {
 interface ResourceSubmitPayload {
   title: string
   cat: string
-  type: string
-  desc: string
-  files: UploadedFileItem[]
+  summary: string
+  contentMarkdown: string
+  attachments?: UploadedFileItem[]
+  files?: UploadedFileItem[]   // 临时兼容，submitResource 内部处理
 }
 
 const fallbackCategories = ['计算机科学', '高等数学', '大学英语', '考研资料', '课程笔记', '实验报告', '竞赛资料', '校园生活']
@@ -210,7 +222,11 @@ export const useAppStore = defineStore('app', () => {
       downloads: item.downloadCount || 0,
       favs: 0,
       status: mapStatus(item.status),
-      desc: item.description || '',
+      // 优先使用新字段 summary，兼容旧 description
+      desc: item.summary || item.description || '',
+      summary: item.summary,
+      contentMarkdown: item.contentMarkdown,
+      contentType: item.contentType,
       fileUrl: item.fileUrl,
       fileSize: item.fileSize
     }
@@ -222,6 +238,8 @@ export const useAppStore = defineStore('app', () => {
       title: item.title,
       userId: item.userId,
       description: item.description,
+      summary: item.summary,
+      contentMarkdown: item.contentMarkdown,
       categoryId: item.categoryId,
       fileType: item.fileType,
       status: item.status,
@@ -429,34 +447,47 @@ export const useAppStore = defineStore('app', () => {
       throw new Error('请选择有效分类')
     }
 
-    if (!payload.files.length) {
-      // 无附件资源（文字/链接/经验分享等）
+    const attachments = payload.attachments ?? payload.files ?? []
+    const contentType = 'MARKDOWN'
+
+    // 第一阶段兼容逻辑：
+    // - 无附件：fileUrl/fileSize/fileType 使用 Markdown 兜底
+    // - 有附件：仍使用旧的单 file* 字段（取第一个），多附件时按旧逻辑创建多条（第二阶段会迁移到 resource_attachment）
+    if (attachments.length === 0) {
+      // 纯 Markdown 资源（第一阶段主场景）
       await request<void>('/api/resource', {
         method: 'POST',
         body: jsonBody({
           title: payload.title,
-          description: payload.desc,
           categoryId: id,
+          summary: payload.summary,
+          contentMarkdown: payload.contentMarkdown,
+          contentType,
           fileUrl: '',
           fileSize: 0,
-          fileType: payload.type || '文字资源'
+          fileType: 'Markdown资源',
+          attachments: []
         })
       })
       await loadMyResources()
       return
     }
 
-    for (const file of payload.files) {
-      const batchTitle = payload.files.length === 1 ? payload.title : `${payload.title} - ${file.originalName}`
+    // 有附件时（阶段一仍走兼容路径）
+    for (const file of attachments) {
+      const batchTitle = attachments.length === 1 ? payload.title : `${payload.title} - ${file.originalName}`
       await request<void>('/api/resource', {
         method: 'POST',
         body: jsonBody({
           title: batchTitle,
-          description: payload.desc,
           categoryId: id,
+          summary: payload.summary,
+          contentMarkdown: payload.contentMarkdown,
+          contentType,
           fileUrl: file.fileUrl,
           fileSize: file.fileSize,
-          fileType: payload.type || file.fileType
+          fileType: file.fileType,
+          attachments: []   // 第二阶段再真正支持 attachments 数组
         })
       })
     }
