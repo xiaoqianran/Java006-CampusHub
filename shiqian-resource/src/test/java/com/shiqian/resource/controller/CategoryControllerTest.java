@@ -32,6 +32,9 @@ public class CategoryControllerTest extends BaseResourceTest {
     @Autowired
     private CategoryService categoryService;
 
+    /** 通用成功响应消息，对应 Result.ok() 返回的 message，避免魔法值 */
+    private static final String SUCCESS_MESSAGE = "操作成功";
+
     @Test
     public void testAddCategorySuccess() throws Exception {
         CategoryDTO dto = new CategoryDTO();
@@ -44,7 +47,8 @@ public class CategoryControllerTest extends BaseResourceTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.message").value(SUCCESS_MESSAGE));
     }
 
     @Test
@@ -80,7 +84,8 @@ public class CategoryControllerTest extends BaseResourceTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.message").value(SUCCESS_MESSAGE));
     }
 
     @Test
@@ -94,7 +99,8 @@ public class CategoryControllerTest extends BaseResourceTest {
 
         mockMvc.perform(delete("/api/category/{id}", category.getId()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.message").value(SUCCESS_MESSAGE));
     }
 
     @Test
