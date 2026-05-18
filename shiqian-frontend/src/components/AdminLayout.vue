@@ -11,7 +11,7 @@ const links = [
   { path: '/admin/users', label: '用户管理' }
 ]
 
-function backToStudent() {
+function goHome() {
   router.push('/home')
 }
 </script>
@@ -23,7 +23,7 @@ function backToStudent() {
         <el-menu-item v-for="item in links" :key="item.path" :index="item.path">{{ item.label }}</el-menu-item>
       </el-menu>
       <el-divider />
-      <el-button class="full" @click="backToStudent">返回学生端</el-button>
+      <el-button class="full" @click="goHome">返回首页</el-button>
     </aside>
     <section class="admin-main">
       <slot />
