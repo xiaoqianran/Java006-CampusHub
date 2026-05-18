@@ -5,7 +5,6 @@ import { useAppStore } from '@/stores/app'
 
 const router = useRouter()
 const store = useAppStore()
-const icons = ['💻', '∑', 'A', '🎓', '📝', '🧪', '🏆', '🏫']
 
 onMounted(() => {
   store.loadHomeData().catch(() => undefined)
@@ -14,6 +13,24 @@ onMounted(() => {
 function openCategory(category: string) {
   store.setCategory(category)
   router.push('/plaza')
+}
+
+// 分类浏览页专用 icon 获取函数，保证永远有图标
+function getCategoryIcon(category: string, index: number): string {
+  const preset: Record<string, string> = {
+    '计算机科学': '💻',
+    '高等数学': '∑',
+    '大学英语': 'A',
+    '考研资料': '📝',
+    '课程笔记': '🧪',
+    '实验报告': '🏆',
+    '竞赛资料': '🏫',
+    '校园生活': '📌'
+  }
+  if (preset[category]) return preset[category]
+  // 动态分类使用稳定 fallback
+  const fallbacks = ['📁', '📚', '🧾', '🧠', '📝', '⭐', '📌', '🎓']
+  return fallbacks[index % fallbacks.length]
 }
 </script>
 
@@ -25,10 +42,21 @@ function openCategory(category: string) {
         <p class="sub">分类不是孤立页面，而是资源广场的筛选入口。</p>
       </div>
     </div>
-    <div class="category-grid">
-      <el-card v-for="(category, index) in store.categories" :key="category" class="category-card" shadow="never" @click="openCategory(category)">
-        <span class="category-icon">{{ icons[index] }}</span>
-        <span><b>{{ category }}</b><br><span class="sub">{{ store.resources.filter(item => item.cat === category).length }} 个资源</span></span>
+    <div class="category-grid category-browse-grid">
+      <el-card
+        v-for="(category, index) in store.categories"
+        :key="category"
+        class="category-card category-browse-card"
+        shadow="never"
+        @click="openCategory(category)"
+      >
+        <span class="category-icon category-browse-icon">
+          {{ getCategoryIcon(category, index) }}
+        </span>
+        <b class="category-name">{{ category }}</b>
+        <span class="sub category-count">
+          {{ store.resources.filter(item => item.cat === category).length }} 个资源
+        </span>
       </el-card>
     </div>
   </section>
