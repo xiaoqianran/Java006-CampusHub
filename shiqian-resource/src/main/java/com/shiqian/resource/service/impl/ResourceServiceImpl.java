@@ -66,7 +66,8 @@ public class ResourceServiceImpl implements ResourceService {
             resource.setFileSize(0L);
         }
         if (!StringUtils.hasText(resource.getFileType())) {
-            resource.setFileType("文字资源");
+            // 第一阶段：纯 Markdown 资源默认使用 "Markdown资源"
+            resource.setFileType(StringUtils.hasText(resource.getContentMarkdown()) ? "Markdown资源" : "文字资源");
         }
 
         resourceMapper.insert(resource);

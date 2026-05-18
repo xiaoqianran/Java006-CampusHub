@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import AdminLayout from '@/components/AdminLayout.vue'
 import StatusTag from '@/components/StatusTag.vue'
+import MarkdownPreview from '@/components/MarkdownPreview.vue'
 import { useAppStore, type ResourceItem } from '@/stores/app'
 
 const router = useRouter()
@@ -180,15 +181,34 @@ async function reject(id: number) {
           <span>文件大小：{{ current?.fileSize || 0 }} 字节</span>
         </div>
 
+        <!-- 摘要 -->
         <div class="audit-section">
-          <h3>资源简介</h3>
-          <p>{{ current?.desc || '暂无简介' }}</p>
+          <h3>资源摘要</h3>
+          <p class="audit-summary">{{ current?.summary || current?.desc || '暂无摘要' }}</p>
         </div>
 
+        <!-- Markdown 正文 -->
         <div class="audit-section">
-          <h3>原文件</h3>
-          <p v-if="current?.fileUrl" class="audit-file-url">{{ current?.fileUrl }}</p>
-          <p v-else class="sub">该资源没有可查看的文件地址。</p>
+          <h3>资源正文</h3>
+          <div v-if="current?.contentMarkdown" class="audit-markdown">
+            <MarkdownPreview :model-value="current.contentMarkdown" />
+          </div>
+          <div v-else class="audit-fallback">
+            <p class="sub">（兼容旧数据）{{ current?.desc || '暂无正文内容' }}</p>
+          </div>
+        </div>
+
+        <!-- 文件 / 附件（阶段一兼容） -->
+        <div class="audit-section">
+          <h3>附件 / 文件</h3>
+          <div v-if="current?.fileUrl">
+            <p class="audit-file-url">{{ current?.fileUrl }}</p>
+            <el-button size="small" type="primary" @click="openFile(current)">打开文件</el-button>
+          </div>
+          <div v-else>
+            <p class="sub">该资源为纯 Markdown 内容，无附件文件。</p>
+            <el-button size="small" disabled>无附件</el-button>
+          </div>
         </div>
       </div>
 
@@ -209,3 +229,76 @@ async function reject(id: number) {
     </el-dialog>
   </AdminLayout>
 </template>
+
+<style scoped>
+/* 审核详情弹窗深色模式适配 - 防止闪白 */
+.audit-detail-dialog :deep(.el-dialog) {
+  background: var(--bg-card, #ffffff);
+}
+
+[data-theme="dark"] .audit-detail-dialog :deep(.el-dialog) {
+  background: var(--bg-card-dark, #1f2937);
+  color: var(--text-primary-dark, #f3f4f6);
+}
+
+.audit-detail {
+  padding: 8px 4px;
+}
+
+.audit-summary {
+  font-size: 15px;
+  color: var(--text-secondary, #4b5563);
+  line-height: 1.6;
+}
+
+[data-theme="dark"] .audit-summary {
+  color: var(--text-secondary-dark, #9ca3af);
+}
+
+.audit-markdown {
+  margin-top: 8px;
+}
+
+.audit-fallback {
+  padding: 12px;
+  background: var(--bg-subtle, #f8f9fa);
+  border-radius: 6px;
+  color: var(--text-secondary, #4b5563);
+}
+
+[data-theme="dark"] .audit-fallback {
+  background: #111827;
+  color: #9ca3af;
+}
+
+.audit-file-url {
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  word-break: break-all;
+  color: #6366f1;
+  margin-bottom: 8px;
+}
+
+.audit-section {
+  margin-bottom: 20px;
+}
+
+.audit-section h3 {
+  font-size: 14px;
+  color: var(--text-secondary, #6b7280);
+  margin-bottom: 8px;
+}
+
+[data-theme="dark"] .audit-section h3 {
+  color: #9ca3af;
+}
+
+/* 弹窗 loading mask 深色适配 */
+.audit-detail-dialog :deep(.el-loading-mask) {
+  background-color: rgba(255, 255, 255, 0.7);
+}
+
+[data-theme="dark"] .audit-detail-dialog :deep(.el-loading-mask) {
+  background-color: rgba(31, 41, 55, 0.85);
+}
+</style>
