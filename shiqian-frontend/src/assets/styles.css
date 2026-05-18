@@ -121,6 +121,12 @@ a { color: inherit; text-decoration: none; }
 .admin-sidebar .el-menu { border-right: 0; }
 .admin-main { min-width: 0; }
 .form-card { padding: 22px; }
+.upload-panel { width: 100%; }
+.upload-panel .el-upload,
+.upload-panel .el-upload-dragger { width: 100%; }
+.uploaded-list { margin: 0 0 16px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.uploaded-row { display: flex; justify-content: space-between; gap: 16px; padding: 12px 14px; background: #fff; border-bottom: 1px solid var(--line); }
+.uploaded-row:last-child { border-bottom: 0; }
 .empty { padding: 42px; text-align: center; color: var(--muted); }
 
 @media (max-width: 980px) {

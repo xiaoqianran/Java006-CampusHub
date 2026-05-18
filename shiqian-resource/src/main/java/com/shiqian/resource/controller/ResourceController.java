@@ -173,11 +173,13 @@ public class ResourceController {
 
     @Operation(summary = "搜索资源")
     @GetMapping("/search")
-    public Result<org.springframework.data.domain.Page<ResourceDocument>> search(
+    public Result<Page<ResourceDocument>> search(
             @RequestParam String keyword,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer size) {
-        org.springframework.data.domain.Page<ResourceDocument> result = resourceSearchService.search(keyword, page, size);
+        org.springframework.data.domain.Page<ResourceDocument> searchResult = resourceSearchService.search(keyword, page, size);
+        Page<ResourceDocument> result = new Page<>(page, size, searchResult.getTotalElements());
+        result.setRecords(searchResult.getContent());
         return Result.ok(result);
     }
 

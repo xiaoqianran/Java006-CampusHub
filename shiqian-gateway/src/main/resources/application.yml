@@ -32,6 +32,8 @@ gateway:
       - /api/user/register
       - /api/user/login
       - /api/user/health
+      - /api/resource
+      - /api/category
       - /actuator
 
 management:
