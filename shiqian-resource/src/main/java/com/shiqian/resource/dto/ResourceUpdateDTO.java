@@ -16,19 +16,21 @@ public class ResourceUpdateDTO {
     @Size(max = 1000, message = "资源描述最多1000个字符")
     private String description;
 
+    @Size(max = 500, message = "资源摘要最多500个字符")
+    private String summary;
+
+    private String contentMarkdown;
+
     @NotNull(message = "分类ID不能为空")
     @Min(value = 1, message = "分类ID必须大于0")
     private Long categoryId;
 
-    @NotBlank(message = "文件地址不能为空")
     @Size(max = 500, message = "文件地址最多500个字符")
     private String fileUrl;
 
-    @NotNull(message = "文件大小不能为空")
     @Min(value = 0, message = "文件大小不能为负数")
     private Long fileSize;
 
-    @NotBlank(message = "文件类型不能为空")
     @Size(max = 100, message = "文件类型最多100个字符")
     private String fileType;
 }

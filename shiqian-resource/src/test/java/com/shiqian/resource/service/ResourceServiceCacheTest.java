@@ -67,7 +67,8 @@ class ResourceServiceCacheTest extends BaseResourceTest {
 
         ResourceCreateDTO dto = new ResourceCreateDTO();
         dto.setTitle("缓存测试资源");
-        dto.setDescription("缓存测试描述");
+        dto.setSummary("缓存测试摘要");
+        dto.setContentMarkdown("缓存测试正文");
         dto.setCategoryId(category.getId());
         dto.setFileUrl("http://example.com/file.pdf");
         dto.setFileSize(1024L);
@@ -103,7 +104,8 @@ class ResourceServiceCacheTest extends BaseResourceTest {
 
         ResourceCreateDTO dto = new ResourceCreateDTO();
         dto.setTitle("一致性测试资源");
-        dto.setDescription("一致性测试描述");
+        dto.setSummary("一致性测试摘要");
+        dto.setContentMarkdown("一致性测试正文");
         dto.setCategoryId(category.getId());
         dto.setFileUrl("http://example.com/file.pdf");
         dto.setFileSize(1024L);
@@ -119,7 +121,8 @@ class ResourceServiceCacheTest extends BaseResourceTest {
 
         ResourceUpdateDTO updateDTO = new ResourceUpdateDTO();
         updateDTO.setTitle("更新后标题");
-        updateDTO.setDescription("更新后描述");
+        updateDTO.setSummary("一致性测试摘要");
+        updateDTO.setContentMarkdown("一致性测试正文");
         updateDTO.setCategoryId(category.getId());
         updateDTO.setFileUrl("http://example.com/file.pdf");
         updateDTO.setFileSize(1024L);

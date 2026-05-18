@@ -67,7 +67,8 @@ public class ResourceControllerTest extends BaseResourceTest {
 
         ResourceCreateDTO dto = new ResourceCreateDTO();
         dto.setTitle("测试资源");
-        dto.setDescription("测试描述");
+        dto.setSummary("测试摘要");
+        dto.setContentMarkdown("测试正文");
         dto.setCategoryId(category.getId());
         dto.setFileUrl("http://example.com/file.pdf");
         dto.setFileSize(1024L);
@@ -101,6 +102,8 @@ public class ResourceControllerTest extends BaseResourceTest {
     public void testCreateResourceCategoryNotExist() throws Exception {
         ResourceCreateDTO dto = new ResourceCreateDTO();
         dto.setTitle("测试资源");
+        dto.setSummary("测试摘要");
+        dto.setContentMarkdown("# 测试正文\n\n这是 Markdown 内容。");
         dto.setCategoryId(9999L);
         dto.setFileUrl("http://example.com/file.pdf");
         dto.setFileSize(1024L);
@@ -121,6 +124,8 @@ public class ResourceControllerTest extends BaseResourceTest {
 
         ResourceCreateDTO dto = new ResourceCreateDTO();
         dto.setTitle("违规资料");
+        dto.setSummary("测试摘要");
+        dto.setContentMarkdown("# 测试正文\n\n这是 Markdown 内容。");
         dto.setCategoryId(category.getId());
         dto.setFileUrl("http://example.com/file.pdf");
         dto.setFileSize(1024L);
@@ -139,6 +144,8 @@ public class ResourceControllerTest extends BaseResourceTest {
     public void testCreateResourceWithoutTokenShouldReturnUnauthorized() throws Exception {
         ResourceCreateDTO dto = new ResourceCreateDTO();
         dto.setTitle("测试资源");
+        dto.setSummary("测试摘要");
+        dto.setContentMarkdown("# 测试正文\n\n这是 Markdown 内容。");
         dto.setCategoryId(1L);
         dto.setFileUrl("http://example.com/file.pdf");
         dto.setFileSize(1024L);
@@ -155,6 +162,8 @@ public class ResourceControllerTest extends BaseResourceTest {
     public void testCreateResourceWithoutPermissionShouldReturnForbidden() throws Exception {
         ResourceCreateDTO dto = new ResourceCreateDTO();
         dto.setTitle("测试资源");
+        dto.setSummary("测试摘要");
+        dto.setContentMarkdown("# 测试正文\n\n这是 Markdown 内容。");
         dto.setCategoryId(1L);
         dto.setFileUrl("http://example.com/file.pdf");
         dto.setFileSize(1024L);
@@ -220,6 +229,8 @@ public class ResourceControllerTest extends BaseResourceTest {
         Category category = createCategory("测试分类");
         ResourceCreateDTO dto = new ResourceCreateDTO();
         dto.setTitle("详情测试资源");
+        dto.setSummary("测试摘要");
+        dto.setContentMarkdown("# 测试正文\n\n这是 Markdown 内容。");
         dto.setCategoryId(category.getId());
         dto.setFileUrl("http://example.com/file.pdf");
         dto.setFileSize(1024L);
@@ -248,17 +259,12 @@ public class ResourceControllerTest extends BaseResourceTest {
     public void testUpdateResourceSuccess() throws Exception {
         Category category = createCategory("测试分类");
 
-        ResourceCreateDTO createDto = new ResourceCreateDTO();
-        createDto.setTitle("旧标题");
-        createDto.setCategoryId(category.getId());
-        createDto.setFileUrl("http://example.com/file.pdf");
-        createDto.setFileSize(1024L);
-        createDto.setFileType("application/pdf");
+        ResourceCreateDTO createDto = buildCreateDto(category.getId(), "旧标题");
         Resource resource = resourceService.createResource(1L, createDto);
 
         ResourceUpdateDTO dto = new ResourceUpdateDTO();
         dto.setTitle("新标题");
-        dto.setDescription("新描述");
+        dto.setSummary("新摘要");
         dto.setCategoryId(category.getId());
         dto.setFileUrl("http://example.com/new.pdf");
         dto.setFileSize(2048L);
@@ -466,6 +472,8 @@ public class ResourceControllerTest extends BaseResourceTest {
     private ResourceCreateDTO buildCreateDto(Long categoryId, String title) {
         ResourceCreateDTO dto = new ResourceCreateDTO();
         dto.setTitle(title);
+        dto.setSummary("测试摘要");
+        dto.setContentMarkdown("# " + title + "\n\n测试正文。");
         dto.setCategoryId(categoryId);
         dto.setFileUrl("http://example.com/file.pdf");
         dto.setFileSize(1024L);
@@ -486,6 +494,8 @@ public class ResourceControllerTest extends BaseResourceTest {
     private void createResource(String title, Long categoryId) throws Exception {
         ResourceCreateDTO dto = new ResourceCreateDTO();
         dto.setTitle(title);
+        dto.setSummary("测试摘要");
+        dto.setContentMarkdown("# " + title + "\n\n测试正文。");
         dto.setCategoryId(categoryId);
         dto.setFileUrl("http://example.com/file.pdf");
         dto.setFileSize(1024L);

@@ -5,6 +5,7 @@ import type { UploadRawFile, UploadUserFile } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { UploadFilled } from '@element-plus/icons-vue'
 import { useAppStore, type UploadedFileItem } from '@/stores/app'
+import MarkdownEditor from '@/components/MarkdownEditor.vue'
 
 const router = useRouter()
 const store = useAppStore()
@@ -16,11 +17,13 @@ const uploadedFiles = ref<UploadedFileItem[]>([])
 const form = reactive({
   title: '',
   cat: '计算机科学',
-  type: '',
-  desc: ''
+  summary: '',           // 资源摘要（用于卡片和搜索）
+  contentMarkdown: ''    // Markdown 正文
 })
 
-const canSubmit = computed(() => Boolean(form.title && form.cat && form.desc && selectedFiles.value.length))
+const canSubmit = computed(() => {
+  return Boolean(form.title && form.cat && form.summary && form.contentMarkdown)
+})
 
 watch(selectedFiles, () => {
   uploadedFiles.value = []
@@ -57,24 +60,26 @@ async function submit() {
     return
   }
   if (!canSubmit.value) {
-    ElMessage.warning('请补充标题、分类、简介并选择附件')
+    ElMessage.warning('请补充标题、分类、摘要和 Markdown 正文')
     return
   }
 
   submitting.value = true
   try {
-    if (!uploadedFiles.value.length) {
+    if (selectedFiles.value.length && !uploadedFiles.value.length) {
       await uploadSelectedFiles()
     }
+
+    // 直接提交新字段（后端第一阶段已支持 summary + contentMarkdown）
     await store.submitResource({
       title: form.title,
       cat: form.cat,
-      type: form.type,
-      desc: form.desc,
-      files: uploadedFiles.value
+      summary: form.summary,
+      contentMarkdown: form.contentMarkdown,
+      attachments: uploadedFiles.value
     })
     localStorage.removeItem('shiqian_publish_draft')
-    ElMessage.success(uploadedFiles.value.length > 1 ? '批量资源已提交审核' : '资源已提交审核')
+    ElMessage.success('资源已提交审核')
     router.push('/mine')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '提交失败')
@@ -94,7 +99,7 @@ function saveDraft() {
     <div class="page-title">
       <div>
         <h1>发布资源</h1>
-        <p class="sub">选择一个或多个附件后提交；多个附件会按文件分别创建待审核资源。</p>
+        <p class="sub">附件为可选项。填写标题、分类、摘要和 Markdown 正文后即可提交审核。</p>
       </div>
     </div>
     <el-alert v-if="!store.logged" title="请先登录后发布资源。" type="warning" show-icon :closable="false" style="margin-bottom: 16px" />
@@ -114,12 +119,10 @@ function saveDraft() {
             </el-form-item>
           </el-col>
           <el-col :xs="24" :md="12">
-            <el-form-item label="资源类型">
-              <el-input v-model="form.type" placeholder="不填时按附件类型自动识别" />
-            </el-form-item>
+
           </el-col>
           <el-col :span="24">
-            <el-form-item label="附件">
+            <el-form-item label="附件（可选）">
               <el-upload
                 v-model:file-list="selectedFiles"
                 drag
@@ -134,8 +137,19 @@ function saveDraft() {
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="资源简介">
-              <el-input v-model="form.desc" type="textarea" :rows="5" placeholder="说明适用课程、内容范围、使用方法；搜索会覆盖标题、简介和文件类型" />
+            <el-form-item label="资源摘要">
+              <el-input 
+                v-model="form.summary" 
+                type="textarea" 
+                :rows="2" 
+                placeholder="一句话总结这个资源（用于卡片展示和搜索结果）" 
+              />
+            </el-form-item>
+          </el-col>
+
+          <el-col :span="24">
+            <el-form-item label="Markdown 正文">
+              <MarkdownEditor v-model="form.contentMarkdown" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -148,7 +162,6 @@ function saveDraft() {
         </div>
 
         <el-button type="primary" :loading="submitting || uploading" :disabled="!canSubmit" @click="submit">提交审核</el-button>
-        <el-button :loading="uploading" :disabled="!selectedFiles.length" @click="uploadSelectedFiles">仅上传附件</el-button>
         <el-button @click="saveDraft">保存草稿</el-button>
       </el-form>
     </el-card>

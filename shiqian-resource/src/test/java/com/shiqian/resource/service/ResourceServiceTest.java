@@ -72,7 +72,8 @@ public class ResourceServiceTest extends BaseResourceTest {
 
         ResourceCreateDTO dto = new ResourceCreateDTO();
         dto.setTitle("测试资源");
-        dto.setDescription("测试描述");
+        dto.setSummary("测试描述");
+        dto.setContentMarkdown("测试描述正文");
         dto.setCategoryId(category.getId());
         dto.setFileUrl("http://example.com/file.pdf");
         dto.setFileSize(1024L);
@@ -124,7 +125,8 @@ public class ResourceServiceTest extends BaseResourceTest {
         Category category = createCategory("测试分类");
         ResourceCreateDTO dto = new ResourceCreateDTO();
         dto.setTitle("测试资源");
-        dto.setDescription("包含敏感词的描述");
+        dto.setSummary("包含敏感词的描述");
+        dto.setContentMarkdown("包含敏感词的正文");
         dto.setCategoryId(category.getId());
         dto.setFileUrl("http://example.com/file.pdf");
         dto.setFileSize(1024L);
@@ -185,6 +187,45 @@ public class ResourceServiceTest extends BaseResourceTest {
     }
 
     @Test
+    public void testCreatePureMarkdownResourceAndKeywordSearch() {
+        Category category = createCategory("Markdown测试分类");
+
+        // 纯 Markdown 资源（无附件）
+        ResourceCreateDTO dto = new ResourceCreateDTO();
+        dto.setTitle("纯文本 Markdown 资源测试");
+        dto.setSummary("这是一个包含 markdown-summary-keyword 的摘要，用于搜索测试");
+        dto.setContentMarkdown("# 正文标题\n\n这里包含特殊关键词 markdown-content-keyword 用于验证全文搜索。\n\n支持代码块等。");
+        dto.setCategoryId(category.getId());
+        // 故意不设置 file 相关字段，测试 Service 兜底
+        // dto.setFileUrl(null); dto.setFileSize(null); dto.setFileType(null);
+
+        Resource created = resourceService.createResource(1L, dto);
+
+        // 断言创建成功 + 字段正确保存
+        assertNotNull(created);
+        assertNotNull(created.getId());
+        assertEquals("纯文本 Markdown 资源测试", created.getTitle());
+        assertEquals("这是一个包含 markdown-summary-keyword 的摘要，用于搜索测试", created.getSummary());
+        assertTrue(created.getContentMarkdown().contains("markdown-content-keyword"));
+        assertEquals("MARKDOWN", created.getContentType());
+        // file 兜底
+        assertEquals("", created.getFileUrl());
+        assertEquals(0L, created.getFileSize());
+        // Service 当前兜底为 "文字资源"（当 fileType 为空时）
+        assertEquals("Markdown资源", created.getFileType());
+
+        // 验证关键词能命中 summary
+        Page<Resource> pageBySummary = resourceService.pageResources(1, 10, null, "markdown-summary-keyword");
+        assertTrue(pageBySummary.getTotal() >= 1);
+        assertTrue(pageBySummary.getRecords().stream().anyMatch(r -> r.getId().equals(created.getId())));
+
+        // 验证关键词能命中 contentMarkdown
+        Page<Resource> pageByContent = resourceService.pageResources(1, 10, null, "markdown-content-keyword");
+        assertTrue(pageByContent.getTotal() >= 1);
+        assertTrue(pageByContent.getRecords().stream().anyMatch(r -> r.getId().equals(created.getId())));
+    }
+
+    @Test
     public void testUpdateResourceSuccess() {
         Category category = createCategory("测试分类");
         Resource resource = createResource("旧标题", category.getId());
@@ -192,7 +233,8 @@ public class ResourceServiceTest extends BaseResourceTest {
 
         ResourceUpdateDTO dto = new ResourceUpdateDTO();
         dto.setTitle("新标题");
-        dto.setDescription("新描述");
+        dto.setSummary("新摘要");
+        dto.setContentMarkdown("# 新正文\n\n更新后的 Markdown 内容。");
         dto.setCategoryId(category.getId());
         dto.setFileUrl("http://example.com/new.pdf");
         dto.setFileSize(2048L);
@@ -202,7 +244,7 @@ public class ResourceServiceTest extends BaseResourceTest {
 
         Resource updated = resourceService.getResourceById(id);
         assertEquals("新标题", updated.getTitle());
-        assertEquals("新描述", updated.getDescription());
+        assertEquals("新摘要", updated.getSummary());
         assertEquals(2, updated.getVersion());
     }
 
@@ -245,7 +287,7 @@ public class ResourceServiceTest extends BaseResourceTest {
 
         ResourceUpdateDTO dto = new ResourceUpdateDTO();
         dto.setTitle("新标题");
-        dto.setDescription("这是一条广告描述");
+        dto.setSummary("这是一条广告描述");
         dto.setCategoryId(category.getId());
         dto.setFileUrl("http://example.com/new.pdf");
         dto.setFileSize(1024L);
@@ -321,7 +363,7 @@ public class ResourceServiceTest extends BaseResourceTest {
 
         ResourceUpdateDTO dto = new ResourceUpdateDTO();
         dto.setTitle("新标题");
-        dto.setDescription("新描述");
+        dto.setSummary("新摘要");
         dto.setCategoryId(category.getId());
         dto.setFileUrl("http://example.com/new.pdf");
         dto.setFileSize(2048L);
@@ -332,7 +374,7 @@ public class ResourceServiceTest extends BaseResourceTest {
         Optional<ResourceDocument> docOpt = resourceDocumentRepository.findById(resource.getId());
         assertTrue(docOpt.isPresent());
         assertEquals("新标题", docOpt.get().getTitle());
-        assertEquals("新描述", docOpt.get().getDescription());
+        assertEquals("新摘要", docOpt.get().getDescription());
     }
 
     @Test
@@ -404,6 +446,8 @@ public class ResourceServiceTest extends BaseResourceTest {
     private Resource createResource(String title, Long categoryId) {
         ResourceCreateDTO dto = new ResourceCreateDTO();
         dto.setTitle(title);
+        dto.setSummary("测试摘要");
+        dto.setContentMarkdown("# " + title + "\n\n测试正文。");
         dto.setCategoryId(categoryId);
         dto.setFileUrl("http://example.com/file.pdf");
         dto.setFileSize(1024L);

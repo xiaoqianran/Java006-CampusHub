@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Plus, User, Setting } from '@element-plus/icons-vue'
+import { Plus, User, Setting, Sunny, Moon } from '@element-plus/icons-vue'
 import { useAppStore } from '@/stores/app'
 
 const route = useRoute()
@@ -9,6 +9,7 @@ const router = useRouter()
 const store = useAppStore()
 
 onMounted(() => {
+  store.initTheme()
   store.loadHomeData().catch(() => undefined)
 })
 
@@ -63,6 +64,15 @@ function logout() {
           <el-button v-if="canAccessAdmin" :icon="Setting" @click="goAdmin">管理端</el-button>
           <el-button v-if="!store.logged" :icon="User" @click="goLogin">登录</el-button>
           <el-button v-else @click="logout">退出</el-button>
+
+          <!-- 主题切换按钮（Search-First 技能强制要求） -->
+          <el-button
+            :icon="store.isDark ? Sunny : Moon"
+            circle
+            @click="store.toggleTheme"
+            :title="store.isDark ? '切换到浅色模式' : '切换到深色模式'"
+          />
+
           <el-button type="primary" :icon="Plus" @click="goPublish">发布资源</el-button>
         </div>
       </div>

@@ -9,7 +9,12 @@ export interface ResourceApiItem {
   id: number
   userId: number
   title: string
+  // 旧字段（兼容历史数据）
   description?: string
+  // 新字段（第一阶段主推）
+  summary?: string
+  contentMarkdown?: string
+  contentType?: string
   categoryId?: number
   fileUrl?: string
   fileSize?: number
@@ -25,6 +30,8 @@ export interface ResourceSearchItem {
   userId: number
   title: string
   description?: string
+  summary?: string
+  contentMarkdown?: string
   categoryId?: number
   fileType?: string
   status: number
@@ -71,6 +78,10 @@ export interface ResourceItem {
   favs: number
   status: ResourceStatus
   desc: string
+  // 新字段（详情页渲染用）
+  summary?: string
+  contentMarkdown?: string
+  contentType?: string
   fileUrl?: string
   fileSize?: number
 }
@@ -104,9 +115,10 @@ interface RegisterPayload {
 interface ResourceSubmitPayload {
   title: string
   cat: string
-  type: string
-  desc: string
-  files: UploadedFileItem[]
+  summary: string
+  contentMarkdown: string
+  attachments?: UploadedFileItem[]
+  files?: UploadedFileItem[]   // 临时兼容，submitResource 内部处理
 }
 
 const fallbackCategories = ['计算机科学', '高等数学', '大学英语', '考研资料', '课程笔记', '实验报告', '竞赛资料', '校园生活']
@@ -128,6 +140,41 @@ export const useAppStore = defineStore('app', () => {
   const activeCategory = ref<string>('全部分类')
   const keyword = ref('')
   const loading = ref(false)
+
+  // ===== 主题系统 (Search-First + Element Plus 暗色适配) =====
+  const theme = ref<'light' | 'dark'>(
+    (localStorage.getItem('shiqian_theme') as 'light' | 'dark' | null) || 'light'
+  )
+  const isDark = computed(() => theme.value === 'dark')
+
+  function applyThemeToDOM(t: 'light' | 'dark') {
+    const root = document.documentElement
+    root.dataset.theme = t
+    // 同步更新 body 背景，减少闪烁
+    if (t === 'dark') {
+      root.style.setProperty('color-scheme', 'dark')
+    } else {
+      root.style.setProperty('color-scheme', 'light')
+    }
+  }
+
+  function initTheme() {
+    const saved = localStorage.getItem('shiqian_theme') as 'light' | 'dark' | null
+    const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches
+    const initial = saved || (prefersDark ? 'dark' : 'light')
+    theme.value = initial
+    applyThemeToDOM(initial)
+  }
+
+  function setTheme(t: 'light' | 'dark') {
+    theme.value = t
+    localStorage.setItem('shiqian_theme', t)
+    applyThemeToDOM(t)
+  }
+
+  function toggleTheme() {
+    setTheme(theme.value === 'dark' ? 'light' : 'dark')
+  }
 
   const categoryTree = ref<CategoryApiItem[]>([])
   const resources = ref<ResourceItem[]>([])
@@ -175,7 +222,11 @@ export const useAppStore = defineStore('app', () => {
       downloads: item.downloadCount || 0,
       favs: 0,
       status: mapStatus(item.status),
-      desc: item.description || '',
+      // 优先使用新字段 summary，兼容旧 description
+      desc: item.summary || item.description || '',
+      summary: item.summary,
+      contentMarkdown: item.contentMarkdown,
+      contentType: item.contentType,
       fileUrl: item.fileUrl,
       fileSize: item.fileSize
     }
@@ -187,6 +238,8 @@ export const useAppStore = defineStore('app', () => {
       title: item.title,
       userId: item.userId,
       description: item.description,
+      summary: item.summary,
+      contentMarkdown: item.contentMarkdown,
       categoryId: item.categoryId,
       fileType: item.fileType,
       status: item.status,
@@ -393,21 +446,48 @@ export const useAppStore = defineStore('app', () => {
     if (!id) {
       throw new Error('请选择有效分类')
     }
-    if (!payload.files.length) {
-      throw new Error('请先上传至少一个附件')
+
+    const attachments = payload.attachments ?? payload.files ?? []
+    const contentType = 'MARKDOWN'
+
+    // 第一阶段兼容逻辑：
+    // - 无附件：fileUrl/fileSize/fileType 使用 Markdown 兜底
+    // - 有附件：仍使用旧的单 file* 字段（取第一个），多附件时按旧逻辑创建多条（第二阶段会迁移到 resource_attachment）
+    if (attachments.length === 0) {
+      // 纯 Markdown 资源（第一阶段主场景）
+      await request<void>('/api/resource', {
+        method: 'POST',
+        body: jsonBody({
+          title: payload.title,
+          categoryId: id,
+          summary: payload.summary,
+          contentMarkdown: payload.contentMarkdown,
+          contentType,
+          fileUrl: '',
+          fileSize: 0,
+          fileType: 'Markdown资源',
+          attachments: []
+        })
+      })
+      await loadMyResources()
+      return
     }
 
-    for (const file of payload.files) {
-      const batchTitle = payload.files.length === 1 ? payload.title : `${payload.title} - ${file.originalName}`
+    // 有附件时（阶段一仍走兼容路径）
+    for (const file of attachments) {
+      const batchTitle = attachments.length === 1 ? payload.title : `${payload.title} - ${file.originalName}`
       await request<void>('/api/resource', {
         method: 'POST',
         body: jsonBody({
           title: batchTitle,
-          description: payload.desc,
           categoryId: id,
+          summary: payload.summary,
+          contentMarkdown: payload.contentMarkdown,
+          contentType,
           fileUrl: file.fileUrl,
           fileSize: file.fileSize,
-          fileType: payload.type || file.fileType
+          fileType: file.fileType,
+          attachments: []   // 第二阶段再真正支持 attachments 数组
         })
       })
     }
@@ -437,6 +517,13 @@ export const useAppStore = defineStore('app', () => {
   }
 
   return {
+    // 主题
+    theme,
+    isDark,
+    initTheme,
+    setTheme,
+    toggleTheme,
+    // 原有
     role,
     logged,
     currentUser,

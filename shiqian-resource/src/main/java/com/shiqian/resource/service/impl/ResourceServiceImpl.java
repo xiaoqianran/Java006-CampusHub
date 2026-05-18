@@ -40,7 +40,7 @@ public class ResourceServiceImpl implements ResourceService {
 
     @Override
     public Resource createResource(Long userId, ResourceCreateDTO dto) {
-        validateContent(dto.getTitle(), dto.getDescription());
+        validateContent(dto.getTitle(), dto.getSummary(), dto.getContentMarkdown());
         Category category = categoryService.getCategoryById(dto.getCategoryId());
         if (category == null || category.getDeleted() == 1) {
             throw new BusinessException("分类不存在");
@@ -52,6 +52,23 @@ public class ResourceServiceImpl implements ResourceService {
         resource.setDownloadCount(0);
         resource.setVersion(1);
         resource.setStatus(0);
+
+        // 默认 contentType
+        if (!StringUtils.hasText(resource.getContentType())) {
+            resource.setContentType("MARKDOWN");
+        }
+
+        // 兼容旧字段（未来逐步移除）
+        if (!StringUtils.hasText(resource.getFileUrl())) {
+            resource.setFileUrl("");
+        }
+        if (resource.getFileSize() == null) {
+            resource.setFileSize(0L);
+        }
+        if (!StringUtils.hasText(resource.getFileType())) {
+            // 第一阶段：纯 Markdown 资源默认使用 "Markdown资源"
+            resource.setFileType(StringUtils.hasText(resource.getContentMarkdown()) ? "Markdown资源" : "文字资源");
+        }
 
         resourceMapper.insert(resource);
         resourceDocumentRepository.save(buildResourceDocument(resource));
@@ -72,7 +89,7 @@ public class ResourceServiceImpl implements ResourceService {
         if (existing == null || existing.getDeleted() == 1) {
             throw new BusinessException("资源不存在");
         }
-        validateContent(dto.getTitle(), dto.getDescription());
+        validateContent(dto.getTitle(), dto.getSummary(), dto.getContentMarkdown());
 
         Category category = categoryService.getCategoryById(dto.getCategoryId());
         if (category == null || category.getDeleted() == 1) {
@@ -158,7 +175,11 @@ public class ResourceServiceImpl implements ResourceService {
         }
 
         if (StringUtils.hasText(keyword)) {
-            wrapper.and(w -> w.like("title", keyword).or().like("description", keyword));
+            wrapper.and(w -> w
+                    .like("title", keyword)
+                    .or().like("summary", keyword)
+                    .or().like("description", keyword)  // legacy 兼容旧数据
+                    .or().like("content_markdown", keyword));
         }
 
         wrapper.orderByDesc("create_time");
@@ -175,8 +196,10 @@ public class ResourceServiceImpl implements ResourceService {
         return resourceMapper.selectPage(pageParam, wrapper);
     }
 
-    private void validateContent(String title, String description) {
-        if (sensitiveWordFilter.contains(title) || sensitiveWordFilter.contains(description)) {
+    private void validateContent(String title, String summary, String contentMarkdown) {
+        if (sensitiveWordFilter.contains(title) ||
+            (summary != null && sensitiveWordFilter.contains(summary)) ||
+            (contentMarkdown != null && sensitiveWordFilter.contains(contentMarkdown))) {
             throw new BusinessException("资源内容包含敏感词");
         }
     }
@@ -185,7 +208,7 @@ public class ResourceServiceImpl implements ResourceService {
         ResourceDocument doc = new ResourceDocument();
         doc.setId(resource.getId());
         doc.setTitle(resource.getTitle());
-        doc.setDescription(resource.getDescription());
+        doc.setDescription(StringUtils.hasText(resource.getSummary()) ? resource.getSummary() : resource.getContentMarkdown());
         doc.setFileType(resource.getFileType());
         doc.setCategoryId(resource.getCategoryId());
         doc.setUserId(resource.getUserId());
