@@ -330,7 +330,7 @@ public class ResourceServiceImpl implements ResourceService {
     }
 
     @Override
-    @PreAuthorize("hasAuthority('resource:manage')")
+    @PreAuthorize("hasAuthority('resource:audit')")
     public void restoreResource(Long id) {
         int rows = resourceMapper.restoreById(id);
         if (rows == 0) {
@@ -342,7 +342,7 @@ public class ResourceServiceImpl implements ResourceService {
     }
 
     @Override
-    @PreAuthorize("hasAuthority('resource:manage')")
+    @PreAuthorize("hasAuthority('resource:audit')")
     public void permanentDeleteResource(Long id) {
         resourceDocumentRepository.deleteById(id);
         resourceMapper.physicalDeleteById(id);

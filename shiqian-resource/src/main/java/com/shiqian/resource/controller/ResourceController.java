@@ -108,7 +108,7 @@ public class ResourceController {
 
     @Operation(summary = "从回收站恢复资源")
     @PutMapping("/{id}/restore")
-    @PreAuthorize("hasAuthority('resource:manage')")
+    @PreAuthorize("hasAuthority('resource:audit')")
     public Result<Void> restoreResource(@PathVariable Long id) {
         resourceService.restoreResource(id);
         return Result.ok();
@@ -116,7 +116,7 @@ public class ResourceController {
 
     @Operation(summary = "永久删除资源（不可恢复）")
     @DeleteMapping("/{id}/permanent")
-    @PreAuthorize("hasAuthority('resource:manage')")
+    @PreAuthorize("hasAuthority('resource:audit')")
     public Result<Void> permanentDeleteResource(@PathVariable Long id) {
         resourceService.permanentDeleteResource(id);
         return Result.ok();
