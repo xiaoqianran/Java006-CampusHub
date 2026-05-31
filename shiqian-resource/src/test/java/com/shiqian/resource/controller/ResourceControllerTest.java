@@ -544,6 +544,45 @@ public class ResourceControllerTest extends BaseResourceTest {
     }
 
     @Test
+    public void testRestoreResourceByAdminSuccess() throws Exception {
+        Category category = createCategory("测试分类");
+        Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "恢复测试"));
+
+        mockMvc.perform(delete("/api/resource/{id}", resource.getId())
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(put("/api/resource/{id}/restore", resource.getId())
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        mockMvc.perform(get("/api/resource/{id}", resource.getId())
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+    }
+
+    @Test
+    public void testPermanentDeleteByAdmin() throws Exception {
+        Category category = createCategory("测试分类");
+        Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "永久删除测试"));
+
+        mockMvc.perform(delete("/api/resource/{id}", resource.getId())
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(delete("/api/resource/{id}/permanent", resource.getId())
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        mockMvc.perform(get("/api/resource/{id}", resource.getId())
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     @Disabled("需要 Elasticsearch 服务")
     public void testSearchResourceByKeyword() throws Exception {
         Category category = createCategory("测试分类");

@@ -318,40 +318,18 @@ public class ResourceServiceImpl implements ResourceService {
     @Override
     @PreAuthorize("hasAuthority('resource:manage')")
     public void restoreResource(Long id) {
-        Resource resource = resourceMapper.selectById(id);
-        if (resource == null) {
-            throw new BusinessException(404, "资源不存在");
+        int rows = resourceMapper.restoreById(id);
+        if (rows == 0) {
+            throw new BusinessException("资源不存在或不在回收站中");
         }
-        if (resource.getDeleted() != 1) {
-            throw new BusinessException("资源不在回收站中");
-        }
-
-        Resource update = new Resource();
-        update.setId(id);
-        update.setDeleted(0);
-        // 恢复后回到待审核状态，等待管理员重新审核
-        update.setStatus(0);
-        resourceMapper.updateById(update);
-
-        // 同步到ES
-        Resource restored = resourceMapper.selectById(id);
-        resourceDocumentRepository.save(buildResourceDocument(restored));
-        log.info("资源已从回收站恢复: id={}", id);
+        log.info("资源从回收站恢复: id={}", id);
     }
 
     @Override
     @PreAuthorize("hasAuthority('resource:manage')")
     public void permanentDeleteResource(Long id) {
-        Resource resource = resourceMapper.selectById(id);
-        if (resource == null) {
-            return; // 已删除直接忽略
-        }
-        // 物理删除（MyBatis-Plus 需配置或直接调用）
-        resourceMapper.deleteById(id);
-        // 从ES移除
-        try {
-            resourceDocumentRepository.deleteById(id);
-        } catch (Exception ignored) {}
-        log.info("资源已永久删除: id={}", id);
+        resourceDocumentRepository.deleteById(id);
+        resourceMapper.physicalDeleteById(id);
+        log.info("资源永久删除: id={}", id);
     }
 }
