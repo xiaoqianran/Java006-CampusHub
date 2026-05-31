@@ -81,16 +81,23 @@ shiqian-platform（父工程）
 - MySQL 8.0+
 - Nacos 2.x（可选，local 环境默认关闭）
 
-### Ubuntu 一键安装与启动
+### Ubuntu 安装环境与启动后端
 
-在全新的 Ubuntu 环境中，可以直接执行：
+在全新的 Ubuntu 环境中，先执行 01 环境脚本。它只负责安装开发环境、Docker 和前端依赖：
 
 ```bash
-chmod +x install-and-run-ubuntu.sh
-./install-and-run-ubuntu.sh
+chmod +x 01_Environment.sh
+./01_Environment.sh
 ```
 
-脚本会安装基础开发环境、Docker、启动基础设施容器、打包并启动后端。前端依赖安装完成后，执行以下命令启动前端开发服务：
+之后日常启动后端执行 02 启动脚本。它只负责启动基础设施容器、打包并启动后端，不会重复安装开发环境：
+
+```bash
+chmod +x 02_StartBackend.sh
+./02_StartBackend.sh
+```
+
+后端启动脚本会启动基础设施容器、打包并启动后端。前端依赖安装完成后，执行以下命令启动前端开发服务：
 
 ```bash
 cd shiqian-frontend
