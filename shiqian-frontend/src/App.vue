@@ -19,7 +19,8 @@ const studentLinks = [
   { path: '/categories', label: '分类浏览' },
   { path: '/publish', label: '发布资源' },
   { path: '/favorites', label: '我的收藏' },
-  { path: '/mine', label: '我的发布' }
+  { path: '/mine', label: '我的发布' },
+  { path: '/profile', label: '个人资料' }
 ]
 
 const canAccessAdmin = computed(() => store.currentUser?.role === 'ADMIN')
