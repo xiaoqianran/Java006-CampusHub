@@ -15,6 +15,8 @@
 import { computed } from 'vue'
 import { MdEditor, ToolbarNames } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
+import { ElMessage } from 'element-plus'
+import { useAppStore, type UploadedFileItem } from '@/stores/app'
 
 const props = defineProps<{
   modelValue: string
@@ -29,6 +31,8 @@ const modelValue = computed({
   set: (val: string) => emit('update:modelValue', val)
 })
 
+const store = useAppStore()
+
 // 根据系统当前主题自动切换编辑器主题
 const theme = computed(() => {
   return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
@@ -42,10 +46,22 @@ const toolbars: ToolbarNames[] = [
   'revoke', 'next', 'prettier', 'pageFullscreen', 'fullscreen'
 ]
 
-function handleUploadImg(files: File[], callback: (urls: string[]) => void) {
-  // TODO: 后续接入真实图片上传接口
-  // 当前先使用本地预览（仅测试用）
-  const urls = files.map(file => URL.createObjectURL(file))
-  callback(urls)
+async function handleUploadImg(files: File[], callback: (urls: string[]) => void) {
+  if (!files?.length) {
+    callback([])
+    return
+  }
+
+  // 使用现有 store.uploadFiles 上传到 /api/resource/files，返回远程 fileUrl（而非 blob）
+  try {
+    const uploaded: UploadedFileItem[] = await store.uploadFiles(files)
+    const urls = uploaded.map(item => item.fileUrl)
+    callback(urls)
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : '图片上传失败'
+    ElMessage.error(msg)
+    // 必须回调，否则 MdEditor 上传 UI 会卡住；优雅降级
+    callback([])
+  }
 }
 </script>
