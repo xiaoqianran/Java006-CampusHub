@@ -18,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import io.jsonwebtoken.Claims;
 
 @Slf4j
 @Service
@@ -113,6 +114,46 @@ public class UserServiceImpl implements UserService {
         loginVO.setRefreshToken(refreshToken);
         loginVO.setUserId(user.getId());
         loginVO.setUsername(user.getUsername());
+        loginVO.setNickname(user.getNickname());
+        loginVO.setRole(user.getRole());
+
+        return loginVO;
+    }
+
+    @Override
+    public LoginVO refresh(String refreshToken) {
+        if (!StringUtils.hasText(refreshToken)) {
+            throw new BusinessException("refreshToken 不能为空");
+        }
+
+        Claims claims = jwtUtil.parseToken(refreshToken);
+        if (claims == null) {
+            throw new BusinessException(401, "refreshToken 无效或已过期");
+        }
+
+        Long userId = claims.get("userId", Long.class);
+        String username = claims.get("username", String.class);
+        String role = claims.get("role", String.class);
+
+        if (userId == null || !StringUtils.hasText(username)) {
+            throw new BusinessException(401, "refreshToken 无效");
+        }
+
+        // 安全校验：用户仍存在、未删除、启用状态
+        User user = userMapper.selectById(userId);
+        if (user == null || user.getDeleted() == 1 || user.getStatus() != 1
+                || !username.equals(user.getUsername())) {
+            throw new BusinessException(401, "用户状态异常，请重新登录");
+        }
+
+        String newAccessToken = jwtUtil.generateAccessToken(userId, username, role != null ? role : user.getRole());
+        String newRefreshToken = jwtUtil.generateRefreshToken(userId, username, role != null ? role : user.getRole());
+
+        LoginVO loginVO = new LoginVO();
+        loginVO.setAccessToken(newAccessToken);
+        loginVO.setRefreshToken(newRefreshToken);
+        loginVO.setUserId(userId);
+        loginVO.setUsername(username);
         loginVO.setNickname(user.getNickname());
         loginVO.setRole(user.getRole());
 

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { clearTokens, jsonBody, request, setTokens, type PageResult } from '@/api/client'
+import { clearTokens, jsonBody, refreshAccessToken, request, setTokens, type PageResult } from '@/api/client'
 
 export type Role = 'student' | 'admin'
 export type ResourceStatus = '已发布' | '待审核' | '已驳回'
@@ -394,6 +394,11 @@ export const useAppStore = defineStore('app', () => {
     await Promise.allSettled([loadFavorites(), loadMyResources()])
   }
 
+  async function refresh() {
+    // 显式刷新（request 层已自动处理 401 场景，此为可选手动调用）
+    await refreshAccessToken()
+  }
+
   async function register(payload: RegisterPayload) {
     await request<void>('/api/user/register', {
       method: 'POST',
@@ -622,6 +627,7 @@ export const useAppStore = defineStore('app', () => {
     setRole,
     login,
     register,
+    refresh,
     logout,
     setCategory,
     resetFilters,

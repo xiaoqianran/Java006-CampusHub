@@ -64,6 +64,14 @@ public class UserController {
         return Result.ok(loginVO);
     }
 
+    @Operation(summary = "刷新访问令牌（使用 refreshToken 重新签发 accessToken + refreshToken）")
+    @PostMapping("/refresh")
+    public Result<LoginVO> refresh(@RequestBody Map<String, String> body) {
+        String refreshToken = body != null ? body.get("refreshToken") : null;
+        LoginVO loginVO = userService.refresh(refreshToken);
+        return Result.ok(loginVO);
+    }
+
     @Operation(summary = "更新当前用户信息")
     @PutMapping("/me")
     public Result<Void> updateCurrentUser(@RequestBody @Valid UpdateUserDTO updateUserDTO) {

@@ -15,6 +15,8 @@ public interface UserService {
 
     LoginVO login(LoginDTO loginDTO);
 
+    LoginVO refresh(String refreshToken);
+
     void updateUserInfo(Long userId, UpdateUserDTO updateUserDTO);
 
     UserInfoVO getUserInfo(Long userId);
