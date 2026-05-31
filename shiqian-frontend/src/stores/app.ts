@@ -600,6 +600,15 @@ export const useAppStore = defineStore('app', () => {
     await loadUsers({ keyword })
   }
 
+  async function updateUserRole(id: number, role: 'USER' | 'ADMIN', keyword?: string) {
+    await request<void>(`/api/user/admin/users/${id}/role`, {
+      method: 'PUT',
+      body: jsonBody({ role })
+    })
+    // 刷新用户列表（保留当前搜索关键词）
+    await loadUsers({ keyword })
+  }
+
   // === 回收站操作 ===
   async function restoreResource(id: number) {
     await request<void>(`/api/resource/${id}/restore`, { method: 'PUT' })
@@ -699,6 +708,7 @@ export const useAppStore = defineStore('app', () => {
     deleteCategory,
     // 新增管理员能力
     updateUserStatus,
+    updateUserRole,
     restoreResource,
     permanentDeleteResource,
     updateProfile,

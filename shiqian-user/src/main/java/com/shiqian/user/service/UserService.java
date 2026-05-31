@@ -24,4 +24,6 @@ public interface UserService {
     Page<UserInfoVO> pageUsers(Integer page, Integer size, String keyword);
 
     void updateUserStatus(Long targetUserId, Integer status, Long operatorId);
+
+    void updateUserRole(Long targetUserId, String role, Long operatorId);
 }

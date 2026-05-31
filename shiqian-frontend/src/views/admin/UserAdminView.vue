@@ -45,6 +45,31 @@ async function toggleStatus(row: UserItem) {
   }
 }
 
+async function changeRole(row: UserItem, targetRole: 'USER' | 'ADMIN') {
+  const isPromote = targetRole === 'ADMIN'
+  const actionText = isPromote ? '设为管理员' : '设为学生'
+  const currentRoleText = row.role
+
+  try {
+    await ElMessageBox.confirm(
+      `确认将用户「${row.username || row.nickname || '该用户'}」的角色从「${currentRoleText}」${actionText}吗？`,
+      '角色变更确认',
+      {
+        type: 'warning',
+        confirmButtonText: actionText,
+        cancelButtonText: '取消'
+      }
+    )
+    await store.updateUserRole(row.id, targetRole, keyword.value.trim())
+    await store.recordAdminLog('USER_ROLE_CHANGE', row.id, `${actionText} ${row.username || row.nickname || row.id}`)
+    ElMessage.success('角色修改成功')
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(error instanceof Error ? error.message : '角色修改失败')
+    }
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -53,7 +78,7 @@ onMounted(load)
     <div class="page-title">
       <div>
         <h1>用户管理</h1>
-        <p class="sub">统一管理学生与管理员账号，支持按关键词搜索并快速启禁用。</p>
+        <p class="sub">统一管理学生与管理员账号，支持按关键词搜索、启禁用及角色调整（USER/ADMIN）。</p>
       </div>
       <div class="toolbar">
         <el-input
@@ -86,7 +111,7 @@ onMounted(load)
         </template>
       </el-table-column>
 
-      <el-table-column label="操作" width="160" fixed="right">
+      <el-table-column label="操作" width="260" fixed="right">
         <template #default="{ row }">
           <el-button
             size="small"
@@ -95,6 +120,26 @@ onMounted(load)
             @click="toggleStatus(row)"
           >
             {{ row.status === '正常' ? '禁用' : '启用' }}
+          </el-button>
+          <el-button
+            v-if="row.role !== '管理员'"
+            size="small"
+            type="primary"
+            plain
+            style="margin-left: 4px"
+            @click="changeRole(row, 'ADMIN')"
+          >
+            设为管理员
+          </el-button>
+          <el-button
+            v-if="row.role !== '学生'"
+            size="small"
+            type="info"
+            plain
+            style="margin-left: 4px"
+            @click="changeRole(row, 'USER')"
+          >
+            设为学生
           </el-button>
         </template>
       </el-table-column>

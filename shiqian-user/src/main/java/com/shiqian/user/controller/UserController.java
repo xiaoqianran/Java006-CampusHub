@@ -112,4 +112,16 @@ public class UserController {
         userService.updateUserStatus(id, status, operatorId);
         return Result.ok();
     }
+
+    @Operation(summary = "管理员修改用户角色（USER/ADMIN）")
+    @PutMapping("/admin/users/{id}/role")
+    @PreAuthorize("hasAuthority('user:manage')")
+    public Result<Void> updateUserRole(
+            @PathVariable Long id,
+            @RequestBody java.util.Map<String, String> body) {
+        Long operatorId = SecurityUtil.getCurrentUserId();
+        String role = body != null ? body.get("role") : null;
+        userService.updateUserRole(id, role, operatorId);
+        return Result.ok();
+    }
 }

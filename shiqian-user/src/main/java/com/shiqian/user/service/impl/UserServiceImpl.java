@@ -263,4 +263,38 @@ public class UserServiceImpl implements UserService {
         userMapper.updateById(user);
         log.info("管理员{} {}了用户{} (status={})", operatorId, status == 1 ? "启用" : "禁用", targetUserId, status);
     }
+
+    @Override
+    public void updateUserRole(Long targetUserId, String role, Long operatorId) {
+        if (targetUserId == null || role == null || role.trim().isEmpty()) {
+            throw new BusinessException("参数错误");
+        }
+        if (operatorId != null && targetUserId.equals(operatorId)) {
+            throw new BusinessException(400, "不能修改自己的角色");
+        }
+
+        String newRole = role.trim().toUpperCase();
+        if (!"USER".equals(newRole) && !"ADMIN".equals(newRole)) {
+            throw new BusinessException(400, "角色只能是 USER 或 ADMIN");
+        }
+
+        User user = userMapper.selectById(targetUserId);
+        if (user == null || user.getDeleted() == 1) {
+            throw new BusinessException(404, "用户不存在");
+        }
+
+        // 防止降级最后一个管理员
+        if ("ADMIN".equals(user.getRole()) && !"ADMIN".equals(newRole)) {
+            long adminCount = userMapper.selectCount(
+                new QueryWrapper<User>().eq("role", "ADMIN").eq("status", 1).eq("deleted", 0)
+            );
+            if (adminCount <= 1) {
+                throw new BusinessException(400, "至少保留一个启用的管理员账号");
+            }
+        }
+
+        user.setRole(newRole);
+        userMapper.updateById(user);
+        log.info("管理员{} 将用户{} 的角色修改为 {}", operatorId, targetUserId, newRole);
+    }
 }
