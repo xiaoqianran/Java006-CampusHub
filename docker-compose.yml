@@ -1,9 +1,8 @@
-version: '3.8'
-
 services:
   mysql:
     image: mysql:8.0.33
     container_name: shiqian-mysql
+    mem_limit: 512m
     environment:
       MYSQL_ROOT_PASSWORD: root
       TZ: Asia/Shanghai
@@ -16,6 +15,8 @@ services:
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_unicode_ci
       --default-time-zone=+08:00
+      --performance-schema=OFF
+      --innodb-buffer-pool-size=128M
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
       interval: 10s
@@ -25,11 +26,12 @@ services:
   redis:
     image: redis:7-alpine
     container_name: shiqian-redis
+    mem_limit: 128m
     ports:
       - "6379:6379"
     volumes:
       - redis-data:/data
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --maxmemory 96mb --maxmemory-policy allkeys-lru
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -39,12 +41,13 @@ services:
   nacos:
     image: nacos/nacos-server:v2.3.2
     container_name: shiqian-nacos
+    mem_limit: 512m
     environment:
       MODE: standalone
       NACOS_AUTH_ENABLE: "false"
-      JVM_XMS: 512m
-      JVM_XMX: 512m
-      JVM_XMN: 256m
+      JVM_XMS: 128m
+      JVM_XMX: 384m
+      JVM_XMN: 128m
     ports:
       - "8848:8848"
       - "9848:9848"
@@ -56,10 +59,11 @@ services:
   elasticsearch:
     image: elasticsearch:8.10.4
     container_name: shiqian-elasticsearch
+    mem_limit: 768m
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - "ES_JAVA_OPTS=-Xms256m -Xmx512m"
     ports:
       - "9200:9200"
     volumes:
@@ -74,9 +78,11 @@ services:
   rabbitmq:
     image: rabbitmq:3.13-management
     container_name: shiqian-rabbitmq
+    mem_limit: 384m
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_VM_MEMORY_HIGH_WATERMARK: 0.6
       TZ: Asia/Shanghai
     ports:
       - "5672:5672"
