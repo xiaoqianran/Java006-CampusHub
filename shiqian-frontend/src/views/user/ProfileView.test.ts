@@ -87,4 +87,23 @@ describe('ProfileView', () => {
     await nicknameInput.trigger('click')
     expect(wrapper.exists()).toBe(true)
   })
+
+  it('exposes resetForm method and can invoke it safely', () => {
+    const wrapper = shallowMount(ProfileView)
+    const vm = wrapper.vm as any
+
+    expect(typeof vm.resetForm).toBe('function')
+    // resetForm is internal but safe to call (covers the reset button handler)
+    vm.resetForm()
+  })
+
+  it('invoking resetForm does not crash (covers reset button path)', async () => {
+    const wrapper = shallowMount(ProfileView)
+    const vm = wrapper.vm as any
+
+    await vm.resetForm()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.exists()).toBe(true)
+  })
 })
