@@ -22,6 +22,16 @@ const router = useRouter()
 const selectedCategory = ref<CategoryApiItem | null>(null)
 const detailLoading = ref(false)
 
+// Category create/edit dialog form (supports icon emoji/URL + sortOrder)
+const categoryFormVisible = ref(false)
+const isEditing = ref(false)
+const editingId = ref<number | null>(null)
+const categoryForm = ref<{ name: string; icon: string; sortOrder: number }>({
+  name: '',
+  icon: '',
+  sortOrder: 0
+})
+
 onMounted(() => {
   Promise.all([
     store.loadCategories(),
@@ -50,42 +60,62 @@ function categoryCount(category: CategoryApiItem) {
     || store.resources.filter(item => item.cat === category.name).length
 }
 
-async function addCategory() {
-  const name = await ElMessageBox.prompt('请输入分类名称', '新增分类')
-    .then(({ value }) => value.trim())
-    .catch(() => '')
-  if (!name) return
-
-  try {
-    await store.createCategory(name)
-    ElMessage.success('分类已新增')
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '新增失败')
+// Open create dialog (computes reasonable default sortOrder)
+function openAddCategory() {
+  isEditing.value = false
+  editingId.value = null
+  const maxSort = store.flatCategories.reduce((m, c) => Math.max(m, c.sortOrder || 0), 0)
+  categoryForm.value = {
+    name: '',
+    icon: '',
+    sortOrder: maxSort + 10
   }
+  categoryFormVisible.value = true
 }
 
-async function editCategory(id: number, oldName: string) {
-  const name = await ElMessageBox.prompt('请输入新的分类名称', '重命名分类', {
-    inputValue: oldName,
-    confirmButtonText: '保存',
-    cancelButtonText: '取消'
-  })
-    .then(({ value }) => value.trim())
-    .catch(() => '')
+// Open edit dialog prefilled with current values (icon + sortOrder editable)
+function openEditCategory(category: CategoryApiItem) {
+  isEditing.value = true
+  editingId.value = category.id
+  categoryForm.value = {
+    name: category.name || '',
+    icon: category.icon || '',
+    sortOrder: category.sortOrder ?? 0
+  }
+  categoryFormVisible.value = true
+}
 
-  if (!name || name === oldName) return
+// Submit handler wires to (extended) store methods
+async function submitCategoryForm() {
+  const name = categoryForm.value.name.trim()
+  if (!name) {
+    ElMessage.warning('分类名称不能为空')
+    return
+  }
+  const icon = categoryForm.value.icon.trim()
+  const sortOrder = categoryForm.value.sortOrder
 
   try {
-    await store.updateCategory(id, name)
-    const latest = store.flatCategories.find(item => item.id === id)
-    if (selectedCategory.value?.id === id && latest) {
-      selectedCategory.value = latest
+    if (isEditing.value && editingId.value != null) {
+      await store.updateCategory(editingId.value, name, icon || undefined, sortOrder)
+      const latest = store.flatCategories.find(item => item.id === editingId.value)
+      if (selectedCategory.value?.id === editingId.value && latest) {
+        selectedCategory.value = latest
+      }
+      ElMessage.success('分类已更新（含图标/排序）')
+    } else {
+      await store.createCategory(name, icon || undefined, sortOrder)
+      ElMessage.success('分类已新增（支持图标与排序）')
     }
-    ElMessage.success('分类名称已更新')
+    categoryFormVisible.value = false
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '更新失败')
+    ElMessage.error(error instanceof Error ? error.message : '操作失败')
   }
 }
+
+// Legacy wrappers kept only for reference (no longer used); new UI uses open* + submit
+// (removed prompt-based logic to support multi-field form)
+
 
 async function deleteCategoryConfirm(id: number, name: string) {
   try {
@@ -136,8 +166,8 @@ function openFile(resource: ResourceItem) {
 }
 
 function handleCategoryCommand(command: string, category: CategoryApiItem) {
-  if (command === 'rename') {
-    editCategory(category.id, category.name)
+  if (command === 'edit') {
+    openEditCategory(category)
   } else if (command === 'delete') {
     deleteCategoryConfirm(category.id, category.name)
   }
@@ -152,7 +182,7 @@ function handleCategoryCommand(command: string, category: CategoryApiItem) {
           <h1>分类管理</h1>
           <p class="sub">分类与用户端分类浏览共用同一套数据。点击文件夹可查看该分类下的资源。</p>
         </div>
-        <el-button type="primary" @click="addCategory">新增分类</el-button>
+        <el-button type="primary" @click="openAddCategory">新增分类</el-button>
       </div>
 
       <div class="admin-category-grid">
@@ -176,8 +206,8 @@ function handleCategoryCommand(command: string, category: CategoryApiItem) {
               />
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item command="rename" :icon="Edit">
-                    重命名分类
+                  <el-dropdown-item command="edit" :icon="Edit">
+                    编辑分类（图标/排序）
                   </el-dropdown-item>
                   <el-dropdown-item command="delete" :icon="Delete">
                     删除分类
@@ -188,7 +218,10 @@ function handleCategoryCommand(command: string, category: CategoryApiItem) {
           </div>
 
           <div class="folder-icon">
-            <el-icon><Folder /></el-icon>
+            <!-- Support icon as emoji (e.g. 📚) or image URL; fallback to Folder -->
+            <span v-if="category.icon && !/^https?:\/\//.test(category.icon)" class="emoji-icon">{{ category.icon }}</span>
+            <img v-else-if="category.icon" :src="category.icon" class="custom-icon" :alt="category.name + ' icon'" />
+            <el-icon v-else><Folder /></el-icon>
           </div>
 
           <div class="folder-name" :title="category.name">
@@ -196,6 +229,7 @@ function handleCategoryCommand(command: string, category: CategoryApiItem) {
           </div>
 
           <div class="folder-meta">
+            <span class="sort-badge">#{{ category.sortOrder ?? 0 }}</span>
             {{ categoryCount(category) }} 个资源
           </div>
 
@@ -222,8 +256,8 @@ function handleCategoryCommand(command: string, category: CategoryApiItem) {
             <p class="sub">共 {{ selectedResources.length }} 个资源。这里预览该分类下的全部资源。</p>
           </div>
 
-          <el-button :icon="Edit" @click="editCategory(selectedCategory.id, selectedCategory.name)">
-            重命名分类
+          <el-button :icon="Edit" @click="openEditCategory(selectedCategory)">
+            编辑分类（图标/排序）
           </el-button>
           <el-button type="danger" plain @click="deleteCategoryConfirm(selectedCategory.id, selectedCategory.name)">
             删除分类
@@ -280,5 +314,161 @@ function handleCategoryCommand(command: string, category: CategoryApiItem) {
         />
       </el-card>
     </template>
+
+    <!-- Create/Edit Category Dialog: icon (emoji or URL) + sortOrder + name -->
+    <el-dialog
+      v-model="categoryFormVisible"
+      :title="isEditing ? '编辑分类' : '新增分类'"
+      width="440px"
+      destroy-on-close
+    >
+      <el-form :model="categoryForm" label-width="90px" @submit.prevent="submitCategoryForm">
+        <el-form-item label="名称" required>
+          <el-input
+            v-model="categoryForm.name"
+            placeholder="分类名称，例如：算法笔记"
+            maxlength="100"
+            show-word-limit
+          />
+        </el-form-item>
+        <el-form-item label="图标">
+          <el-input
+            v-model="categoryForm.icon"
+            placeholder="emoji 如 📚 或图片URL (https://...)"
+            maxlength="255"
+          />
+          <div v-if="categoryForm.icon" class="icon-preview">
+            预览：
+            <span v-if="!/^https?:\/\//.test(categoryForm.icon)" class="emoji-preview">{{ categoryForm.icon }}</span>
+            <img
+              v-else
+              :src="categoryForm.icon"
+              class="custom-icon-preview"
+              alt="icon preview"
+            />
+          </div>
+          <div class="form-hint">支持emoji字符或外部图片URL，留空则使用默认文件夹图标</div>
+        </el-form-item>
+        <el-form-item label="排序值">
+          <el-input-number
+            v-model="categoryForm.sortOrder"
+            :min="0"
+            :max="99999"
+            controls-position="right"
+            style="width: 160px"
+          />
+          <span class="form-hint" style="margin-left: 8px;">数值越小排序越靠前（树与列表均按此排序）</span>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="categoryFormVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitCategoryForm">
+            {{ isEditing ? '保存修改' : '创建分类' }}
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
   </AdminLayout>
 </template>
+
+<style scoped>
+/* Icon & sort enhancements for admin category cards */
+.folder-icon {
+  font-size: 28px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+}
+
+.emoji-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.custom-icon {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.sort-badge {
+  display: inline-block;
+  font-size: 11px;
+  background: var(--el-fill-color-light, #f0f0f0);
+  color: var(--el-text-color-secondary, #666);
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-right: 6px;
+  font-family: monospace;
+}
+
+.icon-preview,
+.form-hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary, #909399);
+  margin-top: 4px;
+}
+
+.emoji-preview {
+  font-size: 20px;
+  vertical-align: middle;
+}
+
+.custom-icon-preview {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  vertical-align: middle;
+  border-radius: 3px;
+  margin-left: 4px;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Subtle improvement to admin category grid for tree-ish feel (sorted by sortOrder from backend) */
+.admin-category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 16px;
+}
+
+.admin-category-folder {
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.admin-category-folder:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.folder-name {
+  font-weight: 600;
+  font-size: 14px;
+  margin: 4px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-meta {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+/* Dark theme tweaks via global but scoped fallback */
+[data-theme="dark"] .sort-badge {
+  background: #2a2a2a;
+  color: #aaa;
+}
+</style>
+

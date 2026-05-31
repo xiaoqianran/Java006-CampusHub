@@ -47,6 +47,7 @@ public class CategoryServiceImpl implements CategoryService {
 
         category.setStatus(category.getStatus() != null ? category.getStatus() : 1);
         category.setSortOrder(category.getSortOrder() != null ? category.getSortOrder() : 0);
+        // icon (string) and sortOrder are fully supported for create (via DTO + entity fields)
         categoryMapper.insert(category);
         evictCategoryTreeCache();
     }
@@ -68,6 +69,7 @@ public class CategoryServiceImpl implements CategoryService {
         }
 
         category.setCreateTime(null);
+        // icon (string) and sortOrder fully supported for update (BeanUtils copy from DTO which includes them)
         categoryMapper.updateById(category);
         evictCategoryTreeCache();
     }
