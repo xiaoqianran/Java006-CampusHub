@@ -19,7 +19,7 @@ spring:
         - id: shiqian-resource
           uri: lb://shiqian-resource
           predicates:
-            - Path=/api/resource/**,/api/category/**
+            - Path=/api/resource/**,/api/category/**,/api/admin/**
 
 jwt:
   secret: shiqian-platform-jwt-secret-key-must-be-at-least-256-bits-for-hs256

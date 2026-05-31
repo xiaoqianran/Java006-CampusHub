@@ -16,6 +16,7 @@ import ResourceAdminView from '@/views/admin/ResourceAdminView.vue'
 import RecycleBinView from '@/views/admin/RecycleBinView.vue'
 import CategoryAdminView from '@/views/admin/CategoryAdminView.vue'
 import UserAdminView from '@/views/admin/UserAdminView.vue'
+import AdminLogView from '@/views/admin/AdminLogView.vue'
 
 const adminMeta = { requiresAuth: true, roles: ['admin'] }
 
@@ -37,6 +38,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/admin/recycle-bin', component: RecycleBinView, meta: { ...adminMeta, title: '回收站' } },
   { path: '/admin/categories', component: CategoryAdminView, meta: { ...adminMeta, title: '分类管理' } },
   { path: '/admin/users', component: UserAdminView, meta: { ...adminMeta, title: '用户管理' } },
+  { path: '/admin/logs', component: AdminLogView, meta: { ...adminMeta, title: '操作日志' } },
   { path: '/:pathMatch(.*)*', redirect: '/home' }
 ]
 

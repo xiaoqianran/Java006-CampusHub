@@ -19,6 +19,7 @@ import com.shiqian.resource.entity.ResourceAttachment;
 import com.shiqian.resource.mapper.ResourceAttachmentMapper;
 import com.shiqian.resource.mapper.ResourceMapper;
 import com.shiqian.resource.repository.ResourceDocumentRepository;
+import com.shiqian.resource.service.AdminLogService;
 import com.shiqian.resource.service.CategoryService;
 import com.shiqian.resource.service.ResourceService;
 
@@ -45,6 +46,7 @@ public class ResourceServiceImpl implements ResourceService {
     private final ResourceDocumentRepository resourceDocumentRepository;
     private final RabbitTemplate rabbitTemplate;
     private final SensitiveWordFilter sensitiveWordFilter;
+    private final AdminLogService adminLogService;
 
     @Override
     public Resource createResource(Long userId, ResourceCreateDTO dto) {
@@ -194,6 +196,9 @@ public class ResourceServiceImpl implements ResourceService {
         update.setStatus(status);
         resourceMapper.updateById(update);
 
+        String detail = (status != null && status == 1) ? "APPROVE" : "REJECT";
+        adminLogService.recordLog(operatorId, "RESOURCE_AUDIT", resourceId, detail);
+
         ResourceAuditMessage message = new ResourceAuditMessage(
                 resourceId, status, operatorId, LocalDateTime.now());
         rabbitTemplate.convertAndSend(
@@ -331,6 +336,8 @@ public class ResourceServiceImpl implements ResourceService {
         if (rows == 0) {
             throw new BusinessException("资源不存在或不在回收站中");
         }
+        Long operatorId = SecurityUtil.getCurrentUserId();
+        adminLogService.recordLog(operatorId, "RESOURCE_RESTORE", id, null);
         log.info("资源从回收站恢复: id={}", id);
     }
 
@@ -339,6 +346,8 @@ public class ResourceServiceImpl implements ResourceService {
     public void permanentDeleteResource(Long id) {
         resourceDocumentRepository.deleteById(id);
         resourceMapper.physicalDeleteById(id);
+        Long operatorId = SecurityUtil.getCurrentUserId();
+        adminLogService.recordLog(operatorId, "RESOURCE_PERMANENT_DELETE", id, null);
         log.info("资源永久删除: id={}", id);
     }
 }

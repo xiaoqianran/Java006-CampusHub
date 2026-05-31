@@ -36,6 +36,7 @@ async function toggleStatus(row: UserItem) {
       }
     )
     await store.updateUserStatus(row.id, targetStatus, keyword.value.trim())
+    await store.recordAdminLog('USER_STATUS_CHANGE', row.id, `${actionText}用户 ${row.username || row.nickname || row.id}`)
     ElMessage.success(`${actionText}成功`)
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {

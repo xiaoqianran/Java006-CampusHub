@@ -119,6 +119,15 @@ export interface UserItem {
   status: '正常' | '禁用'
 }
 
+export interface AdminLogItem {
+  id: number
+  operatorId: number
+  action: string
+  targetId?: number
+  detail?: string
+  createTime?: string
+}
+
 interface LoginResponse {
   accessToken: string
   refreshToken: string
@@ -203,6 +212,7 @@ export const useAppStore = defineStore('app', () => {
   const resources = ref<ResourceItem[]>([])
   const recycleResources = ref<ResourceItem[]>([])
   const users = ref<UserItem[]>([])
+  const adminLogs = ref<AdminLogItem[]>([])
   const favoriteIds = ref<number[]>([])
   const myResourceIds = ref<number[]>([])
   const searchResultIds = ref<number[] | null>(null)
@@ -539,19 +549,27 @@ export const useAppStore = defineStore('app', () => {
     await loadMyResources()
   }
 
-  async function createCategory(name: string) {
+  async function createCategory(name: string, icon?: string, sortOrder?: number) {
+    // extended minimally to support icon (emoji/URL) and sortOrder from admin UI
+    const nextSort = sortOrder ?? (flatCategories.value.length + 1)
+    const payload: any = { name, parentId: 0, sortOrder: nextSort, status: 1 }
+    if (icon) payload.icon = icon
     await request<void>('/api/category', {
       method: 'POST',
-      body: jsonBody({ name, parentId: 0, sortOrder: categories.value.length + 1, status: 1 })
+      body: jsonBody(payload)
     })
     await loadCategories()
   }
 
-  async function updateCategory(id: number, name: string) {
+  async function updateCategory(id: number, name: string, icon?: string, sortOrder?: number) {
+    // extended minimally to support icon and sortOrder editing from admin UI; 2-arg calls remain name-only
     const existing = flatCategories.value.find(item => item.id === id)
+    const payload: any = { ...existing, name }
+    if (icon !== undefined) payload.icon = icon || null
+    if (sortOrder !== undefined) payload.sortOrder = sortOrder
     await request<void>(`/api/category/${id}`, {
       method: 'PUT',
-      body: jsonBody({ ...existing, name })
+      body: jsonBody(payload)
     })
     await loadCategories()
   }
@@ -595,6 +613,27 @@ export const useAppStore = defineStore('app', () => {
     recycleResources.value = recycleResources.value.filter(item => item.id !== id)
   }
 
+  // === 轻量管理员操作日志 ===
+  async function loadAdminLogs(params: { page?: number, size?: number, action?: string } = {}) {
+    const data = await request<PageResult<AdminLogItem>>('/api/admin/logs', {
+      query: {
+        page: params.page ?? 1,
+        size: params.size ?? 20,
+        action: params.action || undefined
+      }
+    })
+    adminLogs.value = data.records || []
+    return data
+  }
+
+  async function recordAdminLog(action: string, targetId?: number, detail?: string) {
+    if (!action) return
+    await request<void>('/api/admin/logs', {
+      method: 'POST',
+      body: jsonBody({ action, targetId, detail })
+    })
+  }
+
   return {
     // 主题
     theme,
@@ -615,6 +654,7 @@ export const useAppStore = defineStore('app', () => {
     resources,
     recycleResources,
     users,
+    adminLogs,
     favoriteIds,
     myResourceIds,
     publishedResources,
@@ -661,6 +701,9 @@ export const useAppStore = defineStore('app', () => {
     updateUserStatus,
     restoreResource,
     permanentDeleteResource,
-    updateProfile
+    updateProfile,
+    // 轻量审计日志
+    loadAdminLogs,
+    recordAdminLog
   }
 })

@@ -9,7 +9,8 @@ const links = [
   { path: '/admin/resources', label: '资源管理' },
   { path: '/admin/recycle-bin', label: '回收站' },
   { path: '/admin/categories', label: '分类管理' },
-  { path: '/admin/users', label: '用户管理' }
+  { path: '/admin/users', label: '用户管理' },
+  { path: '/admin/logs', label: '操作日志' }
 ]
 
 function goHome() {

@@ -76,6 +76,7 @@ async function reject(id: number) {
         <el-button @click="$router.push('/admin/categories')">分类管理</el-button>
         <el-button @click="$router.push('/admin/users')">用户管理</el-button>
         <el-button @click="$router.push('/admin/recycle-bin')">回收站</el-button>
+        <el-button @click="$router.push('/admin/logs')">操作日志</el-button>
       </div>
     </section>
   </AdminLayout>
