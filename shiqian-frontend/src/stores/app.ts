@@ -181,8 +181,7 @@ export const useAppStore = defineStore('app', () => {
 
   function initTheme() {
     const saved = localStorage.getItem('shiqian_theme') as 'light' | 'dark' | null
-    const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches
-    const initial = saved || (prefersDark ? 'dark' : 'light')
+    const initial = saved || 'light'
     theme.value = initial
     applyThemeToDOM(initial)
   }
