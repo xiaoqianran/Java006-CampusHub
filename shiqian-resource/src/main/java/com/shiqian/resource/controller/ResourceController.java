@@ -140,6 +140,18 @@ public class ResourceController {
         return Result.ok();
     }
 
+    @Operation(summary = "重新提交已驳回资源")
+    @PutMapping("/{id}/resubmit")
+    @PreAuthorize("hasAuthority('resource:update')")
+    public Result<Void> resubmitResource(@PathVariable Long id) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        if (userId == null) {
+            return Result.fail(401, "未登录");
+        }
+        resourceService.resubmitResource(userId, id);
+        return Result.ok();
+    }
+
     @Operation(summary = "删除资源")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('resource:delete')")

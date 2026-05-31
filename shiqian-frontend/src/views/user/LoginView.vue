@@ -17,7 +17,7 @@ async function login() {
   submitting.value = true
   try {
     await store.login(form.username, form.password)
-    ElMessage.success('登录成功')
+    ElMessage.success({ message: '登录成功', duration: 800 })
     const target = store.currentUser?.role === 'ADMIN' ? '/admin' : '/home'
     router.push(target)
   } catch (error) {

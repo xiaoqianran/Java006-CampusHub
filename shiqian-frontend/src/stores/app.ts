@@ -208,6 +208,8 @@ export const useAppStore = defineStore('app', () => {
   const categories = computed(() => flatCategories.value.length ? flatCategories.value.map(item => item.name) : fallbackCategories)
   const publishedResources = computed(() => resources.value.filter(item => item.status === '已发布'))
   const pendingResources = computed(() => resources.value.filter(item => item.status === '待审核'))
+  const rejectedResources = computed(() => resources.value.filter(item => item.status === '已驳回'))
+  const reviewableResources = computed(() => resources.value.filter(item => item.status === '待审核' || item.status === '已驳回'))
   const favoriteResources = computed(() => resources.value.filter(item => favoriteIds.value.includes(item.id)))
   const myResources = computed(() => resources.value.filter(item => myResourceIds.value.includes(item.id)))
 
@@ -475,6 +477,12 @@ export const useAppStore = defineStore('app', () => {
     if (item) item.status = '已驳回'
   }
 
+  async function resubmitResource(id: number) {
+    await request<void>(`/api/resource/${id}/resubmit`, { method: 'PUT' })
+    const item = getResource(id)
+    if (item) item.status = '待审核'
+  }
+
   async function uploadFiles(files: File[]) {
     const body = new FormData()
     files.forEach(file => body.append('files', file))
@@ -565,6 +573,8 @@ export const useAppStore = defineStore('app', () => {
     myResourceIds,
     publishedResources,
     pendingResources,
+    rejectedResources,
+    reviewableResources,
     favoriteResources,
     myResources,
     filteredResources,
@@ -594,6 +604,7 @@ export const useAppStore = defineStore('app', () => {
     takeDownResource,
     approveResource,
     rejectResource,
+    resubmitResource,
     uploadFiles,
     submitResource,
     createCategory,

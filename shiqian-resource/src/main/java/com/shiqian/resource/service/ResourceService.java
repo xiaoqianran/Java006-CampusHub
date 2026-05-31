@@ -26,4 +26,6 @@ public interface ResourceService {
     void incrementDownloadCount(Long id);
 
     void auditResource(Long resourceId, Integer status, Long operatorId);
+
+    void resubmitResource(Long userId, Long resourceId);
 }

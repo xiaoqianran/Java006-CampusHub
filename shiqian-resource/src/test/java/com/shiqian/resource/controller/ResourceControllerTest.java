@@ -502,6 +502,48 @@ public class ResourceControllerTest extends BaseResourceTest {
     }
 
     @Test
+    public void testResubmitRejectedResourceSuccess() throws Exception {
+        Category category = createCategory("测试分类");
+        Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "重新提交测试"));
+        resourceService.auditResource(resource.getId(), 2, 2L);
+
+        mockMvc.perform(put("/api/resource/{id}/resubmit", resource.getId())
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        mockMvc.perform(get("/api/resource/{id}", resource.getId())
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value(0));
+    }
+
+    @Test
+    public void testResubmitPendingResourceShouldFail() throws Exception {
+        Category category = createCategory("测试分类");
+        Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "重新提交测试"));
+
+        mockMvc.perform(put("/api/resource/{id}/resubmit", resource.getId())
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(500))
+                .andExpect(jsonPath("$.message").value("只有已驳回资源可以重新提交"));
+    }
+
+    @Test
+    public void testResubmitResourceWithoutOwnerPermissionShouldFail() throws Exception {
+        Category category = createCategory("测试分类");
+        Resource resource = resourceService.createResource(2L, buildCreateDto(category.getId(), "重新提交测试"));
+        resourceService.auditResource(resource.getId(), 2, 2L);
+
+        mockMvc.perform(put("/api/resource/{id}/resubmit", resource.getId())
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(403))
+                .andExpect(jsonPath("$.message").value("无权重新提交该资源"));
+    }
+
+    @Test
     @Disabled("需要 Elasticsearch 服务")
     public void testSearchResourceByKeyword() throws Exception {
         Category category = createCategory("测试分类");

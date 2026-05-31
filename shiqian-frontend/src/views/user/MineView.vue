@@ -22,6 +22,18 @@ async function remove(id: number) {
     ElMessage.error(error instanceof Error ? error.message : '删除失败')
   }
 }
+
+async function resubmit(id: number) {
+  try {
+    await ElMessageBox.confirm('确认重新提交这条资源进入审核吗？', '重新提交', { type: 'warning' })
+    await store.resubmitResource(id)
+    ElMessage.success('已重新提交审核')
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(error instanceof Error ? error.message : '重新提交失败')
+    }
+  }
+}
 </script>
 
 <template>
@@ -29,7 +41,7 @@ async function remove(id: number) {
     <div class="page-title">
       <div>
         <h1>我的发布</h1>
-        <p class="sub">显示待审核、已发布、已驳回三种状态，并提供查看/删除入口。</p>
+        <p class="sub">显示待审核、已发布、已驳回三种状态，已驳回资源可重新提交审核。</p>
       </div>
     </div>
     <el-table :data="store.myResources" class="panel" style="width: 100%">
@@ -42,9 +54,10 @@ async function remove(id: number) {
       <el-table-column prop="cat" label="分类" width="130" />
       <el-table-column label="状态" width="120"><template #default="{ row }"><StatusTag :status="row.status" /></template></el-table-column>
       <el-table-column label="数据" width="170"><template #default="{ row }">{{ row.views }} 浏览 / {{ row.downloads }} 下载</template></el-table-column>
-      <el-table-column label="操作" width="180">
+      <el-table-column label="操作" width="260">
         <template #default="{ row }">
           <el-button size="small" @click="$router.push(`/detail/${row.id}`)">查看</el-button>
+          <el-button v-if="row.status === '已驳回'" size="small" type="primary" plain @click="resubmit(row.id)">重新提交</el-button>
           <el-button size="small" type="danger" plain @click="remove(row.id)">删除</el-button>
         </template>
       </el-table-column>

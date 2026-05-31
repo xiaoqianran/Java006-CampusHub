@@ -88,11 +88,11 @@ async function reject(id: number) {
     <div class="page-title">
       <div>
         <h1>资源审核</h1>
-        <p class="sub">审核待发布资源，支持查看详情与原文件后再决定通过或驳回。</p>
+        <p class="sub">审核待发布和已驳回资源，误驳回的资源可以重新通过。</p>
       </div>
     </div>
 
-    <el-table :data="store.pendingResources" class="panel audit-table" style="width: 100%">
+    <el-table :data="store.reviewableResources" class="panel audit-table" style="width: 100%">
       <el-table-column label="资源信息" min-width="320">
         <template #default="{ row }">
           <b>{{ row.title }}</b>
@@ -150,12 +150,13 @@ async function reject(id: number) {
               class="audit-action-approve"
               @click="approve(row.id)"
             >
-              通过
+              {{ row.status === '已驳回' ? '重新通过' : '通过' }}
             </el-button>
 
             <el-button
               size="small"
               class="audit-action-reject"
+              :disabled="row.status === '已驳回'"
               @click="reject(row.id)"
             >
               驳回
@@ -165,7 +166,7 @@ async function reject(id: number) {
       </el-table-column>
     </el-table>
 
-    <el-empty v-if="!store.pendingResources.length" description="暂无待审核资源" />
+    <el-empty v-if="!store.reviewableResources.length" description="暂无待审核或已驳回资源" />
 
     <el-dialog
       v-model="detailVisible"
@@ -229,8 +230,8 @@ async function reject(id: number) {
           </div>
 
           <div>
-            <el-button v-if="current" class="audit-action-reject" @click="reject(current.id)">驳回</el-button>
-            <el-button v-if="current" class="audit-action-approve" @click="approve(current.id)">通过</el-button>
+            <el-button v-if="current" class="audit-action-reject" :disabled="current.status === '已驳回'" @click="reject(current.id)">驳回</el-button>
+            <el-button v-if="current" class="audit-action-approve" @click="approve(current.id)">{{ current.status === '已驳回' ? '重新通过' : '通过' }}</el-button>
           </div>
         </div>
       </template>

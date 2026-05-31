@@ -203,6 +203,30 @@ public class ResourceServiceImpl implements ResourceService {
     }
 
     @Override
+    @CacheEvict(value = "resource:detail", key = "#resourceId")
+    public void resubmitResource(Long userId, Long resourceId) {
+        Resource existing = resourceMapper.selectById(resourceId);
+        if (existing == null || existing.getDeleted() == 1) {
+            throw new BusinessException("资源不存在");
+        }
+        if (!canModify(existing, userId)) {
+            throw new BusinessException(403, "无权重新提交该资源");
+        }
+        if (existing.getStatus() == null || existing.getStatus() != 2) {
+            throw new BusinessException("只有已驳回资源可以重新提交");
+        }
+
+        Resource update = new Resource();
+        update.setId(resourceId);
+        update.setStatus(0);
+        resourceMapper.updateById(update);
+
+        Resource updated = resourceMapper.selectById(resourceId);
+        resourceDocumentRepository.save(buildResourceDocument(updated));
+        log.info("资源重新提交成功: id={}, userId={}", resourceId, userId);
+    }
+
+    @Override
     public Page<Resource> pageResources(Integer page, Integer size, Long categoryId, String keyword) {
         Page<Resource> pageParam = new Page<>(page, size);
         QueryWrapper<Resource> wrapper = new QueryWrapper<>();

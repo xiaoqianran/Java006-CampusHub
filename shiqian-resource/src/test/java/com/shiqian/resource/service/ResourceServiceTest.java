@@ -488,6 +488,39 @@ public class ResourceServiceTest extends BaseResourceTest {
                 isA(com.shiqian.resource.dto.ResourceAuditMessage.class));
     }
 
+    @Test
+    public void testResubmitRejectedResourceSuccess() {
+        Category category = createCategory("测试分类");
+        Resource resource = createResource("已驳回资源", category.getId());
+        resourceService.auditResource(resource.getId(), 2, 2L);
+
+        resourceService.resubmitResource(1L, resource.getId());
+
+        Resource updated = resourceService.getResourceById(resource.getId());
+        assertEquals(0, updated.getStatus());
+    }
+
+    @Test
+    public void testResubmitOnlyRejectedResource() {
+        Category category = createCategory("测试分类");
+        Resource resource = createResource("待审核资源", category.getId());
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> resourceService.resubmitResource(1L, resource.getId()));
+        assertEquals("只有已驳回资源可以重新提交", exception.getMessage());
+    }
+
+    @Test
+    public void testResubmitResourceWithoutOwnerPermission() {
+        Category category = createCategory("测试分类");
+        Resource resource = createResource("已驳回资源", category.getId());
+        resourceService.auditResource(resource.getId(), 2, 2L);
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> resourceService.resubmitResource(99L, resource.getId()));
+        assertEquals("无权重新提交该资源", exception.getMessage());
+    }
+
     private Resource createResource(String title, Long categoryId) {
         ResourceCreateDTO dto = new ResourceCreateDTO();
         dto.setTitle(title);
