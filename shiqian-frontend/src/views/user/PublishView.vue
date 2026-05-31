@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { UploadRawFile, UploadUserFile } from 'element-plus'
 import { useRouter } from 'vue-router'
-import { UploadFilled } from '@element-plus/icons-vue'
+import { Close, UploadFilled } from '@element-plus/icons-vue'
 import { useAppStore, type UploadedFileItem } from '@/stores/app'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
 
@@ -146,6 +146,15 @@ async function uploadSelectedFiles() {
   }
 }
 
+// 单个移除：支持在提交前逐个删除选中的待上传文件或已上传的附件元数据
+function removeSelectedFile(index: number) {
+  selectedFiles.value.splice(index, 1)
+}
+
+function removeUploadedFile(index: number) {
+  uploadedFiles.value.splice(index, 1)
+}
+
 async function submit() {
   if (!store.logged) {
     ElMessage.warning('请先登录后发布资源')
@@ -217,12 +226,36 @@ async function submit() {
                 multiple
                 action="#"
                 :auto-upload="false"
+                :show-file-list="false"
                 class="upload-panel"
               >
                 <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
                 <div class="el-upload__text">点击或拖拽文件到此处，支持多选批量上传</div>
               </el-upload>
             </el-form-item>
+
+            <!-- 选中的待上传文件列表：支持逐个移除（提交前） -->
+            <div v-if="selectedFiles.length" class="uploaded-list">
+              <div
+                v-for="(file, index) in selectedFiles"
+                :key="file.uid ?? index"
+                class="uploaded-row"
+                style="display:flex; align-items:center; justify-content:space-between; gap:12px;"
+              >
+                <div style="flex:1; min-width:0; overflow:hidden;">
+                  <b style="word-break:break-all;">{{ file.name }}</b>
+                  <span v-if="file.size != null" class="sub">{{ file.size }} 字节</span>
+                </div>
+                <el-button
+                  size="small"
+                  type="danger"
+                  text
+                  :icon="Close"
+                  @click="removeSelectedFile(index)"
+                  title="移除此文件"
+                />
+              </div>
+            </div>
           </el-col>
           <el-col :span="24">
             <el-form-item label="资源摘要">
@@ -243,9 +276,24 @@ async function submit() {
         </el-row>
 
         <div v-if="uploadedFiles.length" class="uploaded-list">
-          <div v-for="file in uploadedFiles" :key="file.fileUrl" class="uploaded-row">
-            <b>{{ file.originalName }}</b>
-            <span class="sub">{{ file.fileType }} · {{ file.fileSize }} 字节</span>
+          <div
+            v-for="(file, index) in uploadedFiles"
+            :key="file.fileUrl || index"
+            class="uploaded-row"
+            style="display:flex; align-items:center; justify-content:space-between; gap:12px;"
+          >
+            <div style="flex:1; min-width:0; overflow:hidden;">
+              <b style="word-break:break-all;">{{ file.originalName }}</b>
+              <span class="sub">{{ file.fileType }} · {{ file.fileSize }} 字节</span>
+            </div>
+            <el-button
+              size="small"
+              type="danger"
+              text
+              :icon="Close"
+              @click="removeUploadedFile(index)"
+              title="移除该附件（提交前）"
+            />
           </div>
         </div>
 
