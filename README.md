@@ -105,9 +105,9 @@ mvn clean package -DskipTests
 
 ### Caddy 部署与前后端对接
 
-服务器使用 Caddy 和域名部署时，前端域名、后端网关端口、`/api` 反代和前端运行时后端地址配置见：
+服务器使用 GitHub Pages 部署前端、Caddy 部署后端 API 时，域名、端口、CORS 和前端后端地址配置见：
 
-[docs/deploy-caddy-frontend-backend.md](docs/deploy-caddy-frontend-backend.md)
+[docs/deployment/github-pages-caddy-api.md](docs/deployment/github-pages-caddy-api.md)
 
 ### 本地运行
 

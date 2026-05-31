@@ -48,7 +48,7 @@ VITE_API_BASE_URL=https://api.xiaoqianran.xyz
 
 完整 Caddyfile、CORS 和 Pages 配置见：
 
-[deploy-caddy-frontend-backend.md](deploy-caddy-frontend-backend.md)
+[github-pages-caddy-api.md](github-pages-caddy-api.md)
 
 ## CI 产物
 
