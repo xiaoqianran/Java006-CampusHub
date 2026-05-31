@@ -63,7 +63,10 @@ async function saveProfile() {
     <!-- 快速个人资料编辑 -->
     <el-card class="panel" style="margin-bottom: 16px;">
       <template #header>
-        <div>个人资料</div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+          <span>个人资料（快速编辑）</span>
+          <el-button size="small" @click="$router.push('/profile')">完整编辑（头像预览）</el-button>
+        </div>
       </template>
       <el-form :model="profileForm" inline>
         <el-form-item label="昵称">

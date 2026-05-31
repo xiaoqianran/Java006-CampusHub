@@ -6,6 +6,7 @@ import CategoriesView from '@/views/user/CategoriesView.vue'
 import PublishView from '@/views/user/PublishView.vue'
 import FavoritesView from '@/views/user/FavoritesView.vue'
 import MineView from '@/views/user/MineView.vue'
+import ProfileView from '@/views/user/ProfileView.vue'
 import DetailView from '@/views/user/DetailView.vue'
 import LoginView from '@/views/user/LoginView.vue'
 import RegisterView from '@/views/user/RegisterView.vue'
@@ -26,6 +27,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/publish', component: PublishView, meta: { title: '发布资源', requiresAuth: true } },
   { path: '/favorites', component: FavoritesView, meta: { title: '我的收藏', requiresAuth: true } },
   { path: '/mine', component: MineView, meta: { title: '我的发布', requiresAuth: true } },
+  { path: '/profile', component: ProfileView, meta: { title: '个人资料', requiresAuth: true } },
   { path: '/detail/:id', component: DetailView, meta: { title: '资源详情' } },
   { path: '/login', component: LoginView, meta: { title: '登录' } },
   { path: '/register', component: RegisterView, meta: { title: '注册' } },
