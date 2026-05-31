@@ -15,7 +15,7 @@ public class UpdateUserDTO {
     @Size(max = 100, message = "邮箱不能超过100个字符")
     private String email;
 
-    @Pattern(regexp = "^1[3-9]\\d{9}$", message = "手机号格式不正确")
+    @Pattern(regexp = "^$|^1[3-9]\\d{9}$", message = "手机号格式不正确")
     private String phone;
 
     @Size(max = 500, message = "头像URL不能超过500个字符")

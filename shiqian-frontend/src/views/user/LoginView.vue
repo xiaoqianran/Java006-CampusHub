@@ -33,10 +33,10 @@ async function login() {
     <div class="auth-visual"><h1>欢迎回到时迁</h1><p>登录后学生端和后台端拥有统一入口，不再出现页面割裂。</p></div>
     <div class="auth-form">
       <h2>登录</h2>
-      <el-form label-position="top">
+      <el-form :model="form" label-position="top" @submit.prevent="login">
         <el-form-item label="用户名"><el-input v-model="form.username" placeholder="请输入用户名" /></el-form-item>
-        <el-form-item label="密码"><el-input v-model="form.password" type="password" placeholder="请输入密码" show-password @keyup.enter="login" /></el-form-item>
-        <el-button type="primary" class="full" :loading="submitting" @click="login">登录</el-button>
+        <el-form-item label="密码"><el-input v-model="form.password" type="password" placeholder="请输入密码" show-password /></el-form-item>
+        <el-button type="primary" native-type="submit" class="full" :loading="submitting">登录</el-button>
       </el-form>
       <p class="sub">没有账号？<router-link to="/register">去注册</router-link></p>
     </div>
