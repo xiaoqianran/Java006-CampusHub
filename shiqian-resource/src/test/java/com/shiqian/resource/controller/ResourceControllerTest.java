@@ -538,7 +538,7 @@ public class ResourceControllerTest extends BaseResourceTest {
 
         mockMvc.perform(put("/api/resource/{id}/resubmit", resource.getId())
                         .header("Authorization", "Bearer " + userToken))
-                .andExpect(status().isOk())
+                .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403))
                 .andExpect(jsonPath("$.message").value("无权重新提交该资源"));
     }

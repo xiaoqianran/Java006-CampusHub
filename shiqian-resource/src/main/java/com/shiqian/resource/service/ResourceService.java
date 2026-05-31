@@ -28,4 +28,8 @@ public interface ResourceService {
     void auditResource(Long resourceId, Integer status, Long operatorId);
 
     void resubmitResource(Long userId, Long resourceId);
+
+    void restoreResource(Long id);
+
+    void permanentDeleteResource(Long id);
 }

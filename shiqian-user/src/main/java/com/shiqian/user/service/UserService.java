@@ -20,4 +20,6 @@ public interface UserService {
     UserInfoVO getUserInfo(Long userId);
 
     Page<UserInfoVO> pageUsers(Integer page, Integer size, String keyword);
+
+    void updateUserStatus(Long targetUserId, Integer status, Long operatorId);
 }

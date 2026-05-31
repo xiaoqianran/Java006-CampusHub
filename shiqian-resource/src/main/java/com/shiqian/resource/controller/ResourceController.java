@@ -106,6 +106,22 @@ public class ResourceController {
         return Result.ok(resourceService.pageRecycleResources(page, size, keyword));
     }
 
+    @Operation(summary = "从回收站恢复资源")
+    @PutMapping("/{id}/restore")
+    @PreAuthorize("hasAuthority('resource:manage')")
+    public Result<Void> restoreResource(@PathVariable Long id) {
+        resourceService.restoreResource(id);
+        return Result.ok();
+    }
+
+    @Operation(summary = "永久删除资源（不可恢复）")
+    @DeleteMapping("/{id}/permanent")
+    @PreAuthorize("hasAuthority('resource:manage')")
+    public Result<Void> permanentDeleteResource(@PathVariable Long id) {
+        resourceService.permanentDeleteResource(id);
+        return Result.ok();
+    }
+
     @Operation(summary = "根据ID获取资源详情")
     @GetMapping("/{id}")
     public Result<Resource> getResourceById(@PathVariable Long id) {

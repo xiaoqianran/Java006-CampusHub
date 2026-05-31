@@ -193,4 +193,33 @@ public class UserServiceImpl implements UserService {
         vo.setCreateTime(user.getCreateTime());
         return vo;
     }
+
+    @Override
+    public void updateUserStatus(Long targetUserId, Integer status, Long operatorId) {
+        if (targetUserId == null || status == null) {
+            throw new BusinessException("参数错误");
+        }
+        if (targetUserId.equals(operatorId)) {
+            throw new BusinessException(400, "不能修改自己的状态");
+        }
+
+        User user = userMapper.selectById(targetUserId);
+        if (user == null || user.getDeleted() == 1) {
+            throw new BusinessException(404, "用户不存在");
+        }
+
+        // 防止禁用最后一个管理员
+        if (status == 0 && "ADMIN".equals(user.getRole())) {
+            long adminCount = userMapper.selectCount(
+                new QueryWrapper<User>().eq("role", "ADMIN").eq("status", 1).eq("deleted", 0)
+            );
+            if (adminCount <= 1) {
+                throw new BusinessException(400, "至少保留一个启用的管理员账号");
+            }
+        }
+
+        user.setStatus(status);
+        userMapper.updateById(user);
+        log.info("管理员{} {}了用户{} (status={})", operatorId, status == 1 ? "启用" : "禁用", targetUserId, status);
+    }
 }

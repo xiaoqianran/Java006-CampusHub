@@ -1,11 +1,31 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AdminLayout from '@/components/AdminLayout.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import { useAppStore } from '@/stores/app'
 
 const store = useAppStore()
+
+const searchText = ref('')
+const statusFilter = ref<'全部' | '已发布' | '已驳回'>('全部')
+
+const filteredAdminResources = computed(() => {
+  let list = store.resources
+  const text = searchText.value.trim().toLowerCase()
+  if (text) {
+    list = list.filter(r =>
+      r.title.toLowerCase().includes(text) ||
+      (r.desc || '').toLowerCase().includes(text) ||
+      (r.cat || '').toLowerCase().includes(text) ||
+      (r.author || '').toLowerCase().includes(text)
+    )
+  }
+  if (statusFilter.value !== '全部') {
+    list = list.filter(r => r.status === statusFilter.value)
+  }
+  return list
+})
 
 onMounted(() => {
   store.loadResources().catch(() => undefined)
@@ -36,7 +56,16 @@ async function takeDownResource(id: number, title: string) {
         <p class="sub">管理全部资源，不只是待审核资源。</p>
       </div>
     </div>
-    <el-table :data="store.resources" class="panel">
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+      <el-input v-model="searchText" placeholder="搜索标题/描述/分类/作者..." clearable style="width:280px;" />
+      <el-radio-group v-model="statusFilter">
+        <el-radio-button label="全部">全部</el-radio-button>
+        <el-radio-button label="已发布">已发布</el-radio-button>
+        <el-radio-button label="已驳回">已驳回</el-radio-button>
+      </el-radio-group>
+      <span class="sub">共 {{ filteredAdminResources.length }} 条（使用 store.resources 丰富数据）</span>
+    </div>
+    <el-table :data="filteredAdminResources" class="panel">
       <el-table-column label="资源" min-width="280"><template #default="{ row }"><b>{{ row.title }}</b></template></el-table-column>
       <el-table-column prop="cat" label="分类" width="130" />
       <el-table-column label="状态" width="120"><template #default="{ row }"><StatusTag :status="row.status" /></template></el-table-column>

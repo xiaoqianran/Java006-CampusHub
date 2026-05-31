@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import io.swagger.v3.oas.annotations.Operation;
@@ -90,5 +91,17 @@ public class UserController {
             @RequestParam(defaultValue = "10") Integer size,
             @RequestParam(required = false) String keyword) {
         return Result.ok(userService.pageUsers(page, size, keyword));
+    }
+
+    @Operation(summary = "管理员修改用户状态（启用/禁用）")
+    @PutMapping("/admin/users/{id}/status")
+    @PreAuthorize("hasAuthority('user:manage')")
+    public Result<Void> updateUserStatus(
+            @PathVariable Long id,
+            @RequestBody @Valid java.util.Map<String, Integer> body) {
+        Long operatorId = SecurityUtil.getCurrentUserId();
+        Integer status = body.get("status");
+        userService.updateUserStatus(id, status, operatorId);
+        return Result.ok();
     }
 }

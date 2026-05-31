@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shiqian.common.content.SensitiveWordFilter;
 import com.shiqian.common.exception.BusinessException;
 import com.shiqian.common.security.SecurityUtil;
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.shiqian.resource.config.RabbitMQConfig;
 import com.shiqian.resource.document.ResourceDocument;
 import com.shiqian.resource.dto.ResourceAuditMessage;
@@ -312,5 +313,45 @@ public class ResourceServiceImpl implements ResourceService {
         doc.setUserId(resource.getUserId());
         doc.setStatus(resource.getStatus());
         return doc;
+    }
+
+    @Override
+    @PreAuthorize("hasAuthority('resource:manage')")
+    public void restoreResource(Long id) {
+        Resource resource = resourceMapper.selectById(id);
+        if (resource == null) {
+            throw new BusinessException(404, "资源不存在");
+        }
+        if (resource.getDeleted() != 1) {
+            throw new BusinessException("资源不在回收站中");
+        }
+
+        Resource update = new Resource();
+        update.setId(id);
+        update.setDeleted(0);
+        // 恢复后回到待审核状态，等待管理员重新审核
+        update.setStatus(0);
+        resourceMapper.updateById(update);
+
+        // 同步到ES
+        Resource restored = resourceMapper.selectById(id);
+        resourceDocumentRepository.save(buildResourceDocument(restored));
+        log.info("资源已从回收站恢复: id={}", id);
+    }
+
+    @Override
+    @PreAuthorize("hasAuthority('resource:manage')")
+    public void permanentDeleteResource(Long id) {
+        Resource resource = resourceMapper.selectById(id);
+        if (resource == null) {
+            return; // 已删除直接忽略
+        }
+        // 物理删除（MyBatis-Plus 需配置或直接调用）
+        resourceMapper.deleteById(id);
+        // 从ES移除
+        try {
+            resourceDocumentRepository.deleteById(id);
+        } catch (Exception ignored) {}
+        log.info("资源已永久删除: id={}", id);
     }
 }

@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ArrowLeft,
+  Delete,
   Download,
   Edit,
   Folder,
@@ -86,6 +87,25 @@ async function editCategory(id: number, oldName: string) {
   }
 }
 
+async function deleteCategoryConfirm(id: number, name: string) {
+  try {
+    await ElMessageBox.confirm(`确认删除分类「${name}」？注意：仅当无子分类时允许删除，关联资源将保留原 categoryId 引用。`, '删除分类', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消'
+    })
+    await store.deleteCategory(id)
+    if (selectedCategory.value?.id === id) {
+      selectedCategory.value = null
+    }
+    ElMessage.success('分类已删除')
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(error instanceof Error ? error.message : '删除失败')
+    }
+  }
+}
+
 async function openCategory(category: CategoryApiItem) {
   detailLoading.value = true
 
@@ -118,6 +138,8 @@ function openFile(resource: ResourceItem) {
 function handleCategoryCommand(command: string, category: CategoryApiItem) {
   if (command === 'rename') {
     editCategory(category.id, category.name)
+  } else if (command === 'delete') {
+    deleteCategoryConfirm(category.id, category.name)
   }
 }
 </script>
@@ -156,6 +178,9 @@ function handleCategoryCommand(command: string, category: CategoryApiItem) {
                 <el-dropdown-menu>
                   <el-dropdown-item command="rename" :icon="Edit">
                     重命名分类
+                  </el-dropdown-item>
+                  <el-dropdown-item command="delete" :icon="Delete">
+                    删除分类
                   </el-dropdown-item>
                 </el-dropdown-menu>
               </template>
@@ -199,6 +224,9 @@ function handleCategoryCommand(command: string, category: CategoryApiItem) {
 
           <el-button :icon="Edit" @click="editCategory(selectedCategory.id, selectedCategory.name)">
             重命名分类
+          </el-button>
+          <el-button type="danger" plain @click="deleteCategoryConfirm(selectedCategory.id, selectedCategory.name)">
+            删除分类
           </el-button>
         </div>
       </div>
