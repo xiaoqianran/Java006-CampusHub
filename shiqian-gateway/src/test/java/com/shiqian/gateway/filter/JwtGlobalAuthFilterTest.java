@@ -35,7 +35,7 @@ class JwtGlobalAuthFilterTest {
 
         filter = new JwtGlobalAuthFilter(jwtUtil);
         ReflectionTestUtils.setField(filter, "whitelist",
-                List.of("/api/user/register", "/api/user/login", "/api/user/health", "/actuator"));
+                List.of("/api/user/register", "/api/user/login", "/api/user/refresh", "/api/user/health", "/actuator"));
     }
 
     @Test

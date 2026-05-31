@@ -35,6 +35,7 @@ public class JwtGlobalAuthFilter implements GlobalFilter, Ordered {
     private final List<String> DEFAULT_WHITELIST = List.of(
             "/api/user/register",
             "/api/user/login",
+            "/api/user/refresh",
             "/api/user/health",
             "/api/resource",
             "/api/category",

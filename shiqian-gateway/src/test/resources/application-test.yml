@@ -24,5 +24,6 @@ gateway:
     whitelist:
       - /api/user/register
       - /api/user/login
+      - /api/user/refresh
       - /api/user/health
       - /actuator
