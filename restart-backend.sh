@@ -6,10 +6,10 @@ date
 
 mkdir -p logs
 
-JAVA_OPTS_COMMON="${JAVA_OPTS_COMMON:--XX:+UseSerialGC -XX:MaxMetaspaceSize=128m -Dfile.encoding=UTF-8}"
-USER_JAVA_OPTS="${USER_JAVA_OPTS:--Xms96m -Xmx320m}"
-RESOURCE_JAVA_OPTS="${RESOURCE_JAVA_OPTS:--Xms128m -Xmx384m}"
-GATEWAY_JAVA_OPTS="${GATEWAY_JAVA_OPTS:--Xms96m -Xmx256m}"
+JAVA_OPTS_COMMON="${JAVA_OPTS_COMMON:--XX:+UseSerialGC -XX:MaxMetaspaceSize=192m -Dfile.encoding=UTF-8}"
+USER_JAVA_OPTS="${USER_JAVA_OPTS:--Xms128m -Xmx448m}"
+RESOURCE_JAVA_OPTS="${RESOURCE_JAVA_OPTS:--Xms128m -Xmx512m}"
+GATEWAY_JAVA_OPTS="${GATEWAY_JAVA_OPTS:--Xms128m -Xmx384m}"
 
 # 清理旧进程
 echo "→ 清理旧的后端进程..."

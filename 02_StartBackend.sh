@@ -153,7 +153,7 @@ start_backend() {
   wait_container_healthy rabbitmq "RabbitMQ"
 
   log "打包后端"
-  export MAVEN_OPTS="${MAVEN_OPTS:--Xms128m -Xmx768m -XX:MaxMetaspaceSize=256m}"
+  export MAVEN_OPTS="${MAVEN_OPTS:--Xms256m -Xmx1024m -XX:MaxMetaspaceSize=384m}"
   mvn clean package -DskipTests
 
   log "启动后端服务"
