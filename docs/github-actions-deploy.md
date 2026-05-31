@@ -30,15 +30,25 @@ GitHub Pages 只能托管静态文件，所以它可以部署本项目的 Vue �
 https://<你的用户名>.github.io/<仓库名>/
 ```
 
-## 配置前端访问后端
+## 配置 GitHub Pages 前端访问服务器后端
 
-如果后端部署在独立域名，进入仓库 `Settings -> Secrets and variables -> Actions -> Variables`，新增：
+本项目推荐前后端分离：
+
+- 前端部署到 GitHub Pages
+- 后端部署到你的服务器
+- 服务器用 Caddy 提供 `https://api.xiaoqianran.xyz`
+
+进入仓库 `Settings -> Secrets and variables -> Actions -> Variables`，新增：
 
 ```text
-VITE_API_BASE_URL=https://api.example.com
+VITE_API_BASE_URL=https://api.xiaoqianran.xyz
 ```
 
-不配置时，前端会默认请求当前域名下的 `/api/...`，这只适合同源部署或另有反向代理的场景。
+不配置时，前端会默认请求当前 Pages 域名下的 `/api/...`，这不适合 GitHub Pages + 独立服务器后端。
+
+完整 Caddyfile、CORS 和 Pages 配置见：
+
+[deploy-caddy-frontend-backend.md](deploy-caddy-frontend-backend.md)
 
 ## CI 产物
 

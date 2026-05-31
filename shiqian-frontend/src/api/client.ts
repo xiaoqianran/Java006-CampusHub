@@ -12,7 +12,8 @@ export interface PageResult<T> {
   pages: number
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
+const runtimeConfig = window.__SHIQIAN_CONFIG__ || {}
+const API_BASE = runtimeConfig.apiBaseUrl || import.meta.env.VITE_API_BASE_URL || ''
 
 export function getAccessToken() {
   return localStorage.getItem('shiqian_access_token') || ''

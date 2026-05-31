@@ -103,6 +103,12 @@ npm run dev -- --host 0.0.0.0
 mvn clean package -DskipTests
 ```
 
+### Caddy 部署与前后端对接
+
+服务器使用 Caddy 和域名部署时，前端域名、后端网关端口、`/api` 反代和前端运行时后端地址配置见：
+
+[docs/deploy-caddy-frontend-backend.md](docs/deploy-caddy-frontend-backend.md)
+
 ### 本地运行
 
 1. 创建数据库 `shiqian_user`，执行建表语句
