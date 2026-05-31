@@ -40,11 +40,20 @@ async function download() {
   try {
     if (!resource.value) return
     await store.downloadResource(resource.value.id)
-    if (resource.value.fileUrl) window.open(buildApiUrl(resource.value.fileUrl), '_blank')
-    ElMessage.success('下载请求已提交')
+    const fileUrl = primaryDownloadUrl()
+    if (!fileUrl) {
+      ElMessage.warning('该资源暂无可下载文件')
+      return
+    }
+    window.open(buildApiUrl(fileUrl), '_blank')
+    ElMessage.success('开始下载')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '下载失败')
   }
+}
+
+function primaryDownloadUrl() {
+  return resource.value?.fileUrl || resource.value?.attachments?.find(att => att?.fileUrl)?.fileUrl || ''
 }
 
 function downloadAttachment(att: any) {
