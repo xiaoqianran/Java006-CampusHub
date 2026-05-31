@@ -115,6 +115,7 @@ public class ResourceServiceImpl implements ResourceService {
             new QueryWrapper<ResourceAttachment>().eq("resource_id", id).orderByAsc("sort_order")
         );
         resource.setAttachments(attachments);
+        Resource.enrichAuthors(java.util.List.of(resource));
         return resource;
     }
 
@@ -246,7 +247,9 @@ public class ResourceServiceImpl implements ResourceService {
         }
 
         wrapper.orderByDesc("create_time");
-        return resourceMapper.selectPage(pageParam, wrapper);
+        Page<Resource> result = resourceMapper.selectPage(pageParam, wrapper);
+        Resource.enrichAuthors(result.getRecords());
+        return result;
     }
 
     @Override
@@ -269,13 +272,17 @@ public class ResourceServiceImpl implements ResourceService {
         }
 
         wrapper.orderByDesc("create_time");
-        return resourceMapper.selectPage(pageParam, wrapper);
+        Page<Resource> result = resourceMapper.selectPage(pageParam, wrapper);
+        Resource.enrichAuthors(result.getRecords());
+        return result;
     }
 
     @Override
     public Page<Resource> pageRecycleResources(Integer page, Integer size, String keyword) {
         Page<Resource> pageParam = new Page<>(page, size);
-        return resourceMapper.selectRecyclePage(pageParam, keyword);
+        Page<Resource> result = resourceMapper.selectRecyclePage(pageParam, keyword);
+        Resource.enrichAuthors(result.getRecords());
+        return result;
     }
 
     @Override
@@ -285,7 +292,9 @@ public class ResourceServiceImpl implements ResourceService {
         wrapper.eq("deleted", 0);
         wrapper.eq("user_id", userId);
         wrapper.orderByDesc("create_time");
-        return resourceMapper.selectPage(pageParam, wrapper);
+        Page<Resource> result = resourceMapper.selectPage(pageParam, wrapper);
+        Resource.enrichAuthors(result.getRecords());
+        return result;
     }
 
     private void validateContent(String title, String summary, String contentMarkdown) {

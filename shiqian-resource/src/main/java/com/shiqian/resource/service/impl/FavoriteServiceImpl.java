@@ -83,10 +83,12 @@ public class FavoriteServiceImpl implements FavoriteService {
         Map<Long, Resource> resourceMap = resourceMapper.selectBatchIds(resourceIds).stream()
                 .filter(resource -> resource.getDeleted() == null || resource.getDeleted() == 0)
                 .collect(Collectors.toMap(Resource::getId, Function.identity()));
-        result.setRecords(resourceIds.stream()
+        List<Resource> recs = resourceIds.stream()
                 .map(resourceMap::get)
                 .filter(resource -> resource != null)
-                .collect(Collectors.toList()));
+                .collect(Collectors.toList());
+        Resource.enrichAuthors(recs);
+        result.setRecords(recs);
         return result;
     }
 }
