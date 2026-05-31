@@ -16,5 +16,15 @@ export default defineConfig({
   plugins: [vue()],
   resolve: {
     alias: { '@': path.resolve(__dirname, 'src') }
+  },
+  // Vitest configuration (minimal setup)
+  test: {
+    environment: 'jsdom',
+    globals: false, // use explicit imports for describe/it/expect/vi
+    include: ['src/**/*.{test,spec}.{ts,js}'],
+    // Ensure @ alias resolves in tests
+    alias: {
+      '@': path.resolve(__dirname, 'src')
+    }
   }
 })
