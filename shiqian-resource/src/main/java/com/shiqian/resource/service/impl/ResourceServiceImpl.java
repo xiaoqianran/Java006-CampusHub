@@ -155,7 +155,7 @@ public class ResourceServiceImpl implements ResourceService {
         if (existing == null || existing.getDeleted() == 1) {
             throw new BusinessException("资源不存在");
         }
-        if (!existing.getUserId().equals(userId)) {
+        if (!canModify(existing, userId)) {
             throw new BusinessException(403, "无权删除该资源");
         }
         resourceMapper.deleteById(id);
@@ -222,6 +222,12 @@ public class ResourceServiceImpl implements ResourceService {
 
         wrapper.orderByDesc("create_time");
         return resourceMapper.selectPage(pageParam, wrapper);
+    }
+
+    @Override
+    public Page<Resource> pageRecycleResources(Integer page, Integer size, String keyword) {
+        Page<Resource> pageParam = new Page<>(page, size);
+        return resourceMapper.selectRecyclePage(pageParam, keyword);
     }
 
     @Override

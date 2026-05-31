@@ -12,6 +12,7 @@ import RegisterView from '@/views/user/RegisterView.vue'
 import AdminHomeView from '@/views/admin/AdminHomeView.vue'
 import AuditView from '@/views/admin/AuditView.vue'
 import ResourceAdminView from '@/views/admin/ResourceAdminView.vue'
+import RecycleBinView from '@/views/admin/RecycleBinView.vue'
 import CategoryAdminView from '@/views/admin/CategoryAdminView.vue'
 import UserAdminView from '@/views/admin/UserAdminView.vue'
 
@@ -31,6 +32,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/admin', component: AdminHomeView, meta: { ...adminMeta, title: '后台首页' } },
   { path: '/admin/audit', component: AuditView, meta: { ...adminMeta, title: '资源审核' } },
   { path: '/admin/resources', component: ResourceAdminView, meta: { ...adminMeta, title: '资源管理' } },
+  { path: '/admin/recycle-bin', component: RecycleBinView, meta: { ...adminMeta, title: '回收站' } },
   { path: '/admin/categories', component: CategoryAdminView, meta: { ...adminMeta, title: '分类管理' } },
   { path: '/admin/users', component: UserAdminView, meta: { ...adminMeta, title: '用户管理' } },
   { path: '/:pathMatch(.*)*', redirect: '/home' }

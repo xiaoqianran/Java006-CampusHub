@@ -94,6 +94,16 @@ public class ResourceController {
         return Result.ok(favoriteService.pageFavorites(userId, page, size));
     }
 
+    @Operation(summary = "管理员分页查询回收站资源")
+    @GetMapping("/recycle-bin")
+    @PreAuthorize("hasAuthority('resource:audit')")
+    public Result<Page<Resource>> pageRecycleResources(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(required = false) String keyword) {
+        return Result.ok(resourceService.pageRecycleResources(page, size, keyword));
+    }
+
     @Operation(summary = "根据ID获取资源详情")
     @GetMapping("/{id}")
     public Result<Resource> getResourceById(@PathVariable Long id) {

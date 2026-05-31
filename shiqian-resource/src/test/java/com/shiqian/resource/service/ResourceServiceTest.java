@@ -350,6 +350,9 @@ public class ResourceServiceTest extends BaseResourceTest {
 
         Resource found = resourceService.getResourceById(id);
         assertNull(found);
+        Page<Resource> recyclePage = resourceService.pageRecycleResources(1, 10, "待删除资源");
+        assertEquals(1, recyclePage.getRecords().size());
+        assertEquals(id, recyclePage.getRecords().get(0).getId());
     }
 
     @Test

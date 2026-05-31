@@ -7,6 +7,7 @@ const links = [
   { path: '/admin', label: '后台首页' },
   { path: '/admin/audit', label: '资源审核' },
   { path: '/admin/resources', label: '资源管理' },
+  { path: '/admin/recycle-bin', label: '回收站' },
   { path: '/admin/categories', label: '分类管理' },
   { path: '/admin/users', label: '用户管理' }
 ]

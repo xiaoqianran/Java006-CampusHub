@@ -198,6 +198,7 @@ export const useAppStore = defineStore('app', () => {
 
   const categoryTree = ref<CategoryApiItem[]>([])
   const resources = ref<ResourceItem[]>([])
+  const recycleResources = ref<ResourceItem[]>([])
   const users = ref<UserItem[]>([])
   const favoriteIds = ref<number[]>([])
   const myResourceIds = ref<number[]>([])
@@ -295,6 +296,13 @@ export const useAppStore = defineStore('app', () => {
       query: { page: params.page || 1, size: params.size || 100, categoryId: params.categoryId, keyword: params.keyword }
     })
     mergeResources(data.records)
+  }
+
+  async function loadRecycleResources(params: { page?: number, size?: number, keyword?: string } = {}) {
+    const data = await request<PageResult<ResourceApiItem>>('/api/resource/recycle-bin', {
+      query: { page: params.page || 1, size: params.size || 100, keyword: params.keyword }
+    })
+    recycleResources.value = data.records.map(mapResource)
   }
 
   async function loadHomeData() {
@@ -441,6 +449,14 @@ export const useAppStore = defineStore('app', () => {
     resources.value = resources.value.filter(item => item.id !== id)
   }
 
+  async function removeResource(id: number) {
+    await request<void>(`/api/resource/${id}`, { method: 'DELETE' })
+    resources.value = resources.value.filter(item => item.id !== id)
+    myResourceIds.value = myResourceIds.value.filter(item => item !== id)
+    favoriteIds.value = favoriteIds.value.filter(item => item !== id)
+    await loadRecycleResources()
+  }
+
   async function approveResource(id: number) {
     await request<void>(`/api/resource/${id}/audit`, { method: 'PUT', query: { status: 1 } })
     const item = getResource(id)
@@ -537,6 +553,7 @@ export const useAppStore = defineStore('app', () => {
     flatCategories,
     categories,
     resources,
+    recycleResources,
     users,
     favoriteIds,
     myResourceIds,
@@ -554,6 +571,7 @@ export const useAppStore = defineStore('app', () => {
     loadHomeData,
     loadCategories,
     loadResources,
+    loadRecycleResources,
     searchResources,
     loadResourceDetail,
     loadFavorites,
@@ -566,6 +584,7 @@ export const useAppStore = defineStore('app', () => {
     toggleFavorite,
     downloadResource,
     removeMyResource,
+    removeResource,
     approveResource,
     rejectResource,
     uploadFiles,

@@ -312,6 +312,31 @@ public class ResourceControllerTest extends BaseResourceTest {
     }
 
     @Test
+    public void testAdminDeleteOtherUserResourceToRecycleBin() throws Exception {
+        Category category = createCategory("测试分类");
+        Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "管理员删除测试"));
+
+        mockMvc.perform(delete("/api/resource/{id}", resource.getId())
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        mockMvc.perform(get("/api/resource/recycle-bin")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.records[0].id").value(resource.getId()))
+                .andExpect(jsonPath("$.data.records[0].title").value("管理员删除测试"));
+    }
+
+    @Test
+    public void testRecycleBinOnlyAdminCanRead() throws Exception {
+        mockMvc.perform(get("/api/resource/recycle-bin")
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     public void testDeleteResourceNotExist() throws Exception {
         mockMvc.perform(delete("/api/resource/{id}", 99999)
                         .header("Authorization", "Bearer " + userToken))

@@ -15,6 +15,8 @@ public interface ResourceService {
 
     Page<Resource> pageUserResources(Long userId, Integer page, Integer size);
 
+    Page<Resource> pageRecycleResources(Integer page, Integer size, String keyword);
+
     void updateResource(Long userId, Long id, ResourceUpdateDTO dto);
 
     void deleteResource(Long userId, Long id);
