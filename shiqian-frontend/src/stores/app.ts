@@ -110,9 +110,11 @@ export interface ResourceItem {
 export interface UserItem {
   id: number
   name: string
-  username?: string
-  role: string
+  username: string
+  nickname: string
   email: string
+  phone: string
+  role: string
   status: '正常' | '禁用'
 }
 
@@ -275,9 +277,11 @@ export const useAppStore = defineStore('app', () => {
     return {
       id: item.userId,
       username: item.username,
+      nickname: item.nickname || '',
       name: item.nickname || item.username,
       role: item.role === 'ADMIN' ? '管理员' : '学生',
       email: item.email || '',
+      phone: item.phone || '',
       status: item.status === 0 ? '禁用' : '正常'
     }
   }
@@ -358,8 +362,10 @@ export const useAppStore = defineStore('app', () => {
     myResourceIds.value = data.records.map(item => item.id)
   }
 
-  async function loadUsers() {
-    const data = await request<PageResult<LoginUser>>('/api/user/admin/users', { query: { page: 1, size: 100 } })
+  async function loadUsers(params: { page?: number, size?: number, keyword?: string } = {}) {
+    const data = await request<PageResult<LoginUser>>('/api/user/admin/users', {
+      query: { page: params.page || 1, size: params.size || 100, keyword: params.keyword }
+    })
     users.value = data.records.map(mapUser)
   }
 
@@ -549,6 +555,29 @@ export const useAppStore = defineStore('app', () => {
     await loadCategories()
   }
 
+  // === 管理员用户管理 ===
+  async function updateUserStatus(id: number, status: 0 | 1, keyword?: string) {
+    await request<void>(`/api/user/admin/users/${id}/status`, {
+      method: 'PUT',
+      body: jsonBody({ status })
+    })
+    // 刷新用户列表（保留当前搜索关键词）
+    await loadUsers({ keyword })
+  }
+
+  // === 回收站操作 ===
+  async function restoreResource(id: number) {
+    await request<void>(`/api/resource/${id}/restore`, { method: 'PUT' })
+    // 从回收站列表移除，刷新其他列表
+    recycleResources.value = recycleResources.value.filter(item => item.id !== id)
+    await Promise.allSettled([loadResources(), loadMyResources()])
+  }
+
+  async function permanentDeleteResource(id: number) {
+    await request<void>(`/api/resource/${id}/permanent`, { method: 'DELETE' })
+    recycleResources.value = recycleResources.value.filter(item => item.id !== id)
+  }
+
   return {
     // 主题
     theme,
@@ -609,6 +638,10 @@ export const useAppStore = defineStore('app', () => {
     submitResource,
     createCategory,
     updateCategory,
-    deleteCategory
+    deleteCategory,
+    // 新增管理员能力
+    updateUserStatus,
+    restoreResource,
+    permanentDeleteResource
   }
 })
