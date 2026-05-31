@@ -1,224 +1,225 @@
-# 时迁 - 校园资源共享平台
+# CampusHub 校园资源共享平台
 
-> 阶段一：项目骨架搭建与基础能力建设
+CampusHub 是一个面向校园场景的资源共享平台，包含后端 Spring Cloud 微服务、Vue 3 前端，以及本地开发所需的 MySQL、Redis、Nacos、Elasticsearch、RabbitMQ 等基础设施。
 
-## 项目简介
+当前项目已经整理为脚本化启动方式。日常开发、演示、服务器部署时，优先使用根目录下的 `01` 到 `05` 脚本，不建议再手动一个个执行 Docker、Maven、Java、npm 命令。
 
-时迁是一个面向校园场景的资源共享平台，基于 Spring Cloud 微服务架构构建，旨在为校园内的资源发布、共享、流转提供高效便捷的服务支撑。
+## 快速启动
 
-## 阶段一完成内容
+### 1. 首次初始化环境
 
-### 1. 多模块工程搭建
-
-```
-shiqian-platform（父工程）
-├── shiqian-common    公共模块
-└── shiqian-user      用户服务
-```
-
-| 模块 | 说明 |
-|------|------|
-| shiqian-common | 统一响应体、全局异常处理、通用工具类 |
-| shiqian-user | 用户注册、登录、鉴权、信息管理 |
-
-### 2. 公共能力（shiqian-common）
-
-- **统一响应体** — `Result<T>` 封装 code / message / data，提供 `ok()` / `fail()` 工厂方法
-- **响应码枚举** — `ResultCode` 定义 SUCCESS / FAIL / UNAUTHORIZED / FORBIDDEN / NOT_FOUND / PARAM_ERROR
-- **业务异常** — `BusinessException` 支持 message / code+message / ResultCode 三种构造
-- **全局异常处理** — `GlobalExceptionHandler` 覆盖 5 类异常 + 兜底处理
-
-| 异常类型 | HTTP 状态码 | 处理方式 |
-|---------|------------|---------|
-| BusinessException | 200 | 返回业务错误码与消息 |
-| MethodArgumentNotValidException | 400 | 提取首个校验错误 |
-| BindException | 400 | 提取首个绑定错误 |
-| ConstraintViolationException | 400 | 提取首个约束违规 |
-| HttpRequestMethodNotSupportedException | 405 | 返回不支持请求方法提示 |
-| 其他 Exception | 500 | 返回系统内部错误（不暴露堆栈） |
-
-### 3. 用户服务（shiqian-user）
-
-- **启动类** — `ShIQianUserApplication`，启用 Nacos 服务发现
-- **实体层** — `User` 实体，MyBatis-Plus 注解、自动填充（createTime / updateTime）、逻辑删除
-- **数据层** — `UserMapper` 继承 `BaseMapper<User>`
-- **服务层** — `UserService` / `UserServiceImpl`，含数据库连接检测
-- **控制层** — `UserController`，健康检查端点 `GET /api/user/health`
-- **配置层** — Security 放行、MyBatis-Plus 自动填充与分页插件
-
-### 4. CI/CD 流水线
-
-通过 `.cnb.yml` 配置了 CNB 云原生构建流水线：
-
-- 所有分支的 **push** 和 **pull_request** 事件自动触发
-- 构建环境：Maven 3.9 + JDK 17
-- 执行 `mvn test -B` 进行编译与测试验证
-- `.m2` 仓库缓存加速依赖下载
-
-## 技术栈
-
-| 分类 | 技术 | 版本 |
-|------|------|------|
-| 基础框架 | Spring Boot | 3.2.0 |
-| 微服务 | Spring Cloud | 2023.0.0 |
-| 微服务 | Spring Cloud Alibaba | 2023.0.1.2 |
-| ORM | MyBatis-Plus | 3.5.5 |
-| 数据库 | MySQL | 8.0.33 |
-| 服务发现/配置 | Nacos | - |
-| 缓存 | Spring Data Redis | - |
-| 消息队列 | Spring AMQP (RabbitMQ) | - |
-| API 文档 | Knife4j (OpenAPI 3) | 4.3.0 |
-| 工具库 | Hutool | 5.8.25 |
-| 构建工具 | Maven | - |
-| JDK | Eclipse Temurin | 17 |
-
-## 快速开始
-
-### 环境要求
-
-- JDK 17+
-- Maven 3.9+
-- MySQL 8.0+
-- Nacos 2.x（可选，local 环境默认关闭）
-
-### Ubuntu 安装环境与启动后端
-
-在全新的 Ubuntu 环境中，先执行 01 环境脚本。它只负责安装开发环境、Docker 和前端依赖：
+只在新机器或环境缺依赖时执行一次：
 
 ```bash
 chmod +x 01_Environment.sh
 ./01_Environment.sh
 ```
 
-之后日常启动后端执行 02 启动脚本。它只负责启动基础设施容器、打包并启动后端，不会重复安装开发环境：
+这个脚本负责安装或配置开发环境，包括 Java、Maven、Node.js、Docker、Docker Compose 等。
+
+### 2. 启动后端
 
 ```bash
-chmod +x 02_StartBackend.sh
 ./02_StartBackend.sh
 ```
 
-后端启动脚本会启动基础设施容器、打包并启动后端。前端依赖安装完成后，执行以下命令启动前端开发服务：
+这个脚本会自动完成：
+
+- 启动基础设施容器：MySQL、Redis、Nacos、Elasticsearch、RabbitMQ
+- 等待容器就绪
+- 使用 Maven 打包后端
+- 启动 `shiqian-user`、`shiqian-resource`、`shiqian-gateway`
+- 写入后端日志到 `logs/fresh-*.log`
+
+后端地址：
+
+- Gateway: `http://localhost:8080`
+- User: `http://localhost:8081`
+- Resource: `http://localhost:8082`
+
+### 3. 停止后端
 
 ```bash
-cd shiqian-frontend
-npm run dev -- --host 0.0.0.0
+./03_StopBackend.sh
 ```
 
-### 构建
+这个脚本会停止后端 Java 进程，并执行 `docker compose down` 停掉基础设施容器。
+
+### 4. 启动前端
+
+```bash
+./04_StartFrontend.sh
+```
+
+这个脚本会自动完成：
+
+- 进入 `shiqian-frontend`
+- 执行 `npm install`
+- 后台执行 `npm run dev`
+- 写入日志到 `logs/fresh-frontend.log`
+- 写入 PID 到 `logs/frontend.pid`
+
+前端地址：
+
+- `http://localhost:5173`
+
+### 5. 停止前端
+
+```bash
+./05_StopFrontend.sh
+```
+
+这个脚本会优先按 `logs/frontend.pid` 停止前端，并兜底停止 `npm run dev` / Vite 进程。
+
+## 推荐启动顺序
+
+日常完整启动：
+
+```bash
+./02_StartBackend.sh
+./04_StartFrontend.sh
+```
+
+日常完整停止：
+
+```bash
+./05_StopFrontend.sh
+./03_StopBackend.sh
+```
+
+查看日志：
+
+```bash
+tail -f logs/fresh-*.log
+tail -f logs/fresh-frontend.log
+```
+
+## 服务器更新代码
+
+服务器上拉取最新代码：
+
+```bash
+git pull origin main
+```
+
+如果只想重启 RabbitMQ：
+
+```bash
+docker compose rm -sf rabbitmq
+docker compose up -d rabbitmq
+docker logs shiqian-rabbitmq --tail 200
+```
+
+如果要整套重启：
+
+```bash
+./05_StopFrontend.sh
+./03_StopBackend.sh
+./02_StartBackend.sh
+./04_StartFrontend.sh
+```
+
+## 项目结构
+
+```text
+.
+├── 01_Environment.sh        # 首次环境初始化
+├── 02_StartBackend.sh       # 启动基础设施和后端
+├── 03_StopBackend.sh        # 停止后端和 Docker Compose
+├── 04_StartFrontend.sh      # 安装依赖并启动前端
+├── 05_StopFrontend.sh       # 停止前端
+├── restart-backend.sh       # 被 02 调用，单独重启三个后端 Java 服务
+├── docker-compose.yml       # 本地基础设施容器
+├── docker/                  # MySQL、RabbitMQ、Prometheus、Grafana 配置
+├── shiqian-common/          # 后端公共模块
+├── shiqian-user/            # 用户服务，端口 8081
+├── shiqian-resource/        # 资源服务，端口 8082
+├── shiqian-gateway/         # 网关服务，端口 8080
+└── shiqian-frontend/        # Vue 3 + Vite 前端
+```
+
+## 技术栈
+
+| 类型 | 技术 |
+| --- | --- |
+| 后端 | Spring Boot, Spring Cloud, Spring Cloud Alibaba |
+| 网关 | Spring Cloud Gateway |
+| 数据库 | MySQL 8 |
+| 缓存 | Redis |
+| 注册/配置 | Nacos |
+| 搜索 | Elasticsearch |
+| 消息队列 | RabbitMQ |
+| ORM | MyBatis-Plus |
+| 前端 | Vue 3, Vite, Pinia, Element Plus |
+| 构建 | Maven, npm |
+| 容器 | Docker Compose |
+
+## 默认账号
+
+MySQL 初始化脚本会导入演示数据，默认账号如下：
+
+| 用户名 | 密码 | 角色 | 说明 |
+| --- | --- | --- | --- |
+| `admin` | `123456` | ADMIN | 系统管理员 |
+| `student01` | `123456` | USER | 普通学生账号 |
+
+演示账号来源于 `docker/mysql/init/z-demo-data.sql`。生产环境请修改密码或移除演示数据。
+
+## Debug / 排查用手动命令
+
+下面这些命令不是日常推荐启动方式。只有在排查某个服务、看控制台堆栈、单独调试 Maven 或前端时再使用。
+
+### 手动启动基础设施
+
+脚本 `02_StartBackend.sh` 已经会自动执行这一步。手动命令只用于单独排查 Docker 容器：
+
+```bash
+docker compose up -d mysql redis nacos elasticsearch rabbitmq
+docker compose ps
+docker logs shiqian-rabbitmq --tail 200
+```
+
+如果需要停掉容器：
+
+```bash
+docker compose down
+```
+
+### 手动 Maven 打包
+
+脚本 `02_StartBackend.sh` 已经会自动打包。手动打包主要用于定位编译错误：
 
 ```bash
 mvn clean package -DskipTests
 ```
 
-### Caddy 部署与前后端对接
-
-服务器使用 GitHub Pages 部署前端、Caddy 部署后端 API 时，域名、端口、CORS 和前端后端地址配置见：
-
-[docs/deployment/github-pages-caddy-api.md](docs/deployment/github-pages-caddy-api.md)
-
-### 本地运行
-
-1. 创建数据库 `shiqian_user`，执行建表语句
-2. 启动 Nacos（或使用 local 配置跳过）
-3. 运行用户服务：
+如果机器内存较小，可以沿用脚本里的内存限制：
 
 ```bash
-cd shiqian-user
-mvn spring-boot:run -Dspring-boot.run.profiles=local
+MAVEN_OPTS="-Xms256m -Xmx1024m -XX:MaxMetaspaceSize=384m" mvn clean package -DskipTests
 ```
 
-4. 访问健康检查：`http://localhost:8081/api/user/health`
+### 手动启动后端服务
 
-## 后续规划
-
-- [ ] 用户注册与登录接口
-- [ ] JWT 鉴权与权限拦截
-- [ ] 单元测试与集成测试覆盖
-- [ ] 资源服务模块（shiqian-resource）
-- [ ] 网关服务（shiqian-gateway）
-- [ ] 消息通知模块
-
-## 完整本地开发环境启动（当前架构）
-
-> **注意**：分类名称乱码问题（mojibake）通常由 SQL 导入时客户端字符集错误导致，而非前端问题。前端静态中文正常，动态 `category.name` 来自数据库。
-
-### 1. 一键启动基础设施（推荐）
+脚本 `restart-backend.sh` 已经负责启动三个 Java 服务。下面命令只建议在 Debug 单个服务时使用，例如想直接在当前终端看启动堆栈：
 
 ```bash
-docker compose up -d mysql redis
-```
-
-MySQL 已通过 `docker/mysql/init/*.sql` 自动初始化（含 utf8mb4 + 分类种子数据）。
-
-### 默认测试账号
-
-MySQL 自动初始化时会导入演示数据，包含以下默认账号（可直接用于登录测试）：
-
-| 用户名     | 密码   | 角色    | 说明         |
-|------------|--------|---------|--------------|
-| `admin`    | 123456 | ADMIN   | 系统管理员   |
-| `student01`| 123456 | USER    | 普通学生账号 |
-
-> 账号数据来源于 `docker/mysql/init/z-demo-data.sql`。生产环境请及时修改密码或移除演示数据。
-
-### 2. 手动导入 SQL 时必须强制 UTF-8（防止乱码）
-
-如果手动执行 SQL 或修复已有乱码数据：
-
-```bash
-# 1. 删除旧库（可选，谨慎操作）
-docker exec -i shiqian-mysql mysql -uroot -proot --default-character-set=utf8mb4 \
-  -e "DROP DATABASE IF EXISTS shiqian_user; DROP DATABASE IF EXISTS shiqian_resource;"
-
-# 2. 使用 --default-character-set=utf8mb4 重新导入
-docker exec -i shiqian-mysql sh -c 'mysql -uroot -proot --default-character-set=utf8mb4' < docker/mysql/init/init.sql
-docker exec -i shiqian-mysql sh -c 'mysql -uroot -proot --default-character-set=utf8mb4' < docker/mysql/init/z-demo-data.sql
-
-# 或者直接在 MySQL 客户端内执行：
-#   SET NAMES utf8mb4;
-#   SOURCE /path/to/z-demo-data.sql;
-```
-
-**验证中文是否正常**：
-```sql
-USE shiqian_resource;
-SELECT id, name, HEX(name) FROM t_category LIMIT 3;
--- 正确时 name 显示“计算机科学”，HEX 以 E4 B8 AD ... 开头
-```
-
-### 3. 修复分类乱码后的必要操作（Redis 缓存）
-
-分类树使用了 Spring `@Cacheable("category:tree")` 缓存（见 `CategoryServiceImpl.java`）。
-
-修复数据库数据后，**必须清理缓存**：
-
-```bash
-# 方案 A：重启 Redis
-docker restart shiqian-redis
-
-# 方案 B：手动删除缓存键（进入 redis-cli）
-docker exec -it shiqian-redis redis-cli DEL "category:tree"
-
-# 方案 C：重启 resource 服务
-```
-
-### 4. 启动后端服务
-
-```bash
-mvn clean package -DskipTests -pl shiqian-common,shiqian-user,shiqian-resource,shiqian-gateway -am
-
-# 分别启动（local profile）
 java -jar shiqian-user/target/shiqian-user-1.0.0-SNAPSHOT.jar --spring.profiles.active=local
 java -jar shiqian-resource/target/shiqian-resource-1.0.0-SNAPSHOT.jar --spring.profiles.active=local
 java -jar shiqian-gateway/target/shiqian-gateway-1.0.0-SNAPSHOT.jar --spring.profiles.active=local
 ```
 
-访问：
-- Gateway: http://localhost:8080
-- Resource 健康：http://localhost:8082/api/category/tree （应返回正常中文分类）
-- 用户服务：http://localhost:8081
+如果要按脚本同等内存限制启动，可参考：
 
-### 5. 启动前端
+```bash
+java -XX:+UseSerialGC -XX:MaxMetaspaceSize=192m -Xms128m -Xmx448m \
+  -jar shiqian-user/target/shiqian-user-1.0.0-SNAPSHOT.jar \
+  --spring.profiles.active=local
+```
+
+### 手动启动前端
+
+脚本 `04_StartFrontend.sh` 已经会自动执行 `npm install` 和 `npm run dev`。手动方式只用于排查前端依赖、Vite 报错或代理问题：
 
 ```bash
 cd shiqian-frontend
@@ -226,10 +227,75 @@ npm install
 npm run dev
 ```
 
----
+前端默认代理 `/api` 到 `http://localhost:8080`。如需临时修改后端地址：
 
-**根本原因总结**：
-- JDBC URL 已统一加强为 `characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci`
-- 数据库/表 DDL 均为 `utf8mb4_unicode_ci`
-- 问题多发生于“旧数据”或“错误编码的 SQL 客户端导入”
-- 前端从不修改 `category.name`，仅原样渲染后端返回的值
+```bash
+cd shiqian-frontend
+VITE_API_PROXY_TARGET=http://localhost:8080 npm run dev
+```
+
+## 常见问题
+
+### RabbitMQ 提示 deprecated environment variables
+
+不要在 `docker-compose.yml` 中使用 `RABBITMQ_VM_MEMORY_HIGH_WATERMARK`。当前项目已经改为配置文件：
+
+```text
+docker/rabbitmq/rabbitmq.conf
+```
+
+内容为：
+
+```text
+vm_memory_high_watermark.relative = 0.6
+```
+
+如果服务器仍然看到旧环境变量，说明代码没有拉到最新：
+
+```bash
+git pull origin main
+grep -A 20 -B 5 "rabbitmq:" docker-compose.yml
+```
+
+### 中文分类乱码
+
+分类名称乱码通常是 SQL 导入时客户端字符集错误导致，不是前端问题。手动导入 SQL 时使用：
+
+```bash
+docker exec -i shiqian-mysql sh -c 'mysql -uroot -proot --default-character-set=utf8mb4' < docker/mysql/init/init.sql
+docker exec -i shiqian-mysql sh -c 'mysql -uroot -proot --default-character-set=utf8mb4' < docker/mysql/init/z-demo-data.sql
+```
+
+如果修复了数据库里的分类中文，还需要清理 Redis 缓存：
+
+```bash
+docker exec -it shiqian-redis redis-cli DEL "category:tree"
+```
+
+### 端口占用
+
+常用端口：
+
+| 服务 | 端口 |
+| --- | --- |
+| Gateway | 8080 |
+| User | 8081 |
+| Resource | 8082 |
+| Frontend | 5173 |
+| MySQL | 3306 |
+| Redis | 6379 |
+| Nacos | 8848 |
+| Elasticsearch | 9200 |
+| RabbitMQ | 5672 |
+| RabbitMQ Management | 15672 |
+
+如果端口占用，先使用停止脚本：
+
+```bash
+./05_StopFrontend.sh
+./03_StopBackend.sh
+```
+
+## 说明
+
+当前 README 以脚本化启动为准。旧的“手动 Maven 启动各服务、手动 npm 启动前端、手动 docker compose 启动依赖”的流程仍保留在 Debug 章节，但它们主要用于排查问题，不作为日常启动方式。
