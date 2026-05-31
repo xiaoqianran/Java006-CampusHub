@@ -13,6 +13,8 @@ public interface ResourceService {
 
     Page<Resource> pageResources(Integer page, Integer size, Long categoryId, String keyword);
 
+    Page<Resource> pagePublishedResources(Integer page, Integer size, Long categoryId, String keyword);
+
     Page<Resource> pageUserResources(Long userId, Integer page, Integer size);
 
     Page<Resource> pageRecycleResources(Integer page, Integer size, String keyword);

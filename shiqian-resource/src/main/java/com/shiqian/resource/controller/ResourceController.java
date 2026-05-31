@@ -64,7 +64,9 @@ public class ResourceController {
             @RequestParam(defaultValue = "10") Integer size,
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) String keyword) {
-        Page<Resource> result = resourceService.pageResources(page, size, categoryId, keyword);
+        Page<Resource> result = "ADMIN".equals(SecurityUtil.getCurrentRole())
+                ? resourceService.pageResources(page, size, categoryId, keyword)
+                : resourceService.pagePublishedResources(page, size, categoryId, keyword);
         return Result.ok(result);
     }
 
@@ -111,7 +113,18 @@ public class ResourceController {
         if (resource == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "资源不存在或已删除");
         }
+        if (!canViewResource(resource)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "资源不存在或已删除");
+        }
         return Result.ok(resource);
+    }
+
+    private boolean canViewResource(Resource resource) {
+        if (resource.getStatus() != null && resource.getStatus() == 1) {
+            return true;
+        }
+        Long userId = SecurityUtil.getCurrentUserId();
+        return resource.getUserId().equals(userId) || "ADMIN".equals(SecurityUtil.getCurrentRole());
     }
 
     @Operation(summary = "更新资源")

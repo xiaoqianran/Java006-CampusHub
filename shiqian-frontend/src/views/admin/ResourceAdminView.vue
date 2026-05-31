@@ -11,18 +11,18 @@ onMounted(() => {
   store.loadResources().catch(() => undefined)
 })
 
-async function deleteResource(id: number, title: string) {
+async function takeDownResource(id: number, title: string) {
   try {
-    await ElMessageBox.confirm(`确认将「${title}」移入回收站？`, '删除资源', {
+    await ElMessageBox.confirm(`确认下架「${title}」？下架后其他用户将无法看到，发布者本人仍可在我的发布中查看。`, '下架资源', {
       type: 'warning',
-      confirmButtonText: '删除',
+      confirmButtonText: '下架',
       cancelButtonText: '取消'
     })
-    await store.removeResource(id)
-    ElMessage.success('已移入回收站')
+    await store.takeDownResource(id)
+    ElMessage.success('已下架')
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
-      ElMessage.error(error instanceof Error ? error.message : '删除失败')
+      ElMessage.error(error instanceof Error ? error.message : '下架失败')
     }
   }
 }
@@ -44,7 +44,7 @@ async function deleteResource(id: number, title: string) {
       <el-table-column label="操作" width="180">
         <template #default="{ row }">
           <el-button size="small" @click="$router.push(`/detail/${row.id}`)">预览</el-button>
-          <el-button size="small" type="danger" plain @click="deleteResource(row.id, row.title)">删除</el-button>
+          <el-button size="small" type="danger" plain :disabled="row.status === '已驳回'" @click="takeDownResource(row.id, row.title)">下架</el-button>
         </template>
       </el-table-column>
     </el-table>

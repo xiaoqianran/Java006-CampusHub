@@ -155,7 +155,7 @@ public class ResourceServiceImpl implements ResourceService {
         if (existing == null || existing.getDeleted() == 1) {
             throw new BusinessException("资源不存在");
         }
-        if (!canModify(existing, userId)) {
+        if (!existing.getUserId().equals(userId)) {
             throw new BusinessException(403, "无权删除该资源");
         }
         resourceMapper.deleteById(id);
@@ -217,6 +217,29 @@ public class ResourceServiceImpl implements ResourceService {
                     .like("title", keyword)
                     .or().like("summary", keyword)
                     .or().like("description", keyword)  // legacy 兼容旧数据
+                    .or().like("content_markdown", keyword));
+        }
+
+        wrapper.orderByDesc("create_time");
+        return resourceMapper.selectPage(pageParam, wrapper);
+    }
+
+    @Override
+    public Page<Resource> pagePublishedResources(Integer page, Integer size, Long categoryId, String keyword) {
+        Page<Resource> pageParam = new Page<>(page, size);
+        QueryWrapper<Resource> wrapper = new QueryWrapper<>();
+        wrapper.eq("deleted", 0);
+        wrapper.eq("status", 1);
+
+        if (categoryId != null) {
+            wrapper.eq("category_id", categoryId);
+        }
+
+        if (StringUtils.hasText(keyword)) {
+            wrapper.and(w -> w
+                    .like("title", keyword)
+                    .or().like("summary", keyword)
+                    .or().like("description", keyword)
                     .or().like("content_markdown", keyword));
         }
 

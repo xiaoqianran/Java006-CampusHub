@@ -184,6 +184,7 @@ public class ResourceControllerTest extends BaseResourceTest {
         createResource("资源B", category.getId());
 
         mockMvc.perform(get("/api/resource")
+                        .header("Authorization", "Bearer " + adminToken)
                         .param("page", "1")
                         .param("size", "10"))
                 .andExpect(status().isOk())
@@ -200,6 +201,7 @@ public class ResourceControllerTest extends BaseResourceTest {
         createResource("资源C", c2.getId());
 
         mockMvc.perform(get("/api/resource")
+                        .header("Authorization", "Bearer " + adminToken)
                         .param("page", "1")
                         .param("size", "10")
                         .param("categoryId", String.valueOf(c2.getId())))
@@ -216,6 +218,7 @@ public class ResourceControllerTest extends BaseResourceTest {
         createResource("Go语言", category.getId());
 
         mockMvc.perform(get("/api/resource")
+                        .header("Authorization", "Bearer " + adminToken)
                         .param("page", "1")
                         .param("size", "10")
                         .param("keyword", "入门"))
@@ -245,7 +248,8 @@ public class ResourceControllerTest extends BaseResourceTest {
         var page = resourceService.pageResources(1, 1, category.getId(), "详情测试资源");
         Long id = page.getRecords().get(0).getId();
 
-        mockMvc.perform(get("/api/resource/{id}", id))
+        mockMvc.perform(get("/api/resource/{id}", id)
+                        .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
     }
@@ -312,21 +316,42 @@ public class ResourceControllerTest extends BaseResourceTest {
     }
 
     @Test
-    public void testAdminDeleteOtherUserResourceToRecycleBin() throws Exception {
+    public void testAdminCannotDeleteOtherUserResource() throws Exception {
         Category category = createCategory("测试分类");
-        Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "管理员删除测试"));
+        Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "管理员不能删除测试"));
 
         mockMvc.perform(delete("/api/resource/{id}", resource.getId())
                         .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403))
+                .andExpect(jsonPath("$.message").value("无权删除该资源"));
+    }
+
+    @Test
+    public void testAdminTakeDownResourceOwnerCanStillView() throws Exception {
+        Category category = createCategory("测试分类");
+        Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "管理员下架测试"));
+
+        mockMvc.perform(put("/api/resource/{id}/audit", resource.getId())
+                        .header("Authorization", "Bearer " + adminToken)
+                        .param("status", "2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
 
-        mockMvc.perform(get("/api/resource/recycle-bin")
-                        .header("Authorization", "Bearer " + adminToken))
+        mockMvc.perform(get("/api/resource/{id}", resource.getId()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(404));
+
+        mockMvc.perform(get("/api/resource/{id}", resource.getId())
+                        .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.records[0].id").value(resource.getId()))
-                .andExpect(jsonPath("$.data.records[0].title").value("管理员删除测试"));
+                .andExpect(jsonPath("$.data.status").value(2));
+
+        mockMvc.perform(get("/api/resource/{id}", resource.getId())
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
     }
 
     @Test

@@ -457,6 +457,12 @@ export const useAppStore = defineStore('app', () => {
     await loadRecycleResources()
   }
 
+  async function takeDownResource(id: number) {
+    await request<void>(`/api/resource/${id}/audit`, { method: 'PUT', query: { status: 2 } })
+    const item = getResource(id)
+    if (item) item.status = '已驳回'
+  }
+
   async function approveResource(id: number) {
     await request<void>(`/api/resource/${id}/audit`, { method: 'PUT', query: { status: 1 } })
     const item = getResource(id)
@@ -585,6 +591,7 @@ export const useAppStore = defineStore('app', () => {
     downloadResource,
     removeMyResource,
     removeResource,
+    takeDownResource,
     approveResource,
     rejectResource,
     uploadFiles,

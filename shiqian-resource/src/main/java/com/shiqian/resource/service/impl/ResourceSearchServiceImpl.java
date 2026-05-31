@@ -56,6 +56,10 @@ public class ResourceSearchServiceImpl implements ResourceSearchService {
                                         .field("fileType")
                                         .value("*" + text + "*")
                                 ))
+                                .filter(f -> f.term(t -> t
+                                        .field("status")
+                                        .value(1)
+                                ))
                                 .minimumShouldMatch("1")
                         )
                 )
