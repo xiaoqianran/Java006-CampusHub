@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import StatusTag from '@/components/StatusTag.vue'
 import { useAppStore } from '@/stores/app'
@@ -34,6 +34,21 @@ async function resubmit(id: number) {
     }
   }
 }
+
+const profileForm = ref({
+  nickname: store.currentUser?.nickname || '',
+  email: store.currentUser?.email || '',
+  phone: store.currentUser?.phone || ''
+})
+
+async function saveProfile() {
+  try {
+    await store.updateProfile(profileForm.value)
+    ElMessage.success('资料已更新')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '更新失败')
+  }
+}
 </script>
 
 <template>
@@ -44,6 +59,25 @@ async function resubmit(id: number) {
         <p class="sub">显示待审核、已发布、已驳回三种状态，已驳回资源可重新提交审核。</p>
       </div>
     </div>
+
+    <!-- 快速个人资料编辑 -->
+    <el-card class="panel" style="margin-bottom: 16px;">
+      <template #header>
+        <div>个人资料</div>
+      </template>
+      <el-form :model="profileForm" inline>
+        <el-form-item label="昵称">
+          <el-input v-model="profileForm.nickname" style="width:160px" />
+        </el-form-item>
+        <el-form-item label="邮箱">
+          <el-input v-model="profileForm.email" style="width:200px" />
+        </el-form-item>
+        <el-form-item label="手机">
+          <el-input v-model="profileForm.phone" style="width:160px" />
+        </el-form-item>
+        <el-button type="primary" size="small" @click="saveProfile">保存资料</el-button>
+      </el-form>
+    </el-card>
     <el-table :data="store.myResources" class="panel" style="width: 100%">
       <el-table-column label="资源" min-width="280">
         <template #default="{ row }">

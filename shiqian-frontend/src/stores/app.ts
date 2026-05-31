@@ -24,6 +24,7 @@ export interface ResourceApiItem {
   createTime?: string
   updateTime?: string
   attachments?: ResourceAttachmentItem[]
+  authorNickname?: string   // 后端富化提供
 }
 
 export interface ResourceSearchItem {
@@ -241,7 +242,7 @@ export const useAppStore = defineStore('app', () => {
       cat: categoryName(item.categoryId),
       categoryId: item.categoryId,
       type: item.fileType || '资料',
-      author: item.userId ? `用户 ${item.userId}` : '匿名用户',
+      author: item.authorNickname || (item.userId ? `用户 ${item.userId}` : '匿名用户'),
       userId: item.userId,
       views: 0,
       downloads: item.downloadCount || 0,
@@ -555,6 +556,17 @@ export const useAppStore = defineStore('app', () => {
     await loadCategories()
   }
 
+  async function updateProfile(payload: Partial<{ nickname: string; email: string; phone: string; avatar: string }>) {
+    await request<void>('/api/user/me', {
+      method: 'PUT',
+      body: jsonBody(payload)
+    })
+    // 刷新当前用户信息
+    if (currentUser.value) {
+      Object.assign(currentUser.value, payload)
+    }
+  }
+
   // === 管理员用户管理 ===
   async function updateUserStatus(id: number, status: 0 | 1, keyword?: string) {
     await request<void>(`/api/user/admin/users/${id}/status`, {
@@ -642,6 +654,7 @@ export const useAppStore = defineStore('app', () => {
     // 新增管理员能力
     updateUserStatus,
     restoreResource,
-    permanentDeleteResource
+    permanentDeleteResource,
+    updateProfile
   }
 })
