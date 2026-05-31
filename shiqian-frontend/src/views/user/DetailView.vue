@@ -6,6 +6,7 @@ import { Star, StarFilled, Download } from '@element-plus/icons-vue'
 import StatusTag from '@/components/StatusTag.vue'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
 import { useAppStore } from '@/stores/app'
+import { buildApiUrl } from '@/api/client'
 
 const route = useRoute()
 const router = useRouter()
@@ -39,7 +40,7 @@ async function download() {
   try {
     if (!resource.value) return
     await store.downloadResource(resource.value.id)
-    if (resource.value.fileUrl) window.open(resource.value.fileUrl, '_blank')
+    if (resource.value.fileUrl) window.open(buildApiUrl(resource.value.fileUrl), '_blank')
     ElMessage.success('下载请求已提交')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '下载失败')
@@ -48,7 +49,7 @@ async function download() {
 
 function downloadAttachment(att: any) {
   if (att?.fileUrl) {
-    window.open(att.fileUrl, '_blank')
+    window.open(buildApiUrl(att.fileUrl), '_blank')
   }
 }
 

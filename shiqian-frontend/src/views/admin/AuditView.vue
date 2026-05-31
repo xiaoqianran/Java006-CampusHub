@@ -6,6 +6,7 @@ import AdminLayout from '@/components/AdminLayout.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
 import { useAppStore, type ResourceItem } from '@/stores/app'
+import { buildApiUrl } from '@/api/client'
 
 const router = useRouter()
 const store = useAppStore()
@@ -41,12 +42,12 @@ function openFile(row?: ResourceItem | null) {
     ElMessage.warning('该资源没有可查看的文件地址')
     return
   }
-  window.open(row.fileUrl, '_blank')
+  window.open(buildApiUrl(row.fileUrl), '_blank')
 }
 
 function openAttachment(att: any) {
   if (att?.fileUrl) {
-    window.open(att.fileUrl, '_blank')
+    window.open(buildApiUrl(att.fileUrl), '_blank')
   }
 }
 

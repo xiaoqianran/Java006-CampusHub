@@ -13,6 +13,7 @@ import {
 import AdminLayout from '@/components/AdminLayout.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import { useAppStore, type CategoryApiItem, type ResourceItem } from '@/stores/app'
+import { buildApiUrl } from '@/api/client'
 
 const store = useAppStore()
 const router = useRouter()
@@ -111,7 +112,7 @@ function openFile(resource: ResourceItem) {
     ElMessage.warning('该资源没有文件地址')
     return
   }
-  window.open(resource.fileUrl, '_blank')
+  window.open(buildApiUrl(resource.fileUrl), '_blank')
 }
 
 function handleCategoryCommand(command: string, category: CategoryApiItem) {
@@ -253,4 +254,3 @@ function handleCategoryCommand(command: string, category: CategoryApiItem) {
     </template>
   </AdminLayout>
 </template>
-

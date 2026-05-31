@@ -15,6 +15,13 @@ export interface PageResult<T> {
 const runtimeConfig = window.__SHIQIAN_CONFIG__ || {}
 const API_BASE = runtimeConfig.apiBaseUrl || import.meta.env.VITE_API_BASE_URL || ''
 
+export function buildApiUrl(path: string, query?: Record<string, unknown>) {
+  if (/^https?:\/\//.test(path)) {
+    return path
+  }
+  return buildUrl(path, query)
+}
+
 export function getAccessToken() {
   return localStorage.getItem('shiqian_access_token') || ''
 }
