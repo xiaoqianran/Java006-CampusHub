@@ -68,6 +68,7 @@ async function takeDownResource(id: number, title: string) {
     <el-table :data="filteredAdminResources" class="panel">
       <el-table-column label="资源" min-width="280"><template #default="{ row }"><b>{{ row.title }}</b></template></el-table-column>
       <el-table-column prop="cat" label="分类" width="130" />
+      <el-table-column prop="author" label="发布者" width="110" />
       <el-table-column label="状态" width="120"><template #default="{ row }"><StatusTag :status="row.status" /></template></el-table-column>
       <el-table-column prop="downloads" label="下载" width="100" />
       <el-table-column label="操作" width="180">

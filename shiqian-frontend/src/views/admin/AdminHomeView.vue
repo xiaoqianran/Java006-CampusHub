@@ -55,7 +55,7 @@ async function reject(id: number) {
       <div class="page-title"><h1>最近待办</h1></div>
       <el-table :data="recentPending" class="panel">
         <el-table-column label="资源" min-width="300"><template #default="{ row }"><b>{{ row.title }}</b><div class="sub">{{ row.desc }}</div></template></el-table-column>
-        <el-table-column prop="author" label="发布者" width="120" />
+        <el-table-column prop="author" label="发布者" width="120" /><!-- 真实作者来自后端 authorNickname -->
         <el-table-column prop="cat" label="分类" width="130" />
         <el-table-column label="状态" width="120"><template #default="{ row }"><StatusTag :status="row.status" /></template></el-table-column>
         <el-table-column label="操作" width="180">

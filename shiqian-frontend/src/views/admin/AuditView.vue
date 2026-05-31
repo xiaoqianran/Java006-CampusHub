@@ -102,7 +102,7 @@ async function reject(id: number) {
 
       <el-table-column prop="cat" label="分类" width="130" />
       <el-table-column prop="type" label="类型" width="140" />
-      <el-table-column prop="author" label="发布者" width="130" />
+      <el-table-column prop="author" label="发布者" width="130" /><!-- 后端 ResourceService 页查询富化真实昵称 -->
 
       <el-table-column label="文件" width="120">
         <template #default="{ row }">

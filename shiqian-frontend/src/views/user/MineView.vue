@@ -79,6 +79,7 @@ async function saveProfile() {
       </el-form>
     </el-card>
     <el-table :data="store.myResources" class="panel" style="width: 100%">
+      <!-- 我的发布列表（我的资源作者即当前用户，store 统一使用后端数据） -->
       <el-table-column label="资源" min-width="280">
         <template #default="{ row }">
           <b>{{ row.title }}</b>

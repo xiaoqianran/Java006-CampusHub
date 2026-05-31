@@ -60,6 +60,7 @@ function openCategory(category: string) {
       <el-button type="primary" :icon="Upload" @click="router.push('/publish')">发布资源</el-button>
     </div>
     <div class="resource-grid">
+      <!-- ResourceCard 依赖 store.author（后端富化真实 authorNickname） -->
       <ResourceCard v-for="item in store.publishedResources.slice(0, 3)" :key="item.id" :item="item" />
     </div>
   </section>

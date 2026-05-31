@@ -64,7 +64,7 @@ onMounted(load)
       <el-table-column label="资源" min-width="260">
         <template #default="{ row }">
           <b>{{ row.title }}</b>
-          <div class="sub">用户 {{ row.userId || '-' }}</div>
+          <div class="sub">作者：{{ row.author || ('用户 ' + (row.userId || '-')) }}</div>
         </template>
       </el-table-column>
       <el-table-column prop="cat" label="分类" width="110" />
