@@ -81,6 +81,22 @@ shiqian-platform（父工程）
 - MySQL 8.0+
 - Nacos 2.x（可选，local 环境默认关闭）
 
+### Ubuntu 一键安装与启动
+
+在全新的 Ubuntu 环境中，可以直接执行：
+
+```bash
+chmod +x install-and-run-ubuntu.sh
+./install-and-run-ubuntu.sh
+```
+
+脚本会安装基础开发环境、Docker、启动基础设施容器、打包并启动后端。前端依赖安装完成后，执行以下命令启动前端开发服务：
+
+```bash
+cd shiqian-frontend
+npm run dev -- --host 0.0.0.0
+```
+
 ### 构建
 
 ```bash

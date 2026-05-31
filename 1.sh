@@ -48,6 +48,15 @@ persist_path_to_shells() {
   persist_line_to_shells "export PATH=\"$p:\$PATH\""
 }
 
+remove_line_from_shells() {
+  local line="$1"
+  for file in "$HOME/.bashrc" "$HOME/.zshrc"; do
+    [[ -f "$file" ]] || continue
+    grep -vxF "$line" "$file" > "$file.tmp" 2>/dev/null && mv "$file.tmp" "$file"
+    rm -f "$file.tmp"
+  done
+}
+
 prepend_path_now() {
   local p="$1"
   case ":${PATH:-}:" in
@@ -133,7 +142,8 @@ export JAVA_HOME
 prepend_path_now "$JAVA_HOME/bin"
 
 persist_line_to_shells "export SDKMAN_DIR=\"$SDKMAN_DIR\""
-persist_line_to_shells '[[ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ]] && source "$SDKMAN_DIR/bin/sdkman-init.sh"'
+remove_line_from_shells '[[ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ]] && source "$SDKMAN_DIR/bin/sdkman-init.sh"'
+persist_line_to_shells 'if [[ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ]]; then if [[ $- == *u* ]]; then set +u; source "$SDKMAN_DIR/bin/sdkman-init.sh"; set -u; else source "$SDKMAN_DIR/bin/sdkman-init.sh"; fi; fi'
 persist_line_to_shells "export JAVA_HOME=\"$JAVA_HOME\""
 persist_line_to_shells "export PATH=\"$JAVA_HOME/bin:\$PATH\""
 

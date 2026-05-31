@@ -13,7 +13,7 @@ sleep 2
 
 echo "→ 启动 shiqian-user (端口 8081)..."
 nohup java -jar shiqian-user/target/shiqian-user-1.0.0-SNAPSHOT.jar \
-  --spring.profiles.active=local --spring.cloud.nacos.discovery.enabled=true \
+  --spring.profiles.active=local \
   > logs/fresh-user.log 2>&1 &
 echo $! > logs/user.pid
 
@@ -21,7 +21,7 @@ sleep 5
 
 echo "→ 启动 shiqian-resource (端口 8082)..."
 nohup java -jar shiqian-resource/target/shiqian-resource-1.0.0-SNAPSHOT.jar \
-  --spring.profiles.active=local --spring.cloud.nacos.discovery.enabled=true \
+  --spring.profiles.active=local \
   > logs/fresh-resource.log 2>&1 &
 echo $! > logs/resource.pid
 
