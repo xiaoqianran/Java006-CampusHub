@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type { UploadRawFile, UploadUserFile } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { UploadFilled } from '@element-plus/icons-vue'
@@ -29,11 +29,104 @@ watch(selectedFiles, () => {
   uploadedFiles.value = []
 })
 
+// ===== 草稿自动保存（localStorage，简单可靠） =====
+const DRAFT_KEY = 'shiqian_publish_draft'
+let saveTimer: number | null = null
+
+function scheduleAutoSave() {
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = window.setTimeout(() => {
+    const payload = {
+      title: form.title,
+      cat: form.cat,
+      summary: form.summary,
+      contentMarkdown: form.contentMarkdown,
+      attachments: uploadedFiles.value
+    }
+    // 仅当有实质内容时保存，避免空草稿
+    if (payload.title || payload.summary || payload.contentMarkdown) {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(payload))
+    }
+  }, 1200) // 防抖 1.2s
+}
+
+function saveDraft(showToast = true) {
+  const payload = {
+    title: form.title,
+    cat: form.cat,
+    summary: form.summary,
+    contentMarkdown: form.contentMarkdown,
+    attachments: uploadedFiles.value
+  }
+  localStorage.setItem(DRAFT_KEY, JSON.stringify(payload))
+  if (showToast) {
+    ElMessage.success('草稿已保存')
+  }
+}
+
+function loadDraft() {
+  const draftStr = localStorage.getItem(DRAFT_KEY)
+  if (!draftStr) {
+    ElMessage.info('暂无草稿')
+    return
+  }
+  try {
+    const data = JSON.parse(draftStr)
+    Object.assign(form, {
+      title: data.title || '',
+      cat: data.cat || '计算机科学',
+      summary: data.summary || '',
+      contentMarkdown: data.contentMarkdown || ''
+    })
+    if (Array.isArray(data.attachments)) {
+      uploadedFiles.value = data.attachments
+    }
+    ElMessage.success('已加载草稿')
+  } catch {
+    ElMessage.error('草稿数据异常')
+  }
+}
+
+function clearDraft() {
+  localStorage.removeItem(DRAFT_KEY)
+  ElMessage.success('草稿已清除')
+}
+
+watch(form, () => scheduleAutoSave(), { deep: true })
+watch(uploadedFiles, () => scheduleAutoSave(), { deep: true })
+
+onUnmounted(() => {
+  if (saveTimer) clearTimeout(saveTimer)
+})
+
 onMounted(() => {
   store.loadCategories().catch(() => undefined)
-  const draft = localStorage.getItem('shiqian_publish_draft')
-  if (draft) {
-    Object.assign(form, JSON.parse(draft))
+  const draftStr = localStorage.getItem(DRAFT_KEY)
+  if (draftStr) {
+    ElMessageBox.confirm('检测到未提交的草稿，是否恢复？', '恢复草稿', {
+      confirmButtonText: '恢复',
+      cancelButtonText: '忽略',
+      type: 'info',
+      distinguishCancelAndClose: true
+    }).then(() => {
+      try {
+        const data = JSON.parse(draftStr)
+        Object.assign(form, {
+          title: data.title || '',
+          cat: data.cat || '计算机科学',
+          summary: data.summary || '',
+          contentMarkdown: data.contentMarkdown || ''
+        })
+        if (Array.isArray(data.attachments)) {
+          uploadedFiles.value = data.attachments
+        }
+        ElMessage.success('草稿已恢复')
+      } catch {
+        // ignore malformed draft
+      }
+    }).catch(() => {
+      // user chose to ignore; draft remains available via Load Draft button
+    })
   }
 })
 
@@ -78,7 +171,7 @@ async function submit() {
       contentMarkdown: form.contentMarkdown,
       attachments: uploadedFiles.value
     })
-    localStorage.removeItem('shiqian_publish_draft')
+    localStorage.removeItem(DRAFT_KEY)
     ElMessage.success('资源已提交审核')
     router.push('/mine')
   } catch (error) {
@@ -86,11 +179,6 @@ async function submit() {
   } finally {
     submitting.value = false
   }
-}
-
-function saveDraft() {
-  localStorage.setItem('shiqian_publish_draft', JSON.stringify(form))
-  ElMessage.success('草稿已保存')
 }
 </script>
 
@@ -162,7 +250,9 @@ function saveDraft() {
         </div>
 
         <el-button type="primary" :loading="submitting || uploading" :disabled="!canSubmit" @click="submit">提交审核</el-button>
-        <el-button @click="saveDraft">保存草稿</el-button>
+        <el-button @click="() => saveDraft(true)">保存草稿</el-button>
+        <el-button @click="loadDraft">加载草稿</el-button>
+        <el-button @click="clearDraft">清除草稿</el-button>
       </el-form>
     </el-card>
   </section>
