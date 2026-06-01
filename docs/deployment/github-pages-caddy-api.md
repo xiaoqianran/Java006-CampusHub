@@ -140,7 +140,7 @@ caddy reload --config /etc/caddy/Caddyfile
 
 - 使用 `actions/configure-pages@v4` 初始化 Pages 环境（官方推荐）
 - 自动生成 `.nojekyll` 文件，避免 GitHub Pages 的 Jekyll 处理导致的资源 404 问题
-- `VITE_BASE` 采用更健壮的表达式 `github.repository.split('/')[1]`，兼容 push 和手动触发
+- `VITE_BASE` 使用 `github.event.repository.name`（GitHub Actions 表达式支持的稳定写法）
 - 构建时优先读取仓库 Variables 中的 `VITE_API_BASE_URL`
 
 ### 配置步骤
@@ -161,13 +161,13 @@ workflow 现在更贴近 GitHub 官方 Pages 部署最佳实践，部署成功�
 
 ## GitHub Pages 路径说明
 
-当前 `deploy-frontend-pages.yml` workflow 使用更健壮的表达式：
+当前 `deploy-frontend-pages.yml` workflow 使用以下表达式（GitHub Actions 官方支持的写法）：
 
 ```yaml
-VITE_BASE: /${{ github.repository.split('/')[1] }}/
+VITE_BASE: /${{ github.event.repository.name }}/
 ```
 
-这适合 GitHub Pages 默认项目地址（无论通过 push 还是 `workflow_dispatch` 触发）：
+这适合 GitHub Pages 默认项目地址，兼容 push 和手动触发：
 
 ```text
 https://<你的GitHub用户名>.github.io/Java006-CampusHub/
@@ -187,7 +187,7 @@ VITE_BASE: /
 
 否则静态资源路径会多一层仓库名。
 
-**注意**：workflow 内部已自动处理，无需在大多数场景下手动修改。
+**注意**：workflow 内部已自动处理，无需在大多数场景下手动修改。注意 GitHub Actions 表达式语法有限，不支持 `.split()` 等 JS 方法。
 
 ## 前端如何指定后端地址
 
