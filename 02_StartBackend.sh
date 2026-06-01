@@ -109,6 +109,60 @@ wait_container_healthy() {
   done
 }
 
+# 确保 MySQL 中的 shiqian_user 和 shiqian_resource 数据库结构完整
+# 解决因 volume 已存在导致初始化脚本不执行的问题（常见于反复启动）
+ensure_mysql_databases() {
+  local mysql_container="shiqian-mysql"
+  local root_user="root"
+  # 优先使用环境变量 MYSQL_ROOT_PASSWORD，否则默认 root（与 docker-compose.yml 一致）
+  local root_pass="${MYSQL_ROOT_PASSWORD:-root}"
+
+  echo "→ 检查 MySQL 数据库结构完整性..."
+
+  local need_init=false
+
+  # 检查 shiqian_user 数据库及核心表
+  if ! docker exec "$mysql_container" \
+      mysql -u"$root_user" -p"$root_pass" \
+      -e "USE shiqian_user; SHOW TABLES LIKE 't_user';" >/dev/null 2>&1; then
+    echo "   [检测] shiqian_user 数据库或 t_user 表不存在"
+    need_init=true
+  fi
+
+  # 检查 shiqian_resource 数据库及核心表
+  if ! docker exec "$mysql_container" \
+      mysql -u"$root_user" -p"$root_pass" \
+      -e "USE shiqian_resource; SHOW TABLES LIKE 't_resource';" >/dev/null 2>&1; then
+    echo "   [检测] shiqian_resource 数据库或 t_resource 表不存在"
+    need_init=true
+  fi
+
+  if [ "$need_init" = true ]; then
+    echo "   正在执行数据库初始化/修复脚本（docker/mysql/init/）..."
+
+    local init_success=true
+
+    for sql_file in docker/mysql/init/init.sql docker/mysql/init/z-demo-data.sql; do
+      if [ -f "$sql_file" ]; then
+        echo "     - 执行 $(basename "$sql_file")"
+        if ! docker exec -i "$mysql_container" \
+            mysql -u"$root_user" -p"$root_pass" < "$sql_file" 2>&1; then
+          echo "     [错误] 执行 $sql_file 失败"
+          init_success=false
+        fi
+      fi
+    done
+
+    if [ "$init_success" = true ]; then
+      echo "   ✓ 数据库初始化/修复完成"
+    else
+      echo "   ✗ 数据库初始化过程中出现错误，建议手动检查日志"
+    fi
+  else
+    echo "   ✓ shiqian_user 和 shiqian_resource 数据库结构均已就绪"
+  fi
+}
+
 load_sdkman() {
   export SDKMAN_DIR="${SDKMAN_DIR:-$HOME/.sdkman}"
   if [ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ]; then
@@ -146,6 +200,10 @@ start_backend() {
 
   log "等待基础设施就绪"
   wait_container_healthy mysql "MySQL"
+
+  # 自动检测并修复 MySQL 数据库（解决 volume 存在时初始化脚本不执行的问题）
+  ensure_mysql_databases
+
   wait_container_healthy redis "Redis"
   wait_container_running nacos "Nacos"
   wait_http "Nacos" "http://127.0.0.1:8848/nacos/"

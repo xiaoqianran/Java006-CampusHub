@@ -6,6 +6,18 @@ date
 
 mkdir -p logs
 
+# 轻量级数据库就绪检查（推荐使用 ./02_StartBackend.sh 获得完整自动修复能力）
+if command -v docker >/dev/null 2>&1 && docker ps --format '{{.Names}}' | grep -q '^shiqian-mysql$'; then
+  echo "→ 检查 MySQL 数据库状态..."
+  if ! docker exec shiqian-mysql mysql -uroot -proot -e "USE shiqian_user; SHOW TABLES LIKE 't_user';" >/dev/null 2>&1; then
+    echo "   [警告] shiqian_user 数据库可能未就绪"
+    echo "   建议执行：./02_StartBackend.sh （会自动修复数据库）"
+    echo "   或手动创建：docker/mysql/init/ 下的 SQL 已包含所需结构"
+  else
+    echo "   ✓ shiqian_user 数据库检测正常"
+  fi
+fi
+
 JAVA_OPTS_COMMON="${JAVA_OPTS_COMMON:--XX:+UseSerialGC -XX:MaxMetaspaceSize=192m -Dfile.encoding=UTF-8}"
 USER_JAVA_OPTS="${USER_JAVA_OPTS:--Xms128m -Xmx448m}"
 RESOURCE_JAVA_OPTS="${RESOURCE_JAVA_OPTS:--Xms128m -Xmx512m}"
