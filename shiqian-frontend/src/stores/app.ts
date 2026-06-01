@@ -257,6 +257,18 @@ export const useAppStore = defineStore('app', () => {
       const matchCategory = activeCategory.value === '全部分类' || item.cat === activeCategory.value
       return matchCategory && (!text || searchResultIds.value || `${item.title}${item.cat}${item.type}${item.desc}`.includes(text))
     })
+    // Preserve backend /search relevance order (ES multi-match score) when search active.
+    // This is the key search UX fix: results now ranked by match quality (title^3 etc boosts).
+    // Category post-filter preserves relative ranking. Non-search plaza browse + other views
+    // (favorites/mine) continue using sortMode + client sort.
+    if (searchResultIds.value) {
+      const orderMap = new Map(searchResultIds.value.map((id, idx) => [id, idx]))
+      return [...filtered].sort((a, b) => {
+        const ia = orderMap.get(a.id) ?? Number.MAX_SAFE_INTEGER
+        const ib = orderMap.get(b.id) ?? Number.MAX_SAFE_INTEGER
+        return ia - ib
+      })
+    }
     // client-side sort (backend sort param passed but mergeResources preserves id order; reuse for Plaza UX)
     if (sortMode.value === 'hottest') {
       return [...filtered].sort((a, b) => ((b.downloads || 0) + (b.views || 0)) - ((a.downloads || 0) + (a.views || 0)) || b.id - a.id)
@@ -279,7 +291,8 @@ export const useAppStore = defineStore('app', () => {
       cat: categoryName(item.categoryId),
       categoryId: item.categoryId,
       type: item.fileType || '资料',
-      author: item.authorNickname || (item.userId ? `用户 ${item.userId}` : '匿名用户'),
+      // 优先使用后端富化 authorNickname；回退与后端保持一致（匿名用户），确保卡片/详情一致性
+      author: item.authorNickname || '匿名用户',
       userId: item.userId,
       views: item.viewCount || 0,
       downloads: item.downloadCount || 0,
