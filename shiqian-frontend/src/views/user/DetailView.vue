@@ -17,11 +17,17 @@ const related = computed(() => {
   const others = store.publishedResources.filter(item => item.id !== resource.value!.id)
   const sameCat = others.filter(item => item.cat === resource.value!.cat)
   const otherCat = others.filter(item => item.cat !== resource.value!.cat)
+  const currentAuthor = resource.value!.author
   // Client-side popularity score mixing views + downloads (reuse loaded resources, no backend call)
-  const score = (item: any) => (item.downloads || 0) * 2 + (item.views || 0)
+  // + small same-author boost for smarter recs (surfaces co-authored content without breaking mix)
+  const score = (item: any) => {
+    let s = (item.downloads || 0) * 2 + (item.views || 0)
+    if (item.author === currentAuthor) s += 25
+    return s
+  }
   sameCat.sort((a, b) => score(b) - score(a))
   otherCat.sort((a, b) => score(b) - score(a))
-  // Mix: top 2 same-cat + top 2 cross-cat for smarter "相关推荐" (better than crude all-same or pure hot)
+  // Mix: top 2 same-cat + top 2 cross-cat (existing diversity) + author boost for "相关推荐"
   return [...sameCat.slice(0, 2), ...otherCat.slice(0, 2)].slice(0, 4)
 })
 
@@ -156,9 +162,13 @@ function formatFileSize(size: number) {
         <StatusTag :status="resource.status" />
         <h3>相关推荐</h3>
         <div v-if="related.length">
-          <p v-for="item in related" :key="item.id">
-            <a @click="router.push(`/detail/${item.id}`)"><b>{{ item.title }}</b></a><br>
-            <span class="sub">{{ item.type }}</span>
+          <p v-for="item in related" :key="item.id" style="margin: 0 0 6px 0; font-size: 13px;">
+            <a @click="router.push(`/detail/${item.id}`)"><b>{{ item.title }}</b></a>
+            <span class="sub" style="margin-left: 4px;">{{ item.type }}</span>
+            <el-tag v-if="item.author === resource?.author" type="warning" size="small" effect="plain" style="margin-left: 4px; vertical-align: middle;">同作者</el-tag>
+            <el-tag v-else-if="item.cat === resource?.cat && ((item.downloads || 0) * 2 + (item.views || 0)) > 15" type="success" size="small" effect="plain" style="margin-left: 4px; vertical-align: middle;">同分类热门</el-tag>
+            <el-tag v-else-if="item.cat === resource?.cat" type="success" size="small" effect="plain" style="margin-left: 4px; vertical-align: middle;">同分类</el-tag>
+            <el-tag v-else-if="((item.downloads || 0) + (item.views || 0)) > 10" type="info" size="small" effect="plain" style="margin-left: 4px; vertical-align: middle;">热门</el-tag>
           </p>
         </div>
         <p v-else class="sub">暂无相关资源</p>
@@ -235,4 +245,8 @@ function formatFileSize(size: number) {
   color: var(--text-secondary, #6b7280);
   font-size: 13px;
 }
+
+/* 相关推荐 sidebar 视觉优化（紧凑间距 + 小标签更好呈现） */
+aside p { margin-bottom: 4px; line-height: 1.3; }
+aside .el-tag { font-size: 10px; padding: 0 3px; height: 15px; line-height: 15px; border-radius: 3px; }
 </style>

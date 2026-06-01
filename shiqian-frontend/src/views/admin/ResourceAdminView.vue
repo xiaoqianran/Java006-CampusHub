@@ -9,6 +9,8 @@ const store = useAppStore()
 
 const searchText = ref('')
 const statusFilter = ref<'全部' | '待审核' | '已发布' | '已驳回'>('全部')
+const categoryFilter = ref('全部分类')
+const sortBy = ref<'default' | 'views' | 'downloads' | 'time'>('default')
 
 const filteredAdminResources = computed(() => {
   let list = store.resources
@@ -24,10 +26,26 @@ const filteredAdminResources = computed(() => {
   if (statusFilter.value !== '全部') {
     list = list.filter(r => r.status === statusFilter.value)
   }
-  return list
+  if (categoryFilter.value !== '全部分类') {
+    list = list.filter(r => r.cat === categoryFilter.value)
+  }
+  // client-side sort (views/downloads/time) applied to the (search+status+cat) filtered list
+  const sorted = [...list]
+  if (sortBy.value === 'views') {
+    sorted.sort((a, b) => (b.views || 0) - (a.views || 0) || b.id - a.id)
+  } else if (sortBy.value === 'downloads') {
+    sorted.sort((a, b) => (b.downloads || 0) - (a.downloads || 0) || b.id - a.id)
+  } else if (sortBy.value === 'time') {
+    sorted.sort((a, b) => b.id - a.id)
+  } else {
+    sorted.sort((a, b) => b.id - a.id) // default newest by id
+  }
+  return sorted
 })
 
 onMounted(() => {
+  // ensure categories loaded for the new categoryFilter dropdown (robust even for direct admin nav)
+  store.loadCategories().catch(() => undefined)
   store.loadResources().catch(() => undefined)
 })
 
@@ -64,6 +82,16 @@ async function takeDownResource(id: number, title: string) {
         <el-option label="待审核" value="待审核" />
         <el-option label="已发布" value="已发布" />
         <el-option label="已驳回" value="已驳回" />
+      </el-select>
+      <el-select v-model="categoryFilter" placeholder="分类" style="width:160px">
+        <el-option label="全部分类" value="全部分类" />
+        <el-option v-for="cat in store.categories" :key="cat" :label="cat" :value="cat" />
+      </el-select>
+      <el-select v-model="sortBy" placeholder="排序" style="width:140px">
+        <el-option label="默认（最新）" value="default" />
+        <el-option label="浏览量 ↓" value="views" />
+        <el-option label="下载量 ↓" value="downloads" />
+        <el-option label="时间 ↓" value="time" />
       </el-select>
       <span class="sub">共 {{ filteredAdminResources.length }} 条（使用 store.resources 丰富数据）</span>
     </div>

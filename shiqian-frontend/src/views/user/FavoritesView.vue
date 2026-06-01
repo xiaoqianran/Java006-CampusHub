@@ -26,9 +26,11 @@ onMounted(() => {
         <el-option label="最热" value="hottest" />
       </el-select>
     </div>
-    <div v-if="store.favoriteResources.length" class="resource-grid">
-      <ResourceCard v-for="item in store.favoriteResources" :key="item.id" :item="item" />
+    <div v-loading="store.loading" style="min-height: 120px;">
+      <div v-if="store.favoriteResources.length" class="resource-grid">
+        <ResourceCard v-for="item in store.favoriteResources" :key="item.id" :item="item" />
+      </div>
+      <el-empty v-else-if="!store.loading" description="暂无收藏" />
     </div>
-    <el-empty v-else description="暂无收藏" />
   </section>
 </template>
