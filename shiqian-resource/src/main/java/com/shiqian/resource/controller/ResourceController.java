@@ -257,8 +257,9 @@ public class ResourceController {
     public Result<Page<ResourceDocument>> search(
             @RequestParam String keyword,
             @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "10") Integer size) {
-        org.springframework.data.domain.Page<ResourceDocument> searchResult = resourceSearchService.search(keyword, page, size);
+            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(required = false) String sort) {
+        org.springframework.data.domain.Page<ResourceDocument> searchResult = resourceSearchService.search(keyword, page, size, sort);
         Page<ResourceDocument> result = new Page<>(page, size, searchResult.getTotalElements());
         result.setRecords(searchResult.getContent());
         return Result.ok(result);

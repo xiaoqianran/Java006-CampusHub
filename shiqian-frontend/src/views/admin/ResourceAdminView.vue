@@ -8,7 +8,7 @@ import { useAppStore } from '@/stores/app'
 const store = useAppStore()
 
 const searchText = ref('')
-const statusFilter = ref<'全部' | '已发布' | '已驳回'>('全部')
+const statusFilter = ref<'全部' | '待审核' | '已发布' | '已驳回'>('全部')
 
 const filteredAdminResources = computed(() => {
   let list = store.resources
@@ -59,11 +59,12 @@ async function takeDownResource(id: number, title: string) {
     </div>
     <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
       <el-input v-model="searchText" placeholder="搜索标题/描述/分类/作者..." clearable style="width:280px;" />
-      <el-radio-group v-model="statusFilter">
-        <el-radio-button label="全部">全部</el-radio-button>
-        <el-radio-button label="已发布">已发布</el-radio-button>
-        <el-radio-button label="已驳回">已驳回</el-radio-button>
-      </el-radio-group>
+      <el-select v-model="statusFilter" placeholder="状态" style="width:140px">
+        <el-option label="全部" value="全部" />
+        <el-option label="待审核" value="待审核" />
+        <el-option label="已发布" value="已发布" />
+        <el-option label="已驳回" value="已驳回" />
+      </el-select>
       <span class="sub">共 {{ filteredAdminResources.length }} 条（使用 store.resources 丰富数据）</span>
     </div>
     <el-table :data="filteredAdminResources" class="panel">
@@ -71,7 +72,8 @@ async function takeDownResource(id: number, title: string) {
       <el-table-column prop="cat" label="分类" width="130" />
       <el-table-column prop="author" label="发布者" width="110" />
       <el-table-column label="状态" width="120"><template #default="{ row }"><StatusTag :status="row.status" /></template></el-table-column>
-      <el-table-column prop="downloads" label="下载" width="100" />
+      <el-table-column prop="downloads" label="下载" width="80" />
+      <el-table-column label="浏览" width="80"><template #default="{ row }">{{ row.views || 0 }}</template></el-table-column>
       <el-table-column label="操作" width="240">
         <template #default="{ row }">
           <el-button size="small" @click="$router.push(`/detail/${row.id}`)">预览</el-button>

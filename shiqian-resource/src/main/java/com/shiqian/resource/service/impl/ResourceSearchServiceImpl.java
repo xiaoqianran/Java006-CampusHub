@@ -23,7 +23,7 @@ public class ResourceSearchServiceImpl implements ResourceSearchService {
     private final ElasticsearchOperations elasticsearchOperations;
 
     @Override
-    public Page<ResourceDocument> search(String keyword, Integer page, Integer size) {
+    public Page<ResourceDocument> search(String keyword, Integer page, Integer size, String sort) {
         String text = StringUtils.hasText(keyword) ? keyword.trim() : "";
         NativeQuery query = NativeQuery.builder()
                 .withQuery(q -> q
