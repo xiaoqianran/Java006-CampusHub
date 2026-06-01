@@ -5,7 +5,7 @@
 本仓库已添加两个 GitHub Actions workflow：
 
 - `.github/workflows/ci.yml`：后端 Maven 校验、测试、打包；前端 `npm ci` 与 `npm run build`。
-- `.github/workflows/deploy-frontend-pages.yml`：把 `shiqian-frontend` 构建产物部署到 GitHub Pages。
+- `.github/workflows/deploy-frontend-pages.yml`：把 `shiqian-frontend` 构建产物部署到 GitHub Pages（已集成 `configure-pages`、自动生成 `.nojekyll`、更健壮的 base 路径处理，部署可靠性更高）。
 
 ## GitHub 能不能部署整个项目
 
@@ -38,13 +38,13 @@ https://<你的用户名>.github.io/<仓库名>/
 - 后端部署到你的服务器
 - 服务器用 Caddy 提供 `https://api.xiaoqianran.xyz`
 
-进入仓库 `Settings -> Secrets and variables -> Actions -> Variables`，新增：
+进入仓库 `Settings -> Secrets and variables -> Actions -> Variables`，新增**仓库变量**：
 
 ```text
-VITE_API_BASE_URL=https://api.xiaoqianran.xyz
+VITE_API_BASE_URL=https://你的真实API域名
 ```
 
-不配置时，前端会默认请求当前 Pages 域名下的 `/api/...`，这不适合 GitHub Pages + 独立服务器后端。
+**强烈推荐配置**。不配置时 workflow 会使用示例域名 `https://api.xiaoqianran.xyz`，可能导致已部署的前端无法与你的后端正常交互（登录时出现“系统内部错误”等）。
 
 完整 Caddyfile、CORS 和 Pages 配置见：
 

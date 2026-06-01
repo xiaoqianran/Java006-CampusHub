@@ -136,53 +136,38 @@ caddy reload --config /etc/caddy/Caddyfile
 .github/workflows/deploy-frontend-pages.yml
 ```
 
-它会在构建时读取仓库变量：
+### 当前 workflow 主要改进（2026 年更新）
 
-```text
-VITE_API_BASE_URL
-```
+- 使用 `actions/configure-pages@v4` 初始化 Pages 环境（官方推荐）
+- 自动生成 `.nojekyll` 文件，避免 GitHub Pages 的 Jekyll 处理导致的资源 404 问题
+- `VITE_BASE` 采用更健壮的表达式 `github.repository.split('/')[1]`，兼容 push 和手动触发
+- 构建时优先读取仓库 Variables 中的 `VITE_API_BASE_URL`
 
-你需要在 GitHub 仓库设置里添加：
+### 配置步骤
 
-```text
-Settings -> Secrets and variables -> Actions -> Variables -> New repository variable
-```
+1. 进入仓库 `Settings -> Secrets and variables -> Actions -> Variables`，新增仓库变量：
 
-变量名：
+   **变量名**：`VITE_API_BASE_URL`
+   
+   **变量值**：`https://你的真实API域名`（例如 `https://api.xiaoqianran.xyz`）
 
-```text
-VITE_API_BASE_URL
-```
+   > **重要**：不配置时会回退到示例域名，可能导致前端无法与你的后端交互（出现“系统内部错误”等）。
 
-变量值：
+2. 进入 `Settings -> Pages`，将 `Build and deployment` 的 `Source` 设置为 **GitHub Actions**。
 
-```text
-https://api.xiaoqianran.xyz
-```
+3. 推送到 `main` 分支或手动触发 `Deploy Frontend to GitHub Pages` workflow 即可自动部署。
 
-然后进入：
-
-```text
-Settings -> Pages
-```
-
-把 `Build and deployment` 的 `Source` 设置为：
-
-```text
-GitHub Actions
-```
-
-推送到 `main` 后，workflow 会自动构建并部署前端。
+workflow 现在更贴近 GitHub 官方 Pages 部署最佳实践，部署成功率和稳定性显著提升。
 
 ## GitHub Pages 路径说明
 
-当前 workflow 里有：
+当前 `deploy-frontend-pages.yml` workflow 使用更健壮的表达式：
 
 ```yaml
-VITE_BASE: /${{ github.event.repository.name }}/
+VITE_BASE: /${{ github.repository.split('/')[1] }}/
 ```
 
-这适合 GitHub Pages 默认项目地址：
+这适合 GitHub Pages 默认项目地址（无论通过 push 还是 `workflow_dispatch` 触发）：
 
 ```text
 https://<你的GitHub用户名>.github.io/Java006-CampusHub/
@@ -194,13 +179,15 @@ https://<你的GitHub用户名>.github.io/Java006-CampusHub/
 https://shiqian.xiaoqianran.xyz/
 ```
 
-可以把 workflow 里的 `VITE_BASE` 改成：
+可以手动把 workflow 里的 `VITE_BASE` 改成：
 
 ```yaml
 VITE_BASE: /
 ```
 
 否则静态资源路径会多一层仓库名。
+
+**注意**：workflow 内部已自动处理，无需在大多数场景下手动修改。
 
 ## 前端如何指定后端地址
 
@@ -261,12 +248,13 @@ VITE_API_PROXY_TARGET=https://api.xiaoqianran.xyz npm run dev -- --host 0.0.0.0
 
 1. 后端服务器启动 `shiqian-gateway`，确认监听 `8080`。
 2. DNS 添加 `api.xiaoqianran.xyz`，指向你的服务器公网 IP。
-3. Caddy 使用上面的 `api.xiaoqianran.xyz` 配置。
-4. Caddy 的 `Access-Control-Allow-Origin` 填你的 GitHub Pages 前端域名。
-5. GitHub Actions Variables 添加 `VITE_API_BASE_URL=https://api.xiaoqianran.xyz`。
-6. GitHub Pages Source 设置为 `GitHub Actions`。
-7. 运行 `Deploy Frontend to GitHub Pages`。
-8. 打开前端页面，浏览器开发者工具里确认接口请求发往 `https://api.xiaoqianran.xyz/api/...`。
+3. Caddy 使用上面的 `api.xiaoqianran.xyz` 配置（正确设置 CORS）。
+4. Caddy 的 `Access-Control-Allow-Origin` 填你的 GitHub Pages 前端域名（或使用 `*` 临时测试）。
+5. **GitHub 仓库设置**：
+   - `Settings -> Pages` → Source 选择 **GitHub Actions**
+   - `Settings -> Secrets and variables -> Actions -> Variables` 新增 `VITE_API_BASE_URL`（**强烈建议配置**）
+6. 推送代码到 `main` 或手动触发 `Deploy Frontend to GitHub Pages` workflow。
+7. 部署成功后，在浏览器开发者工具 Network 面板确认接口请求正确发往你的后端域名。
 
 ## 本项目已改动的前端文件
 
