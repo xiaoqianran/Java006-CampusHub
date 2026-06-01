@@ -46,6 +46,7 @@ async function toggleFavorite(event: MouseEvent) {
       <span>作者：{{ item.author }}</span>
       <span><el-icon><View /></el-icon>{{ item.views }}</span>
       <span><el-icon><Download /></el-icon>{{ item.downloads }}</span>
+      <span v-if="item.attachments && item.attachments.length">📎 {{ item.attachments.length }}</span>
     </div>
     <div class="card-footer-row">
       <el-button text type="primary" @click.stop="openDetail">查看详情</el-button>

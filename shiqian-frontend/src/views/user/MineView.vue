@@ -66,6 +66,10 @@ async function saveProfile() {
         <h1>我的发布</h1>
         <p class="sub">显示待审核、已发布、已驳回三种状态，已驳回资源可重新提交审核。</p>
       </div>
+      <el-select v-model="store.sortMode" style="width: 140px" size="small">
+        <el-option label="最新" value="newest" />
+        <el-option label="最热" value="hottest" />
+      </el-select>
     </div>
 
     <!-- 快速个人资料编辑 -->

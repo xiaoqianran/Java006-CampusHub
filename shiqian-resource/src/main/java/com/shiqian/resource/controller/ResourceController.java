@@ -77,12 +77,13 @@ public class ResourceController {
     @PreAuthorize("hasAuthority('resource:read')")
     public Result<Page<Resource>> pageMyResources(
             @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "10") Integer size) {
+            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(required = false) String sort) {
         Long userId = SecurityUtil.getCurrentUserId();
         if (userId == null) {
             return Result.fail(401, "未登录");
         }
-        return Result.ok(resourceService.pageUserResources(userId, page, size));
+        return Result.ok(resourceService.pageUserResources(userId, page, size, sort));
     }
 
     @Operation(summary = "分页查询当前用户收藏的资源")
@@ -90,12 +91,13 @@ public class ResourceController {
     @PreAuthorize("hasAuthority('resource:favorite')")
     public Result<Page<Resource>> pageFavoriteResources(
             @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "10") Integer size) {
+            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(required = false) String sort) {
         Long userId = SecurityUtil.getCurrentUserId();
         if (userId == null) {
             return Result.fail(401, "未登录");
         }
-        return Result.ok(favoriteService.pageFavorites(userId, page, size));
+        return Result.ok(favoriteService.pageFavorites(userId, page, size, sort));
     }
 
     @Operation(summary = "管理员分页查询回收站资源")

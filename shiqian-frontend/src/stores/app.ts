@@ -235,8 +235,18 @@ export const useAppStore = defineStore('app', () => {
   const hotResources = computed(() => [...publishedResources.value].sort((a, b) => (b.downloads || 0) - (a.downloads || 0)).slice(0, 6))
   const rejectedResources = computed(() => resources.value.filter(item => item.status === '已驳回'))
   const reviewableResources = computed(() => resources.value.filter(item => item.status === '待审核' || item.status === '已驳回'))
-  const favoriteResources = computed(() => resources.value.filter(item => favoriteIds.value.includes(item.id)))
-  const myResources = computed(() => resources.value.filter(item => myResourceIds.value.includes(item.id)))
+  const favoriteResources = computed(() => {
+    const list = resources.value.filter(item => favoriteIds.value.includes(item.id))
+    return sortMode.value === 'hottest'
+      ? [...list].sort((a, b) => ((b.downloads || 0) + (b.views || 0)) - ((a.downloads || 0) + (a.views || 0)) || b.id - a.id)
+      : [...list].sort((a, b) => b.id - a.id)
+  })
+  const myResources = computed(() => {
+    const list = resources.value.filter(item => myResourceIds.value.includes(item.id))
+    return sortMode.value === 'hottest'
+      ? [...list].sort((a, b) => ((b.downloads || 0) + (b.views || 0)) - ((a.downloads || 0) + (a.views || 0)) || b.id - a.id)
+      : [...list].sort((a, b) => b.id - a.id)
+  })
 
   const filteredResources = computed(() => {
     const text = keyword.value.trim()
@@ -379,14 +389,16 @@ export const useAppStore = defineStore('app', () => {
     return getResource(id)
   }
 
-  async function loadFavorites() {
-    const data = await request<PageResult<ResourceApiItem>>('/api/resource/favorites', { query: { page: 1, size: 100 } })
+  async function loadFavorites(params: { sort?: string } = {}) {
+    const sort = params.sort ?? sortMode.value
+    const data = await request<PageResult<ResourceApiItem>>('/api/resource/favorites', { query: { page: 1, size: 100, sort } })
     mergeResources(data.records)
     favoriteIds.value = data.records.map(item => item.id)
   }
 
-  async function loadMyResources() {
-    const data = await request<PageResult<ResourceApiItem>>('/api/resource/mine', { query: { page: 1, size: 100 } })
+  async function loadMyResources(params: { sort?: string } = {}) {
+    const sort = params.sort ?? sortMode.value
+    const data = await request<PageResult<ResourceApiItem>>('/api/resource/mine', { query: { page: 1, size: 100, sort } })
     mergeResources(data.records)
     myResourceIds.value = data.records.map(item => item.id)
   }

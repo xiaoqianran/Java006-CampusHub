@@ -37,10 +37,12 @@ watch(() => [store.activeCategory, store.keyword, store.sortMode], () => {
       <el-button @click="store.resetFilters()">重置</el-button>
     </div>
 
-    <div v-if="store.filteredResources.length" class="resource-grid">
-      <!-- 使用 store mapResource + 后端 authorNickname 展示真实作者（不再是“用户 {id}”） -->
-      <ResourceCard v-for="item in store.filteredResources" :key="item.id" :item="item" />
+    <div v-loading="store.loading" style="min-height: 160px;">
+      <div v-if="store.filteredResources.length" class="resource-grid">
+        <!-- 使用 store mapResource + 后端 authorNickname 展示真实作者（不再是“用户 {id}”） -->
+        <ResourceCard v-for="item in store.filteredResources" :key="item.id" :item="item" />
+      </div>
+      <el-empty v-else-if="!store.loading" description="暂无匹配资源" />
     </div>
-    <el-empty v-else description="暂无匹配资源" />
   </section>
 </template>

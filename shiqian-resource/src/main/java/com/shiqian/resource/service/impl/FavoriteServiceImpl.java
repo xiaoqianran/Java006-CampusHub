@@ -64,7 +64,7 @@ public class FavoriteServiceImpl implements FavoriteService {
     }
 
     @Override
-    public Page<Resource> pageFavorites(Long userId, Integer page, Integer size) {
+    public Page<Resource> pageFavorites(Long userId, Integer page, Integer size, String sort) {
         Page<Favorite> favoritePage = new Page<>(page, size);
         QueryWrapper<Favorite> wrapper = new QueryWrapper<>();
         wrapper.eq("user_id", userId);
@@ -88,6 +88,17 @@ public class FavoriteServiceImpl implements FavoriteService {
                 .filter(resource -> resource != null)
                 .collect(Collectors.toList());
         Resource.enrichAuthors(recs);
+
+        if ("hottest".equals(sort)) {
+            recs.sort((a, b) -> {
+                long hotB = (b.getDownloadCount() != null ? b.getDownloadCount() : 0L) + (b.getViewCount() != null ? b.getViewCount() : 0L);
+                long hotA = (a.getDownloadCount() != null ? a.getDownloadCount() : 0L) + (a.getViewCount() != null ? a.getViewCount() : 0L);
+                if (hotB != hotA) return Long.compare(hotB, hotA);
+                return Long.compare(b.getId() != null ? b.getId() : 0L, a.getId() != null ? a.getId() : 0L);
+            });
+        } else {
+            recs.sort((a, b) -> Long.compare(b.getId() != null ? b.getId() : 0L, a.getId() != null ? a.getId() : 0L));
+        }
         result.setRecords(recs);
         return result;
     }

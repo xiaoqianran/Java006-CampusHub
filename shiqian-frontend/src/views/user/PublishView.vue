@@ -13,6 +13,8 @@ const submitting = ref(false)
 const uploading = ref(false)
 const selectedFiles = ref<UploadUserFile[]>([])
 const uploadedFiles = ref<UploadedFileItem[]>([])
+const uploadProgress = ref(0)
+const uploadErrors = ref<string[]>([])
 
 const form = reactive({
   title: '',
@@ -27,6 +29,8 @@ const canSubmit = computed(() => {
 
 watch(selectedFiles, () => {
   uploadedFiles.value = []
+  uploadErrors.value = []
+  uploadProgress.value = 0
 })
 
 // ===== 草稿自动保存（localStorage，简单可靠） =====
@@ -130,25 +134,90 @@ onMounted(() => {
   }
 })
 
+// ===== upload UX helpers (validation + simple per-file progress) =====
+function getFileExt(file: { name?: string }): string {
+  const n = file?.name || ''
+  const i = n.lastIndexOf('.')
+  return i > -1 ? n.slice(i + 1).toLowerCase() : ''
+}
+
+function isAllowedFile(file: File): boolean {
+  const ext = getFileExt(file)
+  const allowedExts = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'jpg', 'jpeg', 'png', 'gif', 'zip', 'rar', '7z']
+  if (allowedExts.includes(ext)) return true
+  const type = (file as any).type || ''
+  return type.startsWith('image/') || type === 'application/pdf' || /word|excel|powerpoint|text|zip|rar/.test(type)
+}
+
+const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB client-side limit
+
 async function uploadSelectedFiles() {
-  const files = selectedFiles.value
+  let files = selectedFiles.value
     .map(item => item.raw)
     .filter((item): item is UploadRawFile => Boolean(item))
   if (!files.length) {
     throw new Error('请先选择附件')
   }
+
+  // client-side validation: size + type whitelist (pdf/doc/image etc)
+  const validFiles: File[] = []
+  const errors: string[] = []
+  for (const f of files) {
+    if (f.size > MAX_FILE_SIZE) {
+      errors.push(`${f.name}: 超过50MB限制`)
+    } else if (!isAllowedFile(f)) {
+      errors.push(`${f.name}: 不支持的文件类型（仅限文档/图片/压缩包）`)
+    } else {
+      validFiles.push(f)
+    }
+  }
+  if (errors.length) {
+    uploadErrors.value = errors
+  }
+  files = validFiles
+  if (!files.length) {
+    throw new Error('没有符合要求的文件')
+  }
+
   uploading.value = true
+  uploadProgress.value = 0
+  uploadErrors.value = errors // keep pre-validation errors
+  const uploaded: UploadedFileItem[] = []
   try {
-    uploadedFiles.value = await store.uploadFiles(files)
-    ElMessage.success(`已上传 ${uploadedFiles.value.length} 个附件`)
+    // sequential upload for per-file progress & granular error feedback (reuse store FormData per call)
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i]
+      try {
+        const res = await store.uploadFiles([f])
+        if (res && res[0]) uploaded.push(res[0])
+      } catch (e: any) {
+        errors.push(`${f.name}: ${e?.message || '上传失败'}`)
+        uploadErrors.value = [...errors]
+      }
+      uploadProgress.value = Math.round(((i + 1) / files.length) * 100)
+    }
+    uploadedFiles.value = uploaded
+    const successCount = uploaded.length
+    const errorCount = errors.length
+    if (successCount) {
+      ElMessage.success(`已上传 ${successCount} 个附件${errorCount ? `（${errorCount} 个失败）` : ''}`)
+    } else if (errorCount) {
+      ElMessage.error('全部文件上传失败')
+    }
   } finally {
     uploading.value = false
+    // keep final progress briefly, reset on next select via watch
+    setTimeout(() => {
+      if (!uploading.value) uploadProgress.value = 0
+    }, 800)
   }
 }
 
 // 单个移除：支持在提交前逐个删除选中的待上传文件或已上传的附件元数据
 function removeSelectedFile(index: number) {
   selectedFiles.value.splice(index, 1)
+  uploadErrors.value = []
+  uploadProgress.value = 0
 }
 
 function removeUploadedFile(index: number) {
@@ -255,6 +324,15 @@ async function submit() {
                   title="移除此文件"
                 />
               </div>
+            </div>
+
+            <!-- upload progress + per-file error feedback (minimal addition) -->
+            <div v-if="uploading || uploadProgress > 0" style="margin: 8px 0 4px;">
+              <el-progress :percentage="uploadProgress" :stroke-width="18" :text-inside="true" />
+              <div style="font-size: 12px; color: #909399; margin-top: 2px;">文件上传中，请稍候…</div>
+            </div>
+            <div v-if="uploadErrors.length" style="margin: 4px 0; padding: 6px 8px; background: #fef0f0; color: #f56c6c; font-size: 12px; border-radius: 4px; line-height: 1.4;">
+              验证/上传问题：{{ uploadErrors.join('； ') }}
             </div>
           </el-col>
           <el-col :span="24">

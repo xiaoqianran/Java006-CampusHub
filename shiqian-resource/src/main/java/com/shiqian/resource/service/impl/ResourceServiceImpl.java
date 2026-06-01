@@ -325,12 +325,18 @@ public class ResourceServiceImpl implements ResourceService {
     }
 
     @Override
-    public Page<Resource> pageUserResources(Long userId, Integer page, Integer size) {
+    public Page<Resource> pageUserResources(Long userId, Integer page, Integer size, String sort) {
         Page<Resource> pageParam = new Page<>(page, size);
         QueryWrapper<Resource> wrapper = new QueryWrapper<>();
         wrapper.eq("deleted", 0);
         wrapper.eq("user_id", userId);
-        wrapper.orderByDesc("create_time");
+
+        if ("hottest".equals(sort)) {
+            wrapper.orderByDesc("download_count");
+            wrapper.orderByDesc("view_count");
+        } else {
+            wrapper.orderByDesc("create_time");
+        }
         Page<Resource> result = resourceMapper.selectPage(pageParam, wrapper);
         Resource.enrichAuthors(result.getRecords());
         return result;

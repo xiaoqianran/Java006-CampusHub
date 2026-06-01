@@ -11,5 +11,5 @@ public interface FavoriteService {
 
     boolean isFavorited(Long userId, Long resourceId);
 
-    Page<Resource> pageFavorites(Long userId, Integer page, Integer size);
+    Page<Resource> pageFavorites(Long userId, Integer page, Integer size, String sort);
 }
