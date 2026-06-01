@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
-import { Star, StarFilled, Download, View } from '@element-plus/icons-vue'
+import { Star, StarFilled, Download, View, User } from '@element-plus/icons-vue'
 import StatusTag from '@/components/StatusTag.vue'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
 import { useAppStore } from '@/stores/app'
@@ -31,13 +31,18 @@ const related = computed(() => {
   return [...sameCat.slice(0, 2), ...otherCat.slice(0, 2)].slice(0, 4)
 })
 
+const detailLoading = ref(true)
+
 onMounted(async () => {
+  detailLoading.value = true
   try {
     await store.loadResourceDetail(Number(route.params.id))
     // 加载详情后立即记录一次浏览（支持未登录用户），乐观+1本地 views
     store.incrementView(Number(route.params.id))
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '资源加载失败')
+  } finally {
+    detailLoading.value = false
   }
 })
 
@@ -96,7 +101,8 @@ function formatFileSize(size: number) {
 </script>
 
 <template>
-  <section v-if="resource" class="detail-layout">
+  <div v-loading="detailLoading" style="min-height: 480px;">
+    <section v-if="resource" class="detail-layout">
     <el-card class="detail-card" shadow="never">
       <el-tag>{{ resource.cat }}</el-tag>
       <el-tag v-if="(resource.downloads + resource.views) > 15" type="danger" size="small" effect="light" style="margin-left: 6px">受欢迎</el-tag>
@@ -108,7 +114,10 @@ function formatFileSize(size: number) {
       </p>
 
       <div class="resource-meta">
-        <span>作者：{{ resource.author }}</span>
+        <!-- 改进：badge 徽章形式突出显示作者，与 ResourceCard 保持视觉一致性 -->
+        <el-tag size="small" type="info" effect="plain" style="font-size:13px; padding: 0 6px; height:20px; line-height:20px; vertical-align: middle;">
+          <el-icon style="margin-right:3px; font-size:13px;"><User /></el-icon>作者：{{ resource.author }}
+        </el-tag>
         <span><el-icon><View /></el-icon> 浏览 {{ resource.views }}</span>
         <span><el-icon><Download /></el-icon> 下载 {{ resource.downloads }}</span>
         <span>收藏 {{ resource.favs }}</span>
@@ -175,7 +184,8 @@ function formatFileSize(size: number) {
       </el-card>
     </aside>
   </section>
-  <el-empty v-else description="资源加载中或不存在" />
+  <el-empty v-else-if="!detailLoading" description="资源不存在" />
+  </div>
 </template>
 
 <style scoped>

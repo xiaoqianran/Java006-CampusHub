@@ -43,7 +43,7 @@ function openCategory(category: string) {
       </div>
       <el-button text type="primary" @click="router.push('/categories')">查看全部</el-button>
     </div>
-    <div class="category-grid">
+    <div v-loading="store.loading" class="category-grid" style="min-height: 120px;">
       <el-card v-for="(category, index) in store.categories.slice(0, 4)" :key="category" class="category-card" shadow="never" @click="openCategory(category)">
         <span class="category-icon">{{ icons[index] }}</span>
         <span><b>{{ category }}</b><br><span class="sub">{{ store.resources.filter(item => item.cat === category).length }} 个资源</span></span>
@@ -59,7 +59,7 @@ function openCategory(category: string) {
       </div>
       <el-button type="primary" :icon="Upload" @click="router.push('/publish')">发布资源</el-button>
     </div>
-    <div class="resource-grid">
+    <div v-loading="store.loading" class="resource-grid" style="min-height: 120px;">
       <!-- ResourceCard 依赖 store.author（后端富化真实 authorNickname） -->
       <ResourceCard v-for="item in store.publishedResources.slice(0, 3)" :key="item.id" :item="item" />
     </div>
@@ -73,7 +73,7 @@ function openCategory(category: string) {
       </div>
       <el-button text type="primary" @click="router.push('/plaza')">查看更多</el-button>
     </div>
-    <div class="resource-grid">
+    <div v-loading="store.loading" class="resource-grid" style="min-height: 120px;">
       <ResourceCard v-for="item in store.hotResources.slice(0, 4)" :key="'hot-'+item.id" :item="item" />
     </div>
   </section>

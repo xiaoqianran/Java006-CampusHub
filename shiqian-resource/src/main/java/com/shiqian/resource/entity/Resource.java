@@ -60,6 +60,7 @@ public class Resource {
     private String authorNickname;
 
     // 演示用轻量昵称映射（保持最小变更，无需跨服务调用；生产环境建议通过用户服务批量查询或冗余字段）
+    // 改进：为演示数据匹配真实昵称；未知用户回退为友好文案而非暴露ID
     private static final Map<Long, String> NICKNAME_MAP = Map.of(
             1L, "管理员",
             2L, "学生一号"
@@ -72,7 +73,7 @@ public class Resource {
         if (resources == null) return;
         for (Resource r : resources) {
             if (r.getAuthorNickname() == null && r.getUserId() != null) {
-                r.setAuthorNickname(NICKNAME_MAP.getOrDefault(r.getUserId(), "用户 " + r.getUserId()));
+                r.setAuthorNickname(NICKNAME_MAP.getOrDefault(r.getUserId(), "匿名用户"));
             }
         }
     }

@@ -42,7 +42,7 @@ function getCategoryIcon(category: string, index: number): string {
         <p class="sub">分类不是孤立页面，而是资源广场的筛选入口。</p>
       </div>
     </div>
-    <div class="category-grid category-browse-grid">
+    <div v-loading="store.loading" class="category-grid category-browse-grid" style="min-height: 160px;">
       <el-card
         v-for="(category, index) in store.categories"
         :key="category"
