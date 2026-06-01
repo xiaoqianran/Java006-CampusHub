@@ -147,7 +147,7 @@ public class ResourceServiceTest extends BaseResourceTest {
             createResource("资源" + i, category.getId());
         }
 
-        Page<Resource> page = resourceService.pageResources(1, 3, null, null);
+        Page<Resource> page = resourceService.pageResources(1, 3, null, null, null);
         assertEquals(5, page.getTotal());
         assertEquals(2, page.getPages());
         assertEquals(3, page.getRecords().size());
@@ -161,7 +161,7 @@ public class ResourceServiceTest extends BaseResourceTest {
         createResource("资源B", c2.getId());
         createResource("资源C", c2.getId());
 
-        Page<Resource> page = resourceService.pageResources(1, 10, c2.getId(), null);
+        Page<Resource> page = resourceService.pageResources(1, 10, c2.getId(), null, null);
         assertEquals(2, page.getTotal());
     }
 
@@ -172,7 +172,7 @@ public class ResourceServiceTest extends BaseResourceTest {
         createResource("Python入门", category.getId());
         createResource("Go语言", category.getId());
 
-        Page<Resource> page = resourceService.pageResources(1, 10, null, "入门");
+        Page<Resource> page = resourceService.pageResources(1, 10, null, "入门", null);
         assertEquals(2, page.getTotal());
     }
 
@@ -184,7 +184,7 @@ public class ResourceServiceTest extends BaseResourceTest {
         createResource("Python入门", c2.getId());
         createResource("Go语言", c2.getId());
 
-        Page<Resource> page = resourceService.pageResources(1, 10, c2.getId(), "入门");
+        Page<Resource> page = resourceService.pageResources(1, 10, c2.getId(), "入门", null);
         assertEquals(1, page.getTotal());
         assertEquals("Python入门", page.getRecords().get(0).getTitle());
     }
@@ -218,12 +218,12 @@ public class ResourceServiceTest extends BaseResourceTest {
         assertEquals("Markdown资源", created.getFileType());
 
         // 验证关键词能命中 summary
-        Page<Resource> pageBySummary = resourceService.pageResources(1, 10, null, "markdown-summary-keyword");
+        Page<Resource> pageBySummary = resourceService.pageResources(1, 10, null, "markdown-summary-keyword", null);
         assertTrue(pageBySummary.getTotal() >= 1);
         assertTrue(pageBySummary.getRecords().stream().anyMatch(r -> r.getId().equals(created.getId())));
 
         // 验证关键词能命中 contentMarkdown
-        Page<Resource> pageByContent = resourceService.pageResources(1, 10, null, "markdown-content-keyword");
+        Page<Resource> pageByContent = resourceService.pageResources(1, 10, null, "markdown-content-keyword", null);
         assertTrue(pageByContent.getTotal() >= 1);
         assertTrue(pageByContent.getRecords().stream().anyMatch(r -> r.getId().equals(created.getId())));
     }

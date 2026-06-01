@@ -10,7 +10,9 @@ vi.mock('@/stores/app', () => ({
     ],
     loadUsers: vi.fn().mockResolvedValue(undefined),
     updateUserStatus: vi.fn().mockResolvedValue(undefined),
-    updateUserRole: vi.fn().mockResolvedValue(undefined)
+    updateUserRole: vi.fn().mockResolvedValue(undefined),
+    recordAdminLog: vi.fn().mockResolvedValue(undefined),
+    loadCurrentUser: vi.fn().mockResolvedValue(undefined)
   })
 }))
 
@@ -23,7 +25,11 @@ describe('UserAdminView (status + role)', () => {
     const wrapper = shallowMount(UserAdminView, {
       global: {
         stubs: {
-          AdminLayout: { template: '<div><slot /></div>' }
+          AdminLayout: { template: '<div><slot /></div>' },
+          'el-table': { template: '<div><slot /></div>' },
+          'el-table-column': { template: '<div><slot :row="{}" /></div>' },
+          'el-tag': true,
+          StatusTag: true
         }
       }
     })

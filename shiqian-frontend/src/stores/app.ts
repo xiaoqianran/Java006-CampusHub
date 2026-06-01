@@ -182,6 +182,7 @@ export const useAppStore = defineStore('app', () => {
   const currentUser = ref<LoginUser | null>(null)
   const activeCategory = ref<string>('全部分类')
   const keyword = ref('')
+  const sortMode = ref<'newest' | 'hottest'>('newest')
   const loading = ref(false)
 
   // ===== 主题系统 (Search-First + Element Plus 暗色适配) =====
@@ -242,10 +243,15 @@ export const useAppStore = defineStore('app', () => {
     const source = searchResultIds.value
       ? publishedResources.value.filter(item => searchResultIds.value?.includes(item.id))
       : publishedResources.value
-    return source.filter(item => {
+    const filtered = source.filter(item => {
       const matchCategory = activeCategory.value === '全部分类' || item.cat === activeCategory.value
       return matchCategory && (!text || searchResultIds.value || `${item.title}${item.cat}${item.type}${item.desc}`.includes(text))
     })
+    // client-side sort (backend sort param passed but mergeResources preserves id order; reuse for Plaza UX)
+    if (sortMode.value === 'hottest') {
+      return [...filtered].sort((a, b) => ((b.downloads || 0) + (b.views || 0)) - ((a.downloads || 0) + (a.views || 0)) || b.id - a.id)
+    }
+    return [...filtered].sort((a, b) => b.id - a.id) // newest by id (proxy for create_time)
   })
 
   function categoryName(categoryId?: number) {
@@ -319,9 +325,9 @@ export const useAppStore = defineStore('app', () => {
     categoryTree.value = await request<CategoryApiItem[]>('/api/category/tree')
   }
 
-  async function loadResources(params: { page?: number, size?: number, categoryId?: number, keyword?: string } = {}) {
+  async function loadResources(params: { page?: number, size?: number, categoryId?: number, keyword?: string, sort?: string } = {}) {
     const data = await request<PageResult<ResourceApiItem>>('/api/resource', {
-      query: { page: params.page || 1, size: params.size || 100, categoryId: params.categoryId, keyword: params.keyword }
+      query: { page: params.page || 1, size: params.size || 100, categoryId: params.categoryId, keyword: params.keyword, sort: params.sort ?? sortMode.value }
     })
     mergeResources(data.records)
   }
@@ -355,7 +361,7 @@ export const useAppStore = defineStore('app', () => {
     }
 
     const data = await request<PageResult<ResourceSearchItem>>('/api/resource/search', {
-      query: { keyword: text, page: 1, size: 100 }
+      query: { keyword: text, page: 1, size: 100, sort: sortMode.value }
     })
     searchResultIds.value = data.records.map(item => item.id)
     mergeResources(data.records.map(mapSearchItem))
@@ -444,6 +450,7 @@ export const useAppStore = defineStore('app', () => {
   async function resetFilters() {
     activeCategory.value = '全部分类'
     keyword.value = ''
+    sortMode.value = 'newest'
     await loadResources()
   }
 
@@ -473,9 +480,10 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function downloadResource(id: number) {
-    await request<any>(`/api/resource/${id}/download`, { method: 'POST' })
+    const vo = await request<any>(`/api/resource/${id}/download`, { method: 'POST' })
     const item = getResource(id)
     if (item) item.downloads += 1
+    return vo
   }
 
   async function incrementView(id: number) {
@@ -747,6 +755,7 @@ export const useAppStore = defineStore('app', () => {
     currentUser,
     activeCategory,
     keyword,
+    sortMode,
     loading,
     categoryTree,
     flatCategories,

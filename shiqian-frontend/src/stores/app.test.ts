@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
 
 // We test the exported functions / behavior by mocking the internal request helper
 vi.mock('@/api/client', async () => {
@@ -15,6 +16,8 @@ import { useAppStore } from './app'
 describe('app store - critical recent methods', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Proper Pinia context for store tests (required after store grew with theme/hotResources/etc)
+    setActivePinia(createPinia())
     // Reset simple state between tests
     const store = useAppStore()
     store.currentUser = null as any

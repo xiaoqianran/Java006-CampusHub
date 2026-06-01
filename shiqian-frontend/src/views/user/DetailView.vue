@@ -2,7 +2,7 @@
 import { computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
-import { Star, StarFilled, Download } from '@element-plus/icons-vue'
+import { Star, StarFilled, Download, View } from '@element-plus/icons-vue'
 import StatusTag from '@/components/StatusTag.vue'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
 import { useAppStore } from '@/stores/app'
@@ -12,9 +12,18 @@ const route = useRoute()
 const router = useRouter()
 const store = useAppStore()
 const resource = computed(() => store.getResource(Number(route.params.id)))
-const related = computed(() => resource.value
-  ? store.resources.filter(item => item.cat === resource.value?.cat && item.id !== resource.value.id).slice(0, 3)
-  : [])
+const related = computed(() => {
+  if (!resource.value) return []
+  const others = store.publishedResources.filter(item => item.id !== resource.value!.id)
+  const sameCat = others.filter(item => item.cat === resource.value!.cat)
+  const otherCat = others.filter(item => item.cat !== resource.value!.cat)
+  // Client-side popularity score mixing views + downloads (reuse loaded resources, no backend call)
+  const score = (item: any) => (item.downloads || 0) * 2 + (item.views || 0)
+  sameCat.sort((a, b) => score(b) - score(a))
+  otherCat.sort((a, b) => score(b) - score(a))
+  // Mix: top 2 same-cat + top 2 cross-cat for smarter "相关推荐" (better than crude all-same or pure hot)
+  return [...sameCat.slice(0, 2), ...otherCat.slice(0, 2)].slice(0, 4)
+})
 
 onMounted(async () => {
   try {
@@ -43,8 +52,9 @@ async function toggleFavorite() {
 async function download() {
   try {
     if (!resource.value) return
-    await store.downloadResource(resource.value.id)
-    const fileUrl = primaryDownloadUrl()
+    const vo = await store.downloadResource(resource.value.id)
+    // Prefer returned VO for latest primary (attachments already in resource)
+    const fileUrl = (vo && vo.fileUrl) || primaryDownloadUrl()
     if (!fileUrl) {
       ElMessage.warning('该资源暂无可下载文件')
       return
@@ -83,6 +93,7 @@ function formatFileSize(size: number) {
   <section v-if="resource" class="detail-layout">
     <el-card class="detail-card" shadow="never">
       <el-tag>{{ resource.cat }}</el-tag>
+      <el-tag v-if="(resource.downloads + resource.views) > 15" type="danger" size="small" effect="light" style="margin-left: 6px">受欢迎</el-tag>
       <h1 class="detail-title">{{ resource.title }}</h1>
 
       <!-- 摘要：优先 summary -->
@@ -92,13 +103,15 @@ function formatFileSize(size: number) {
 
       <div class="resource-meta">
         <span>作者：{{ resource.author }}</span>
-        <span>浏览 {{ resource.views }}</span>
-        <span>下载 {{ resource.downloads }}</span>
+        <span><el-icon><View /></el-icon> 浏览 {{ resource.views }}</span>
+        <span><el-icon><Download /></el-icon> 下载 {{ resource.downloads }}</span>
         <span>收藏 {{ resource.favs }}</span>
       </div>
 
       <div style="margin: 24px 0; display: flex; gap: 12px">
-        <el-button type="primary" :icon="Download" @click="download">下载资源</el-button>
+        <el-button type="primary" :icon="Download" @click="download">
+          下载{{ resource.attachments && resource.attachments.length ? '主文件' : '资源' }}
+        </el-button>
         <el-button :icon="store.isFavorite(resource.id) ? StarFilled : Star" @click="toggleFavorite">
           {{ store.isFavorite(resource.id) ? '取消收藏' : '加入收藏' }}
         </el-button>
@@ -120,10 +133,10 @@ function formatFileSize(size: number) {
       <!-- 第二阶段：附件列表 -->
       <div v-if="resource.attachments && resource.attachments.length > 0" class="attachment-section">
         <h2>附件</h2>
-        <div v-for="att in resource.attachments" :key="att.id || att.fileUrl" class="attachment-item">
+        <div v-for="att in resource.attachments" :key="att.id || att.fileUrl" class="attachment-item" @click="downloadAttachment(att)">
           <span class="file-name">{{ att.fileName }}</span>
           <span class="file-meta">{{ att.fileType }} · {{ formatFileSize(att.fileSize) }}</span>
-          <el-button size="small" type="primary" @click="downloadAttachment(att)">下载</el-button>
+          <el-button size="small" type="primary" @click.stop="downloadAttachment(att)">下载</el-button>
         </div>
       </div>
       <div v-else class="attachment-section">
@@ -206,6 +219,7 @@ function formatFileSize(size: number) {
   background: var(--bg-subtle, #f8f9fa);
   border-radius: 6px;
   margin-bottom: 8px;
+  cursor: pointer;
 }
 
 [data-theme="dark"] .attachment-item {

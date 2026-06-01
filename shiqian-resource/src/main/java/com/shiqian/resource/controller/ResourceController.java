@@ -64,10 +64,11 @@ public class ResourceController {
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer size,
             @RequestParam(required = false) Long categoryId,
-            @RequestParam(required = false) String keyword) {
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String sort) {
         Page<Resource> result = "ADMIN".equals(SecurityUtil.getCurrentRole())
-                ? resourceService.pageResources(page, size, categoryId, keyword)
-                : resourceService.pagePublishedResources(page, size, categoryId, keyword);
+                ? resourceService.pageResources(page, size, categoryId, keyword, sort)
+                : resourceService.pagePublishedResources(page, size, categoryId, keyword, sort);
         return Result.ok(result);
     }
 

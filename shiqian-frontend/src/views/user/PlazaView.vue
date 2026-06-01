@@ -9,7 +9,7 @@ onMounted(() => {
   store.loadHomeData().catch(() => undefined)
 })
 
-watch(() => [store.activeCategory, store.keyword], () => {
+watch(() => [store.activeCategory, store.keyword, store.sortMode], () => {
   store.searchResources().catch(() => undefined)
 })
 </script>
@@ -29,6 +29,10 @@ watch(() => [store.activeCategory, store.keyword], () => {
       <el-select v-model="store.activeCategory" style="max-width: 180px">
         <el-option label="全部分类" value="全部分类" />
         <el-option v-for="category in store.categories" :key="category" :label="category" :value="category" />
+      </el-select>
+      <el-select v-model="store.sortMode" style="max-width: 120px">
+        <el-option label="最新" value="newest" />
+        <el-option label="最热" value="hottest" />
       </el-select>
       <el-button @click="store.resetFilters()">重置</el-button>
     </div>

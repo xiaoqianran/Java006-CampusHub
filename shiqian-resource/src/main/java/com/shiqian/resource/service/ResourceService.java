@@ -11,9 +11,9 @@ public interface ResourceService {
 
     Resource getResourceById(Long id);
 
-    Page<Resource> pageResources(Integer page, Integer size, Long categoryId, String keyword);
+    Page<Resource> pageResources(Integer page, Integer size, Long categoryId, String keyword, String sort);
 
-    Page<Resource> pagePublishedResources(Integer page, Integer size, Long categoryId, String keyword);
+    Page<Resource> pagePublishedResources(Integer page, Integer size, Long categoryId, String keyword, String sort);
 
     Page<Resource> pageUserResources(Long userId, Integer page, Integer size);
 

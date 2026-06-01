@@ -245,7 +245,7 @@ public class ResourceControllerTest extends BaseResourceTest {
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isOk());
 
-        var page = resourceService.pageResources(1, 1, category.getId(), "详情测试资源");
+        var page = resourceService.pageResources(1, 1, category.getId(), "详情测试资源", null);
         Long id = page.getRecords().get(0).getId();
 
         mockMvc.perform(get("/api/resource/{id}", id)
