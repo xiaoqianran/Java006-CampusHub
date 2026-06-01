@@ -138,6 +138,30 @@ docker logs shiqian-rabbitmq --tail 200
 └── shiqian-frontend/        # Vue 3 + Vite 前端
 ```
 
+## 开发规范
+
+### Git 提交信息规范
+
+本项目**严格遵循**统一的 Commit Message 规范。
+
+- 详细规范与示例：请阅读 [docs/commit-message-guidelines.md](docs/commit-message-guidelines.md)
+- 本地已配置 commit 模板（`.gitmessage`），执行 `git commit` 时会自动提示格式
+- **开发过程中每个功能完成后，必须按规范撰写 commit**
+
+常见类型：
+- `feat`：新功能
+- `fix`：修复 bug
+- `refactor`：重构
+- `docs`：文档变更
+- `chore` / `build` / `ci`：构建、依赖、CI 相关
+
+示例：
+```
+feat: 添加用户登录功能
+
+通过 JWT 实现前后端认证，支持 accessToken 刷新。
+```
+
 ## 技术栈
 
 | 类型 | 技术 |

@@ -1,0 +1,22 @@
+<type>: <subject>
+
+<body>
+
+# 提交类型（type）
+#   feat:     新功能
+#   fix:      修复 bug
+#   docs:     文档变更
+#   style:    代码格式（不影响运行）
+#   refactor: 重构（非功能/非修复）
+#   test:     增加测试
+#   chore:    构建/辅助工具变动
+#   ci:       持续集成配置
+#   build:    影响构建系统或外部依赖
+#   revert:   回滚提交
+#   perf:     性能优化
+
+# 格式要求：
+# - 第一行：<type>: <subject>（subject 用中文，简洁）
+# - 空一行
+# - body：详细说明（可选，复杂变更建议提供）
+# - 参考 docs/commit-message-guidelines.md
