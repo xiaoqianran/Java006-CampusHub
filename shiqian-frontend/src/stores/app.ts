@@ -20,6 +20,7 @@ export interface ResourceApiItem {
   fileSize?: number
   fileType?: string
   downloadCount?: number
+  viewCount?: number
   status: number
   createTime?: string
   updateTime?: string
@@ -154,6 +155,15 @@ interface ResourceSubmitPayload {
   files?: UploadedFileItem[]   // 临时兼容，submitResource 内部处理
 }
 
+interface ResourceUpdatePayload {
+  title: string
+  cat: string
+  summary: string
+  contentMarkdown: string
+  file?: UploadedFileItem | ResourceAttachmentItem
+  attachments?: (UploadedFileItem | ResourceAttachmentItem)[]
+}
+
 const fallbackCategories = ['计算机科学', '高等数学', '大学英语', '考研资料', '课程笔记', '实验报告', '竞赛资料', '校园生活']
 
 function mapStatus(status: number): ResourceStatus {
@@ -221,6 +231,7 @@ export const useAppStore = defineStore('app', () => {
   const categories = computed(() => flatCategories.value.length ? flatCategories.value.map(item => item.name) : fallbackCategories)
   const publishedResources = computed(() => resources.value.filter(item => item.status === '已发布'))
   const pendingResources = computed(() => resources.value.filter(item => item.status === '待审核'))
+  const hotResources = computed(() => [...publishedResources.value].sort((a, b) => (b.downloads || 0) - (a.downloads || 0)).slice(0, 6))
   const rejectedResources = computed(() => resources.value.filter(item => item.status === '已驳回'))
   const reviewableResources = computed(() => resources.value.filter(item => item.status === '待审核' || item.status === '已驳回'))
   const favoriteResources = computed(() => resources.value.filter(item => favoriteIds.value.includes(item.id)))
@@ -254,7 +265,7 @@ export const useAppStore = defineStore('app', () => {
       type: item.fileType || '资料',
       author: item.authorNickname || (item.userId ? `用户 ${item.userId}` : '匿名用户'),
       userId: item.userId,
-      views: 0,
+      views: item.viewCount || 0,
       downloads: item.downloadCount || 0,
       favs: 0,
       status: mapStatus(item.status),
@@ -462,9 +473,20 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function downloadResource(id: number) {
-    await request<void>(`/api/resource/${id}/download`, { method: 'POST' })
+    await request<any>(`/api/resource/${id}/download`, { method: 'POST' })
     const item = getResource(id)
     if (item) item.downloads += 1
+  }
+
+  async function incrementView(id: number) {
+    // 匿名友好：详情页加载后调用，不阻塞UI，乐观更新本地
+    try {
+      await request<void>(`/api/resource/${id}/view`, { method: 'POST' })
+      const item = getResource(id)
+      if (item) item.views += 1
+    } catch {
+      // 静默失败，不影响详情展示（计数为最佳努力）
+    }
   }
 
   async function removeMyResource(id: number) {
@@ -547,6 +569,75 @@ export const useAppStore = defineStore('app', () => {
     })
 
     await loadMyResources()
+  }
+
+  async function updateResource(id: number, payload: ResourceUpdatePayload) {
+    const categoryIdValue = categoryId(payload.cat)
+    if (!categoryIdValue) {
+      throw new Error('请选择有效分类')
+    }
+
+    const body: any = {
+      title: payload.title,
+      categoryId: categoryIdValue,
+      summary: payload.summary,
+      description: payload.summary,
+      contentMarkdown: payload.contentMarkdown
+    }
+
+    // 如果提供 attachments 数组（编辑多附件场景），则发送之（后端将替换）；否则兼容 legacy file
+    if (payload.attachments) {
+      const attachments = payload.attachments.map((file, index) => ({
+        fileName: (file as any).originalName || (file as any).fileName,
+        fileUrl: file.fileUrl,
+        fileSize: file.fileSize,
+        fileType: file.fileType,
+        mimeType: file.mimeType || file.fileType || '',
+        assetKind: (file as any).assetKind || 'FILE',
+        usageType: (file as any).usageType || 'ATTACHMENT',
+        sortOrder: (file as any).sortOrder ?? index
+      }))
+      body.attachments = attachments
+    } else if (payload.file) {
+      body.fileUrl = payload.file.fileUrl
+      body.fileSize = payload.file.fileSize
+      body.fileType = payload.file.fileType
+    }
+
+    await request<void>(`/api/resource/${id}`, {
+      method: 'PUT',
+      body: jsonBody(body)
+    })
+
+    const item = getResource(id)
+    if (item) {
+      item.title = payload.title
+      item.cat = payload.cat
+      item.categoryId = categoryIdValue
+      item.desc = payload.summary
+      item.summary = payload.summary
+      item.contentMarkdown = payload.contentMarkdown
+      if (payload.attachments) {
+        item.attachments = payload.attachments.map((f, index) => ({
+          fileName: (f as any).originalName || (f as any).fileName || '',
+          fileUrl: f.fileUrl,
+          fileSize: f.fileSize || 0,
+          fileType: f.fileType,
+          mimeType: f.mimeType,
+          assetKind: (f as any).assetKind,
+          usageType: (f as any).usageType,
+          sortOrder: (f as any).sortOrder ?? index
+        })) as any
+        // 兼容：若有附件，更新 type 为第一个
+        if (item.attachments.length) {
+          item.type = item.attachments[0].fileType || item.type
+        }
+      } else if (payload.file) {
+        item.fileUrl = payload.file.fileUrl
+        item.fileSize = payload.file.fileSize
+        item.type = payload.file.fileType || item.type
+      }
+    }
   }
 
   async function createCategory(name: string, icon?: string, sortOrder?: number) {
@@ -669,6 +760,7 @@ export const useAppStore = defineStore('app', () => {
     publishedResources,
     pendingResources,
     rejectedResources,
+    hotResources,
     reviewableResources,
     favoriteResources,
     myResources,
@@ -695,6 +787,7 @@ export const useAppStore = defineStore('app', () => {
     refreshFavoriteState,
     toggleFavorite,
     downloadResource,
+    incrementView,
     removeMyResource,
     removeResource,
     takeDownResource,
@@ -703,6 +796,7 @@ export const useAppStore = defineStore('app', () => {
     resubmitResource,
     uploadFiles,
     submitResource,
+    updateResource,
     createCategory,
     updateCategory,
     deleteCategory,

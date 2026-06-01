@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS `t_resource` (
     `file_size` BIGINT NOT NULL DEFAULT 0 COMMENT '文件大小（字节）',
     `file_type` VARCHAR(100) DEFAULT NULL COMMENT '文件MIME类型或扩展名',
     `download_count` INT NOT NULL DEFAULT 0 COMMENT '下载次数',
+    `view_count` INT NOT NULL DEFAULT 0 COMMENT '浏览次数',
     `version` INT NOT NULL DEFAULT 1 COMMENT '版本号',
     `status` TINYINT NOT NULL DEFAULT 0 COMMENT '审核状态（0=待审核, 1=已通过, 2=已拒绝）',
     `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',

@@ -6,6 +6,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 public class ResourceUpdateDTO {
 
@@ -33,4 +35,7 @@ public class ResourceUpdateDTO {
 
     @Size(max = 100, message = "文件类型最多100个字符")
     private String fileType;
+
+    // 附件列表（编辑时可选：提供则替换所有旧附件，支持多附件；不提供则保留原有）
+    private List<AttachmentCreateDTO> attachments;
 }

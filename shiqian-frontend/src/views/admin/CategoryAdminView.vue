@@ -102,9 +102,12 @@ async function submitCategoryForm() {
       if (selectedCategory.value?.id === editingId.value && latest) {
         selectedCategory.value = latest
       }
+      await store.recordAdminLog('CATEGORY_UPDATE', editingId.value, name)
       ElMessage.success('分类已更新（含图标/排序）')
     } else {
       await store.createCategory(name, icon || undefined, sortOrder)
+      const created = store.flatCategories.find(c => c.name === name)
+      if (created) await store.recordAdminLog('CATEGORY_CREATE', created.id, name)
       ElMessage.success('分类已新增（支持图标与排序）')
     }
     categoryFormVisible.value = false
@@ -125,6 +128,7 @@ async function deleteCategoryConfirm(id: number, name: string) {
       cancelButtonText: '取消'
     })
     await store.deleteCategory(id)
+    await store.recordAdminLog('CATEGORY_DELETE', id, name)
     if (selectedCategory.value?.id === id) {
       selectedCategory.value = null
     }

@@ -58,8 +58,10 @@ function goDetail(row?: ResourceItem | null) {
 
 async function approve(id: number) {
   try {
+    const row = store.resources.find(r => r.id === id)
     await ElMessageBox.confirm('确认通过该资源审核吗？', '审核确认', { type: 'success' })
     await store.approveResource(id)
+    await store.recordAdminLog('RESOURCE_APPROVE', id, row?.title || String(id))
     ElMessage.success('已通过')
     detailVisible.value = false
   } catch (error) {
@@ -71,8 +73,10 @@ async function approve(id: number) {
 
 async function reject(id: number) {
   try {
+    const row = store.resources.find(r => r.id === id)
     await ElMessageBox.confirm('确认驳回该资源吗？', '驳回确认', { type: 'warning' })
     await store.rejectResource(id)
+    await store.recordAdminLog('RESOURCE_REJECT', id, row?.title || String(id))
     ElMessage.warning('已驳回')
     detailVisible.value = false
   } catch (error) {

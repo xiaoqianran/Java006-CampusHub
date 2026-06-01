@@ -39,6 +39,7 @@ async function takeDownResource(id: number, title: string) {
       cancelButtonText: '取消'
     })
     await store.takeDownResource(id)
+    await store.recordAdminLog('RESOURCE_TAKE_DOWN', id, title)
     ElMessage.success('已下架')
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
@@ -71,9 +72,10 @@ async function takeDownResource(id: number, title: string) {
       <el-table-column prop="author" label="发布者" width="110" />
       <el-table-column label="状态" width="120"><template #default="{ row }"><StatusTag :status="row.status" /></template></el-table-column>
       <el-table-column prop="downloads" label="下载" width="100" />
-      <el-table-column label="操作" width="180">
+      <el-table-column label="操作" width="240">
         <template #default="{ row }">
           <el-button size="small" @click="$router.push(`/detail/${row.id}`)">预览</el-button>
+          <el-button size="small" type="primary" plain @click="$router.push(`/resource/${row.id}/edit`)">编辑</el-button>
           <el-button size="small" type="danger" plain :disabled="row.status === '已驳回'" @click="takeDownResource(row.id, row.title)">下架</el-button>
         </template>
       </el-table-column>

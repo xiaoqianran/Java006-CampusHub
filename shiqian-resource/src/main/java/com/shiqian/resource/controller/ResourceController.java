@@ -5,6 +5,7 @@ import com.shiqian.common.result.Result;
 import com.shiqian.common.security.SecurityUtil;
 import com.shiqian.resource.config.RabbitMQConfig;
 import com.shiqian.resource.document.ResourceDocument;
+import com.shiqian.resource.dto.FileDownloadVO;
 import com.shiqian.resource.dto.ResourceCreateDTO;
 import com.shiqian.resource.dto.ResourceDownloadMessage;
 import com.shiqian.resource.dto.ResourceUpdateDTO;
@@ -182,16 +183,39 @@ public class ResourceController {
 
     @Operation(summary = "下载资源")
     @PostMapping("/{id}/download")
-    public Result<Void> downloadResource(@PathVariable Long id) {
+    public Result<FileDownloadVO> downloadResource(@PathVariable Long id) {
         Long userId = SecurityUtil.getCurrentUserId();
-        if (userId == null) {
-            userId = 1L;
+        Resource resource = resourceService.getResourceById(id);
+        if (resource == null || !canViewResource(resource)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "资源不存在或已删除");
         }
+        boolean hasPrimaryFile = org.springframework.util.StringUtils.hasText(resource.getFileUrl());
+        boolean hasAttachments = resource.getAttachments() != null && !resource.getAttachments().isEmpty();
+        if (!hasPrimaryFile && !hasAttachments) {
+            return Result.fail(400, "资源暂无可下载文件");
+        }
+
         ResourceDownloadMessage message = new ResourceDownloadMessage(id, userId, LocalDateTime.now());
         rabbitTemplate.convertAndSend(
                 RabbitMQConfig.RESOURCE_TOPIC_EXCHANGE,
                 RabbitMQConfig.RESOURCE_DOWNLOAD_ROUTING_KEY,
                 message);
+
+        FileDownloadVO vo = new FileDownloadVO();
+        vo.setResourceId(resource.getId());
+        vo.setTitle(resource.getTitle());
+        vo.setFileUrl(resource.getFileUrl());
+        vo.setFileSize(resource.getFileSize());
+        vo.setFileType(resource.getFileType());
+        vo.setAttachments(resource.getAttachments());
+        return Result.ok(vo);
+    }
+
+    @Operation(summary = "记录资源浏览次数（支持匿名访问，详情页加载后调用）")
+    @PostMapping("/{id}/view")
+    public Result<Void> viewResource(@PathVariable Long id) {
+        // 直接更新计数（与下载不同，不使用MQ），不要求登录；存在性由service校验
+        resourceService.incrementViewCount(id);
         return Result.ok();
     }
 

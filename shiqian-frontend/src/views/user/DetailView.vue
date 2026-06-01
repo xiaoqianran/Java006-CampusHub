@@ -16,10 +16,14 @@ const related = computed(() => resource.value
   ? store.resources.filter(item => item.cat === resource.value?.cat && item.id !== resource.value.id).slice(0, 3)
   : [])
 
-onMounted(() => {
-  store.loadResourceDetail(Number(route.params.id)).catch(error => {
+onMounted(async () => {
+  try {
+    await store.loadResourceDetail(Number(route.params.id))
+    // 加载详情后立即记录一次浏览（支持未登录用户），乐观+1本地 views
+    store.incrementView(Number(route.params.id))
+  } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '资源加载失败')
-  })
+  }
 })
 
 async function toggleFavorite() {

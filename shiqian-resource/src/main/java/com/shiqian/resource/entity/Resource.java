@@ -36,6 +36,8 @@ public class Resource {
 
     private Integer downloadCount;
 
+    private Integer viewCount;
+
     private Integer version;
 
     private Integer status;
@@ -57,7 +59,7 @@ public class Resource {
     @TableField(exist = false)
     private String authorNickname;
 
-    // 演示用轻量昵称映射（保持最小变更，无需跨服务调用）
+    // 演示用轻量昵称映射（保持最小变更，无需跨服务调用；生产环境建议通过用户服务批量查询或冗余字段）
     private static final Map<Long, String> NICKNAME_MAP = Map.of(
             1L, "管理员",
             2L, "学生一号"

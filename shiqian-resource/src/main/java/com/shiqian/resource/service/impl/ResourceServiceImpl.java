@@ -60,6 +60,7 @@ public class ResourceServiceImpl implements ResourceService {
         BeanUtils.copyProperties(dto, resource);
         resource.setUserId(userId);
         resource.setDownloadCount(0);
+        resource.setViewCount(0);
         resource.setVersion(1);
         resource.setStatus(0);
 
@@ -82,21 +83,9 @@ public class ResourceServiceImpl implements ResourceService {
 
         resourceMapper.insert(resource);
 
-        // 第二阶段：保存附件
-        if (dto.getAttachments() != null && !dto.getAttachments().isEmpty()) {
-            for (var attDto : dto.getAttachments()) {
-                ResourceAttachment att = new ResourceAttachment();
-                att.setResourceId(resource.getId());
-                att.setFileName(attDto.getFileName());
-                att.setFileUrl(attDto.getFileUrl());
-                att.setFileSize(attDto.getFileSize());
-                att.setFileType(attDto.getFileType());
-                att.setMimeType(attDto.getMimeType());
-                att.setAssetKind(attDto.getAssetKind() != null ? attDto.getAssetKind() : "FILE");
-                att.setUsageType(attDto.getUsageType() != null ? attDto.getUsageType() : "ATTACHMENT");
-                att.setSortOrder(attDto.getSortOrder() != null ? attDto.getSortOrder() : 0);
-                resourceAttachmentMapper.insert(att);
-            }
+        // 第二阶段：保存附件（使用辅助方法，支持空列表清空）
+        if (dto.getAttachments() != null) {
+            syncAttachments(resource.getId(), dto.getAttachments());
         }
 
         resourceDocumentRepository.save(buildResourceDocument(resource));
@@ -144,12 +133,34 @@ public class ResourceServiceImpl implements ResourceService {
         resource.setUserId(existing.getUserId());
         resource.setVersion(existing.getVersion() + 1);
         resource.setDownloadCount(existing.getDownloadCount());
+        resource.setViewCount(existing.getViewCount());
         resource.setStatus(existing.getStatus());
 
+        // 兼容旧客户端/partial update：若DTO未显式提供字段则保留原值（避免清空 contentType/file* 等）
+        if (!StringUtils.hasText(resource.getContentType()) && StringUtils.hasText(existing.getContentType())) {
+            resource.setContentType(existing.getContentType());
+        }
+        if (!StringUtils.hasText(resource.getFileUrl()) && StringUtils.hasText(existing.getFileUrl())) {
+            resource.setFileUrl(existing.getFileUrl());
+        }
+        if (resource.getFileSize() == null && existing.getFileSize() != null) {
+            resource.setFileSize(existing.getFileSize());
+        }
+        if (!StringUtils.hasText(resource.getFileType()) && StringUtils.hasText(existing.getFileType())) {
+            resource.setFileType(existing.getFileType());
+        }
+
         resourceMapper.updateById(resource);
+
+        // 如果提供了 attachments（含空列表表示清空），则替换 t_resource_attachment 中的记录
+        if (dto.getAttachments() != null) {
+            syncAttachments(id, dto.getAttachments());
+        }
+
         Resource updated = resourceMapper.selectById(id);
         resourceDocumentRepository.save(buildResourceDocument(updated));
-        log.info("资源更新成功: id={}, title={}, version={}", id, resource.getTitle(), resource.getVersion());
+        log.info("资源更新成功: id={}, title={}, version={}, attachmentsProvided={}", 
+                 id, resource.getTitle(), resource.getVersion(), dto.getAttachments() != null);
     }
 
     @Override
@@ -178,6 +189,19 @@ public class ResourceServiceImpl implements ResourceService {
         wrapper.setSql("download_count = download_count + 1");
         resourceMapper.update(null, wrapper);
         log.info("资源下载计数增加: id={}", id);
+    }
+
+    @Override
+    public void incrementViewCount(Long id) {
+        Resource existing = resourceMapper.selectById(id);
+        if (existing == null || existing.getDeleted() == 1) {
+            throw new BusinessException("资源不存在");
+        }
+        UpdateWrapper<Resource> wrapper = new UpdateWrapper<>();
+        wrapper.eq("id", id);
+        wrapper.setSql("view_count = view_count + 1");
+        resourceMapper.update(null, wrapper);
+        log.info("资源浏览计数增加: id={}", id);
     }
 
     @Override
@@ -349,5 +373,33 @@ public class ResourceServiceImpl implements ResourceService {
         Long operatorId = SecurityUtil.getCurrentUserId();
         adminLogService.recordLog(operatorId, "RESOURCE_PERMANENT_DELETE", id, null);
         log.info("资源永久删除: id={}", id);
+    }
+
+    /**
+     * 附件同步辅助方法：用于创建和更新场景。
+     * 如果 attachments != null，则删除该资源的所有旧附件（update场景），然后插入新列表（可为空以清空）。
+     */
+    private void syncAttachments(Long resourceId, List<AttachmentCreateDTO> attachments) {
+        if (attachments == null) {
+            return;
+        }
+        // 删除旧附件（create时无影响，update时替换）
+        resourceAttachmentMapper.delete(
+            new QueryWrapper<ResourceAttachment>().eq("resource_id", resourceId)
+        );
+        for (var attDto : attachments) {
+            if (attDto == null) continue;
+            ResourceAttachment att = new ResourceAttachment();
+            att.setResourceId(resourceId);
+            att.setFileName(attDto.getFileName());
+            att.setFileUrl(attDto.getFileUrl());
+            att.setFileSize(attDto.getFileSize());
+            att.setFileType(attDto.getFileType());
+            att.setMimeType(attDto.getMimeType());
+            att.setAssetKind(attDto.getAssetKind() != null ? attDto.getAssetKind() : "FILE");
+            att.setUsageType(attDto.getUsageType() != null ? attDto.getUsageType() : "ATTACHMENT");
+            att.setSortOrder(attDto.getSortOrder() != null ? attDto.getSortOrder() : 0);
+            resourceAttachmentMapper.insert(att);
+        }
     }
 }

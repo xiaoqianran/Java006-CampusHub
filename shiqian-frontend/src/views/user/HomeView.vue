@@ -65,6 +65,19 @@ function openCategory(category: string) {
     </div>
   </section>
 
+  <section class="section">
+    <div class="page-title">
+      <div>
+        <h1>热门资源</h1>
+        <p class="sub">按下载量排序，助你发现高价值资料。</p>
+      </div>
+      <el-button text type="primary" @click="router.push('/plaza')">查看更多</el-button>
+    </div>
+    <div class="resource-grid">
+      <ResourceCard v-for="item in store.hotResources.slice(0, 4)" :key="'hot-'+item.id" :item="item" />
+    </div>
+  </section>
+
   <section class="section stat-grid">
     <div class="stat-card"><b>{{ store.resources.length }}</b><span class="sub">演示资源</span></div>
     <div class="stat-card"><b>{{ store.favoriteIds.length }}</b><span class="sub"><el-icon><Star /></el-icon> 我的收藏</span></div>
