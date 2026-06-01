@@ -663,7 +663,7 @@ export const useAppStore = defineStore('app', () => {
           sortOrder: (f as any).sortOrder ?? index
         })) as any
         // 兼容：若有附件，更新 type 为第一个
-        if (item.attachments.length) {
+        if (item.attachments && item.attachments.length > 0) {
           item.type = item.attachments[0].fileType || item.type
         }
       } else if (payload.file) {

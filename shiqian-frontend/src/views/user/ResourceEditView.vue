@@ -108,7 +108,7 @@ async function uploadSelectedFiles() {
   }
 
   // client-side validation: size + type whitelist (pdf/doc/image etc)
-  const validFiles: File[] = []
+  const validFiles: UploadRawFile[] = []
   const errors: string[] = []
   for (const f of files) {
     if (f.size > MAX_FILE_SIZE) {
@@ -122,7 +122,7 @@ async function uploadSelectedFiles() {
   if (errors.length) {
     uploadErrors.value = errors
   }
-  files = validFiles
+  files = validFiles as UploadRawFile[]
   if (!files.length) {
     throw new Error('没有符合要求的文件')
   }
