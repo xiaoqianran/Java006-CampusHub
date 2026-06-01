@@ -352,16 +352,17 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  async function searchResources() {
+  async function searchResources(params: { sort?: string } = {}) {
     const text = keyword.value.trim()
+    const sort = params.sort ?? sortMode.value
     if (!text) {
       searchResultIds.value = null
-      await loadResources({ categoryId: categoryId(activeCategory.value) })
+      await loadResources({ categoryId: categoryId(activeCategory.value), sort })
       return
     }
 
     const data = await request<PageResult<ResourceSearchItem>>('/api/resource/search', {
-      query: { keyword: text, page: 1, size: 100, sort: sortMode.value }
+      query: { keyword: text, page: 1, size: 100, sort }
     })
     searchResultIds.value = data.records.map(item => item.id)
     mergeResources(data.records.map(mapSearchItem))

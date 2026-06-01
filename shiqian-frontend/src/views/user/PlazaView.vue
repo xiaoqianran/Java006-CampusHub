@@ -10,7 +10,7 @@ onMounted(() => {
 })
 
 watch(() => [store.activeCategory, store.keyword, store.sortMode], () => {
-  store.searchResources().catch(() => undefined)
+  store.searchResources({ sort: store.sortMode }).catch(() => undefined)
 })
 </script>
 
