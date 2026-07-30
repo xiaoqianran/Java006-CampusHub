@@ -48,6 +48,8 @@ resource:
     max-files-per-request: 10
     max-concurrent-files: 16
     max-user-storage: 1073741824
+    max-text-preview-bytes: 524288
+    max-archive-preview-entries: 500
     allowed-extensions: pdf,doc,docx,xls,xlsx,ppt,pptx,txt,md,jpg,jpeg,png,gif,zip,rar,7z,java,py,js,ts,vue,c,cpp,h,go,rs,sql,json,xml,yaml,yml,html,css,sh
 
 mybatis-plus:

@@ -5,7 +5,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Star, StarFilled, Download, View, User } from '@element-plus/icons-vue'
 import StatusTag from '@/components/StatusTag.vue'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
-import { useAppStore } from '@/stores/app'
+import AttachmentPreviewDialog from '@/components/AttachmentPreviewDialog.vue'
+import { useAppStore, type ResourceAttachmentItem } from '@/stores/app'
 import { buildApiUrl } from '@/api/client'
 
 const route = useRoute()
@@ -32,6 +33,8 @@ const related = computed(() => {
 })
 
 const detailLoading = ref(true)
+const previewVisible = ref(false)
+const previewAttachment = ref<ResourceAttachmentItem | null>(null)
 
 onMounted(async () => {
   detailLoading.value = true
@@ -85,6 +88,11 @@ function downloadAttachment(att: any) {
   if (att?.fileUrl) {
     window.open(buildApiUrl(att.fileUrl), '_blank')
   }
+}
+
+function previewFile(att: ResourceAttachmentItem) {
+  previewAttachment.value = att
+  previewVisible.value = true
 }
 
 function formatFileSize(size: number) {
@@ -157,9 +165,10 @@ function goBack() {
       <!-- 第二阶段：附件列表 -->
       <div v-if="resource.attachments && resource.attachments.length > 0" class="attachment-section">
         <h2>附件</h2>
-        <div v-for="att in resource.attachments" :key="att.id || att.fileUrl" class="attachment-item" @click="downloadAttachment(att)">
+        <div v-for="att in resource.attachments" :key="att.id || att.fileUrl" class="attachment-item" @click="previewFile(att)">
           <span class="file-name">{{ att.fileName }}</span>
           <span class="file-meta">{{ att.fileType }} · {{ formatFileSize(att.fileSize) }}</span>
+          <el-button size="small" @click.stop="previewFile(att)">预览</el-button>
           <el-button size="small" type="primary" @click.stop="downloadAttachment(att)">下载</el-button>
         </div>
       </div>
@@ -194,6 +203,11 @@ function goBack() {
     </aside>
   </section>
   <el-empty v-else-if="!detailLoading" description="资源不存在" />
+  <AttachmentPreviewDialog
+    v-model="previewVisible"
+    :attachment="previewAttachment"
+    @download="downloadAttachment"
+  />
   </div>
 </template>
 

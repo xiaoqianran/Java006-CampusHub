@@ -148,7 +148,7 @@ interface ResourceSubmitPayload {
   title: string
   cat: string
   summary: string
-  contentMarkdown?: string
+  contentMarkdown: string
   attachments?: UploadedFileItem[]
   files?: UploadedFileItem[]   // 临时兼容，submitResource 内部处理
 }
@@ -823,12 +823,11 @@ export const useAppStore = defineStore('app', () => {
       sortOrder: (file as any).sortOrder ?? index
     }))
 
-    const contentMarkdown = payload.contentMarkdown?.trim() || ''
-    const contentType = attachments.length && contentMarkdown
-      ? 'MIXED'
-      : attachments.length
-        ? 'FILE'
-        : 'ARTICLE'
+    const contentMarkdown = payload.contentMarkdown.trim()
+    if (!contentMarkdown) {
+      throw new Error('正文不能为空')
+    }
+    const contentType = attachments.length ? 'MIXED' : 'ARTICLE'
 
     // 第二阶段：一个资源 + attachments 数组
     await request<void>('/api/resource', {
@@ -837,7 +836,7 @@ export const useAppStore = defineStore('app', () => {
         title: payload.title,
         categoryId: categoryIdValue,
         summary: payload.summary,
-        contentMarkdown: contentMarkdown || null,
+        contentMarkdown,
         contentType,
         attachments
       })

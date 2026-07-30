@@ -2,10 +2,12 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { UploadRawFile, UploadUserFile } from 'element-plus'
-import { Close, Document, EditPen, Files, UploadFilled } from '@element-plus/icons-vue'
+import { Close, Document, EditPen, UploadFilled } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
-import MarkdownPreview from '@/components/MarkdownPreview.vue'
+import AttachmentPreviewDialog from '@/components/AttachmentPreviewDialog.vue'
+import MarkdownLiveEditor from '@/components/MarkdownLiveEditor.vue'
 import { useAppStore, type UploadedFileItem } from '@/stores/app'
+import { buildApiUrl } from '@/api/client'
 import {
   MAX_RESOURCE_FILE_COUNT,
   RESOURCE_FILE_ACCEPT,
@@ -15,7 +17,7 @@ import {
   type UploadTierName
 } from '@/utils/resourceUpload'
 
-type PublishMode = 'FILE' | 'ARTICLE' | 'MIXED'
+type PublishMode = 'ARTICLE' | 'MIXED'
 
 const router = useRouter()
 const store = useAppStore()
@@ -26,13 +28,14 @@ const uploadedFiles = ref<UploadedFileItem[]>([])
 const uploadProgress = ref(0)
 const uploadErrors = ref<string[]>([])
 const uploadStage = ref('')
-const showPreview = ref(false)
+const previewVisible = ref(false)
+const previewAttachment = ref<UploadedFileItem | null>(null)
 let uploadController: AbortController | null = null
 let currentUploadPromise: Promise<void> | null = null
 let autoUploadTimer: number | null = null
 
 const form = reactive({
-  mode: 'FILE' as PublishMode,
+  mode: 'ARTICLE' as PublishMode,
   title: '',
   cat: '计算机科学',
   summary: '',
@@ -43,9 +46,8 @@ const hasFiles = computed(() => selectedFiles.value.length > 0 || uploadedFiles.
 const hasText = computed(() => Boolean(form.contentMarkdown.trim()))
 const canSubmit = computed(() => {
   if (!form.title.trim() || !form.cat) return false
-  if (form.mode === 'FILE') return hasFiles.value
-  if (form.mode === 'ARTICLE') return hasText.value
-  return hasFiles.value && hasText.value
+  if (!hasText.value) return false
+  return form.mode === 'ARTICLE' || hasFiles.value
 })
 
 const DRAFT_KEY = 'shiqian_publish_draft'
@@ -64,7 +66,8 @@ function draftPayload() {
 
 function applyDraft(data: any) {
   Object.assign(form, {
-    mode: ['FILE', 'ARTICLE', 'MIXED'].includes(data.mode) ? data.mode : 'FILE',
+    // 旧版 FILE 草稿迁移为图文模式：保留附件，但必须补充正文后才能提交。
+    mode: data.mode === 'MIXED' || data.mode === 'FILE' ? 'MIXED' : 'ARTICLE',
     title: data.title || '',
     cat: data.cat || '计算机科学',
     summary: data.summary || '',
@@ -233,6 +236,15 @@ function removeUploadedFile(index: number) {
   uploadedFiles.value.splice(index, 1)
 }
 
+function previewFile(file: UploadedFileItem) {
+  previewAttachment.value = file
+  previewVisible.value = true
+}
+
+function downloadAttachment(file: { fileUrl: string }) {
+  window.open(buildApiUrl(file.fileUrl), '_blank')
+}
+
 function cancelUpload() {
   uploadController?.abort()
   uploadStage.value = '正在取消上传'
@@ -250,11 +262,9 @@ async function submit() {
   }
   if (!canSubmit.value) {
     ElMessage.warning(
-      form.mode === 'FILE'
-        ? '请填写标题、分类并选择附件'
-        : form.mode === 'ARTICLE'
-          ? '请填写标题、分类和正文'
-          : '图文资料需要同时填写正文并选择附件'
+      form.mode === 'ARTICLE'
+        ? '请填写标题、分类和正文'
+        : '图文资料需要同时填写正文并选择附件'
     )
     return
   }
@@ -263,15 +273,15 @@ async function submit() {
   try {
     if (currentUploadPromise) await currentUploadPromise
     if (selectedFiles.value.length) await uploadSelectedFiles()
-    if ((form.mode === 'FILE' || form.mode === 'MIXED') && !uploadedFiles.value.length) {
+    if (form.mode === 'MIXED' && !uploadedFiles.value.length) {
       throw new Error('附件尚未上传成功')
     }
     await store.submitResource({
       title: form.title.trim(),
       cat: form.cat,
       summary: form.summary.trim(),
-      contentMarkdown: form.mode === 'FILE' ? undefined : form.contentMarkdown.trim(),
-      attachments: uploadedFiles.value
+      contentMarkdown: form.contentMarkdown.trim(),
+      attachments: form.mode === 'MIXED' ? uploadedFiles.value : []
     })
     localStorage.removeItem(DRAFT_KEY)
     ElMessage.success('资源已提交审核')
@@ -289,7 +299,7 @@ async function submit() {
     <div class="page-title">
       <div>
         <h1>发布资源</h1>
-        <p class="sub">先选择分享方式。文件资料无需再编写长篇 Markdown。</p>
+        <p class="sub">选择写文章或图文加附件，两种方式都需要填写正文。</p>
       </div>
       <span class="draft-hint">内容会自动保存为本地草稿</span>
     </div>
@@ -310,11 +320,6 @@ async function submit() {
           <div><h2>选择分享方式</h2><p>只展示当前类型真正需要填写的内容。</p></div>
         </div>
         <el-radio-group v-model="form.mode" class="mode-grid">
-          <el-radio-button value="FILE">
-            <el-icon><Files /></el-icon>
-            <b>上传文件</b>
-            <span>PDF、课件、源码、压缩包</span>
-          </el-radio-button>
           <el-radio-button value="ARTICLE">
             <el-icon><EditPen /></el-icon>
             <b>写一篇文章</b>
@@ -363,7 +368,7 @@ async function submit() {
         </el-form>
       </section>
 
-      <section v-if="form.mode !== 'ARTICLE'" class="form-section">
+      <section v-if="form.mode === 'MIXED'" class="form-section">
         <div class="section-heading">
           <span class="step">3</span>
           <div><h2>上传附件</h2><p>选中文件后立即上传，最多 10 个，单个不超过 50MB。</p></div>
@@ -405,6 +410,7 @@ async function submit() {
           <div v-for="(file, index) in uploadedFiles" :key="file.fileUrl" class="file-row success">
             <span>{{ file.originalName }}</span>
             <span class="sub">已上传</span>
+            <el-button text type="primary" @click="previewFile(file)">预览</el-button>
             <el-button text type="danger" :icon="Close" @click="removeUploadedFile(index)" />
           </div>
         </div>
@@ -415,23 +421,14 @@ async function submit() {
         <el-alert v-if="uploadErrors.length" :title="uploadErrors.join('；')" type="error" :closable="false" style="margin-top: 12px" />
       </section>
 
-      <section v-if="form.mode !== 'FILE'" class="form-section">
+      <section class="form-section">
         <div class="section-heading">
           <span class="step">{{ form.mode === 'ARTICLE' ? 3 : 4 }}</span>
-          <div><h2>正文内容</h2><p>直接输入普通文字即可，也兼容简单 Markdown。</p></div>
-          <el-button text type="primary" @click="showPreview = !showPreview">
-            {{ showPreview ? '返回编辑' : '预览' }}
-          </el-button>
+          <div><h2>正文内容</h2><p>左侧写作，右侧同步预览最终排版。</p></div>
         </div>
-        <MarkdownPreview v-if="showPreview" :model-value="form.contentMarkdown" class="simple-preview" />
-        <el-input
-          v-else
+        <MarkdownLiveEditor
           v-model="form.contentMarkdown"
-          type="textarea"
-          :rows="12"
-          resize="vertical"
           placeholder="写下正文。普通文字、列表和段落都可以，不需要学习复杂格式。"
-          class="simple-editor"
         />
       </section>
 
@@ -449,6 +446,11 @@ async function submit() {
         </div>
       </div>
     </el-card>
+    <AttachmentPreviewDialog
+      v-model="previewVisible"
+      :attachment="previewAttachment"
+      @download="downloadAttachment"
+    />
   </section>
 </template>
 
@@ -543,7 +545,7 @@ async function submit() {
 
 .mode-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 12px;
   width: 100%;
 }
@@ -588,18 +590,6 @@ async function submit() {
 
 .file-row.success {
   border-color: var(--el-color-success-light-5);
-}
-
-.simple-editor :deep(textarea) {
-  line-height: 1.8;
-  font-family: inherit;
-}
-
-.simple-preview {
-  min-height: 240px;
-  padding: 18px;
-  border: 1px solid var(--el-border-color);
-  border-radius: 8px;
 }
 
 .submit-bar {

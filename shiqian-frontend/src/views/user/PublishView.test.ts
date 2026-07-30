@@ -31,14 +31,14 @@ describe('PublishView (attachment removal)', () => {
     localStorage.removeItem('shiqian_publish_draft')
   })
 
-  it('renders the attachment drop zone and remove buttons area when files are selected', () => {
+  it('only shows attachment upload in mixed mode', async () => {
     const wrapper = shallowMount(PublishView)
+    const vm = wrapper.vm as any
 
-    // Drop zone text
+    expect(wrapper.html()).not.toContain('点击或拖拽文件到此处')
+    vm.form.mode = 'MIXED'
+    await nextTick()
     expect(wrapper.html()).toContain('点击或拖拽文件到此处')
-
-    // When no files, the removal list should not render
-    expect(wrapper.findAll('.uploaded-row').length).toBe(0)
   })
 
   it('exposes removeSelectedFile and removeUploadedFile methods', () => {
@@ -69,12 +69,20 @@ describe('PublishView (attachment removal)', () => {
     expect(typeof vm.clearDraft).toBe('function')
   })
 
-  it('submits a file-only resource without Markdown content', async () => {
+  it('uses the live Markdown editor with simultaneous preview', () => {
+    const wrapper = shallowMount(PublishView)
+
+    expect(wrapper.findComponent({ name: 'MarkdownLiveEditor' }).exists()).toBe(true)
+  })
+
+  it('removes file-only mode and requires Markdown content', async () => {
     const wrapper = shallowMount(PublishView)
     const vm = wrapper.vm as any
 
-    vm.form.mode = 'FILE'
-    vm.form.title = 'TXT 课程资料'
+    expect(wrapper.html()).not.toContain('上传文件')
+
+    vm.form.mode = 'MIXED'
+    vm.form.title = '图文课程资料'
     vm.form.cat = '编程'
     vm.form.contentMarkdown = ''
     vm.uploadedFiles = [{
@@ -85,15 +93,44 @@ describe('PublishView (attachment removal)', () => {
     }]
     await nextTick()
 
+    expect(vm.canSubmit).toBe(false)
+
+    vm.form.contentMarkdown = '# 课程资料说明'
+    await nextTick()
     expect(vm.canSubmit).toBe(true)
     await vm.submit()
 
     expect(mocks.submitResource).toHaveBeenCalledWith(expect.objectContaining({
-      title: 'TXT 课程资料',
-      contentMarkdown: undefined,
+      title: '图文课程资料',
+      contentMarkdown: '# 课程资料说明',
       attachments: expect.arrayContaining([
         expect.objectContaining({ originalName: 'notes.txt' })
       ])
+    }))
+  })
+
+  it('submits article mode without hidden draft attachments', async () => {
+    const wrapper = shallowMount(PublishView)
+    const vm = wrapper.vm as any
+
+    vm.form.mode = 'ARTICLE'
+    vm.form.title = '学习笔记'
+    vm.form.cat = '编程'
+    vm.form.contentMarkdown = '正文内容'
+    vm.uploadedFiles = [{
+      originalName: 'old-draft.txt',
+      fileUrl: '/api/resource/files/1/old-draft.txt',
+      fileSize: 12,
+      fileType: 'text/plain'
+    }]
+    await nextTick()
+
+    expect(vm.canSubmit).toBe(true)
+    await vm.submit()
+
+    expect(mocks.submitResource).toHaveBeenCalledWith(expect.objectContaining({
+      contentMarkdown: '正文内容',
+      attachments: []
     }))
   })
 })

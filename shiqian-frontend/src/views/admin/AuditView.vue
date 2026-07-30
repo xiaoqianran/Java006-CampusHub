@@ -2,9 +2,10 @@
 import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AdminLayout from '@/components/AdminLayout.vue'
+import AttachmentPreviewDialog from '@/components/AttachmentPreviewDialog.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import { buildApiUrl } from '@/api/client'
-import { useAppStore, type ResourceItem, type ResourceStatus } from '@/stores/app'
+import { useAppStore, type ResourceAttachmentItem, type ResourceItem, type ResourceStatus } from '@/stores/app'
 
 const MarkdownPreview = defineAsyncComponent(() => import('@/components/MarkdownPreview.vue'))
 const store = useAppStore()
@@ -16,6 +17,8 @@ const detailLoading = ref(false)
 const decisionLoading = ref(false)
 const reviewReason = ref('')
 const selectedRows = ref<ResourceItem[]>([])
+const previewVisible = ref(false)
+const previewAttachment = ref<ResourceAttachmentItem | null>(null)
 
 const auditResources = computed(() => {
   const text = searchText.value.trim().toLowerCase()
@@ -53,6 +56,15 @@ async function openDetail(row: ResourceItem) {
 function openAttachment(url?: string) {
   if (!url) return
   window.open(buildApiUrl(url), '_blank')
+}
+
+function previewFile(attachment: ResourceAttachmentItem) {
+  previewAttachment.value = attachment
+  previewVisible.value = true
+}
+
+function downloadPreviewAttachment(attachment: { fileUrl: string }) {
+  openAttachment(attachment.fileUrl)
 }
 
 function nextPendingId(excludeId: number) {
@@ -234,15 +246,19 @@ async function batchApprove() {
         <section class="review-section">
           <h3>附件（{{ current?.attachments?.length || 0 }}）</h3>
           <div v-if="current?.attachments?.length" class="attachment-list">
-            <button
+            <div
               v-for="attachment in current.attachments"
               :key="attachment.id || attachment.fileUrl"
               class="attachment-row"
-              @click="openAttachment(attachment.fileUrl)"
+              @click="previewFile(attachment)"
             >
               <span>{{ attachment.fileName }}</span>
-              <span class="sub">{{ attachment.fileType || '文件' }} · 打开</span>
-            </button>
+              <span class="attachment-actions">
+                <span class="sub">{{ attachment.fileType || '文件' }}</span>
+                <el-button size="small" @click.stop="previewFile(attachment)">预览</el-button>
+                <el-button size="small" type="primary" @click.stop="openAttachment(attachment.fileUrl)">下载</el-button>
+              </span>
+            </div>
           </div>
           <el-empty v-else description="没有附件" :image-size="60" />
         </section>
@@ -274,6 +290,11 @@ async function batchApprove() {
         </div>
       </template>
     </el-drawer>
+    <AttachmentPreviewDialog
+      v-model="previewVisible"
+      :attachment="previewAttachment"
+      @download="downloadPreviewAttachment"
+    />
   </AdminLayout>
 </template>
 
@@ -358,6 +379,12 @@ async function batchApprove() {
 
 .attachment-row:hover {
   border-color: var(--el-color-primary);
+}
+
+.attachment-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .decision-panel {
