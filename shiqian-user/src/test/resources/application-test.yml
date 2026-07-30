@@ -33,6 +33,10 @@ campushub:
   internal:
     service-key: test-only-internal-service-key
 
+platform:
+  rate-limit:
+    enabled: false
+
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true

@@ -62,6 +62,10 @@ resource:
     max-archive-preview-entries: 500
     allowed-extensions: pdf,doc,docx,xls,xlsx,ppt,pptx,txt,md,jpg,jpeg,png,gif,webp,zip,rar,7z,java,py,js,ts,vue,c,cpp,h,go,rs,sql,json,xml,yaml,yml,html,css,sh
 
+platform:
+  rate-limit:
+    enabled: false
+
 mybatis-plus:
   mapper-locations: classpath*:mapper/**/*.xml
   configuration:

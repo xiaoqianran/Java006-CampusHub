@@ -3,7 +3,6 @@ package com.shiqian.resource.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.shiqian.common.content.SensitiveWordFilter;
 import com.shiqian.common.exception.BusinessException;
 import com.shiqian.common.security.SecurityUtil;
 import com.shiqian.resource.cache.CacheNames;
@@ -22,6 +21,7 @@ import com.shiqian.resource.outbox.OutboxService;
 import com.shiqian.resource.outbox.ResourceEventPayload;
 import com.shiqian.resource.service.AdminLogService;
 import com.shiqian.resource.service.AuthorEnrichmentService;
+import com.shiqian.resource.service.ContentReviewService;
 import com.shiqian.resource.service.ResourceTaxonomyService;
 import com.shiqian.resource.service.ResourceService;
 import com.shiqian.resource.service.ResourceVersionService;
@@ -59,8 +59,8 @@ public class ResourceServiceImpl implements ResourceService {
     private final ResourceAttachmentMapper resourceAttachmentMapper;
     private final FavoriteMapper favoriteMapper;
     private final OutboxService outboxService;
-    private final SensitiveWordFilter sensitiveWordFilter;
     private final AdminLogService adminLogService;
+    private final ContentReviewService contentReviewService;
     private final AuthorEnrichmentService authorEnrichmentService;
     private final ResourceTaxonomyService taxonomyService;
     private final ResourceVersionService resourceVersionService;
@@ -75,6 +75,8 @@ public class ResourceServiceImpl implements ResourceService {
         ResourceTaxonomySelection taxonomy = taxonomyService.normalize(
                 dto.getCategoryId(), dto.getCategoryIds(), dto.getTags(), dto.getTagNames());
         validateContent(
+                userId,
+                null,
                 dto.getTitle(),
                 dto.getSummary(),
                 dto.getContentMarkdown(),
@@ -196,6 +198,8 @@ public class ResourceServiceImpl implements ResourceService {
         ResourceTaxonomySelection taxonomy = taxonomyService.normalize(
                 dto.getCategoryId(), dto.getCategoryIds(), dto.getTags(), dto.getTagNames());
         validateContent(
+                userId,
+                id,
                 dto.getTitle(),
                 dto.getSummary(),
                 dto.getContentMarkdown(),
@@ -344,7 +348,7 @@ public class ResourceServiceImpl implements ResourceService {
     }
 
     private void applyReview(Long resourceId, Integer status, String reason, Long operatorId) {
-        Resource existing = resourceMapper.selectById(resourceId);
+        Resource existing = resourceMapper.selectByIdForUpdate(resourceId);
         if (existing == null || existing.getDeleted() == 1) {
             throw new BusinessException("资源不存在");
         }
@@ -355,6 +359,11 @@ public class ResourceServiceImpl implements ResourceService {
         if ((status == STATUS_NEEDS_CHANGES || status == STATUS_REJECTED || status == STATUS_OFFLINE)
                 && !StringUtils.hasText(normalizedReason)) {
             throw new BusinessException("退回、拒绝或下架时必须填写原因");
+        }
+        if (existing.getStatus() != null
+                && existing.getStatus().equals(status)
+                && java.util.Objects.equals(existing.getReviewReason(), normalizedReason)) {
+            throw new BusinessException(409, "资源已处于该审核状态，请勿重复操作");
         }
 
         LocalDateTime now = LocalDateTime.now();
@@ -381,6 +390,12 @@ public class ResourceServiceImpl implements ResourceService {
             default -> "RESOURCE_REVIEW";
         };
         adminLogService.recordLog(operatorId, action, resourceId, normalizedReason);
+        contentReviewService.recordManual(
+                resourceId,
+                existing.getUserId(),
+                operatorId,
+                status,
+                normalizedReason);
 
         outboxService.append(
                 OutboxEventType.RESOURCE_AUDITED,
@@ -555,13 +570,20 @@ public class ResourceServiceImpl implements ResourceService {
         return result;
     }
 
-    private void validateContent(String title, String summary, String contentMarkdown, String tags) {
-        if (sensitiveWordFilter.contains(title) ||
-            (summary != null && sensitiveWordFilter.contains(summary)) ||
-            (contentMarkdown != null && sensitiveWordFilter.contains(contentMarkdown)) ||
-            (tags != null && sensitiveWordFilter.contains(tags))) {
-            throw new BusinessException("资源内容包含敏感词");
-        }
+    private void validateContent(
+            Long submitterId,
+            Long resourceId,
+            String title,
+            String summary,
+            String contentMarkdown,
+            String tags) {
+        contentReviewService.inspectOrReject(
+                submitterId,
+                resourceId,
+                title,
+                summary,
+                contentMarkdown,
+                tags);
     }
 
     private void validateContentSource(

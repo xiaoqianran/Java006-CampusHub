@@ -2,6 +2,8 @@ package com.shiqian.resource.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shiqian.common.result.Result;
+import com.shiqian.common.ratelimit.DistributedRateLimit;
+import com.shiqian.common.ratelimit.RateLimitKeyMode;
 import com.shiqian.common.security.SecurityUtil;
 import com.shiqian.resource.document.ResourceDocument;
 import com.shiqian.resource.dto.FileDownloadVO;
@@ -62,6 +64,7 @@ public class ResourceController {
     @Operation(summary = "创建资源")
     @PostMapping
     @PreAuthorize("hasAuthority('resource:create')")
+    @DistributedRateLimit(name = "resource:publish", limit = 10, windowSeconds = 60, keyMode = RateLimitKeyMode.USER)
     public Result<Long> createResource(@RequestBody @Valid ResourceCreateDTO dto) {
         Long userId = SecurityUtil.getCurrentUserId();
         if (userId == null) {
@@ -239,6 +242,7 @@ public class ResourceController {
 
     @Operation(summary = "下载资源")
     @PostMapping("/{id}/download")
+    @DistributedRateLimit(name = "resource:download", limit = 30, windowSeconds = 60)
     public Result<FileDownloadVO> downloadResource(@PathVariable @Positive Long id) {
         Long userId = SecurityUtil.getCurrentUserId();
         Resource resource = resourceService.getResourceById(id);
@@ -265,6 +269,7 @@ public class ResourceController {
 
     @Operation(summary = "记录资源浏览次数（支持匿名访问，详情页加载后调用）")
     @PostMapping("/{id}/view")
+    @DistributedRateLimit(name = "resource:view", limit = 120, windowSeconds = 60)
     public Result<Void> viewResource(@PathVariable @Positive Long id) {
         // 直接更新计数（与下载不同，不使用MQ），不要求登录；存在性由service校验
         resourceService.incrementViewCount(id);
@@ -273,6 +278,7 @@ public class ResourceController {
 
     @Operation(summary = "收藏资源")
     @PostMapping("/{id}/favorite")
+    @DistributedRateLimit(name = "resource:favorite", limit = 30, windowSeconds = 60, keyMode = RateLimitKeyMode.USER)
     public Result<Void> addFavorite(@PathVariable @Positive Long id) {
         Long userId = SecurityUtil.getCurrentUserId();
         if (userId == null) {
@@ -305,6 +311,7 @@ public class ResourceController {
 
     @Operation(summary = "搜索资源")
     @GetMapping("/search")
+    @DistributedRateLimit(name = "resource:search", limit = 60, windowSeconds = 60)
     public Result<Page<Resource>> search(
             @RequestParam @NotBlank @Size(max = 100) String keyword,
             @RequestParam(defaultValue = "1") @Min(1) Integer page,
@@ -354,6 +361,7 @@ public class ResourceController {
     @Operation(summary = "审核或调整资源状态")
     @PutMapping("/{id}/audit")
     @PreAuthorize("hasAuthority('resource:audit')")
+    @DistributedRateLimit(name = "resource:audit", limit = 30, windowSeconds = 60, keyMode = RateLimitKeyMode.USER)
     public Result<Void> auditResource(@PathVariable @Positive Long id,
                                       @RequestParam(required = false) Integer status,
                                       @RequestBody(required = false) @Valid ResourceReviewDTO reviewDTO) {

@@ -5,22 +5,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import java.util.Arrays;
-import java.util.List;
-
 /**
- * 敏感词过滤配置。
+ * DFA 过滤器由数据库敏感词服务热更新。
  */
 @Configuration
 public class SensitiveWordConfig {
 
     @Bean
-    public SensitiveWordFilter sensitiveWordFilter(
-            @Value("${content.sensitive-words:违规,敏感词,广告}") String sensitiveWords) {
-        List<String> words = Arrays.stream(sensitiveWords.split(","))
-                .map(String::trim)
-                .filter(word -> !word.isEmpty())
-                .toList();
-        return new SensitiveWordFilter(words);
+    public SensitiveWordFilter sensitiveWordFilter() {
+        return new SensitiveWordFilter(java.util.List.of());
     }
 }

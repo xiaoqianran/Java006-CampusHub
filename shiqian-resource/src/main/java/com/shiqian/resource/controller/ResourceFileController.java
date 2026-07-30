@@ -1,6 +1,8 @@
 package com.shiqian.resource.controller;
 
 import com.shiqian.common.result.Result;
+import com.shiqian.common.ratelimit.DistributedRateLimit;
+import com.shiqian.common.ratelimit.RateLimitKeyMode;
 import com.shiqian.common.security.SecurityUtil;
 import com.shiqian.resource.config.ResourceStorageProperties;
 import com.shiqian.resource.dto.ArchivePreviewVO;
@@ -79,6 +81,7 @@ public class ResourceFileController {
     @Operation(summary = "批量上传资源附件")
     @PostMapping
     @PreAuthorize("hasAuthority('resource:create')")
+    @DistributedRateLimit(name = "resource:upload", limit = 20, windowSeconds = 60, keyMode = RateLimitKeyMode.USER)
     public Result<List<FileUploadVO>> uploadFiles(
             @RequestParam(value = "files", required = false) List<MultipartFile> files,
             @RequestParam(value = "file", required = false) MultipartFile file) {

@@ -2,6 +2,8 @@ package com.shiqian.user.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shiqian.common.result.Result;
+import com.shiqian.common.ratelimit.DistributedRateLimit;
+import com.shiqian.common.ratelimit.RateLimitKeyMode;
 import com.shiqian.common.security.SecurityUtil;
 import com.shiqian.user.dto.LoginDTO;
 import com.shiqian.user.dto.LoginVO;
@@ -59,6 +61,7 @@ public class UserController {
 
     @Operation(summary = "用户注册")
     @PostMapping("/register")
+    @DistributedRateLimit(name = "user:register", limit = 5, windowSeconds = 3600, keyMode = RateLimitKeyMode.IP)
     public Result<Void> register(@RequestBody @Valid RegisterDTO registerDTO) {
         userService.register(registerDTO);
         return Result.ok();
@@ -66,6 +69,7 @@ public class UserController {
 
     @Operation(summary = "用户登录")
     @PostMapping("/login")
+    @DistributedRateLimit(name = "user:login", limit = 10, windowSeconds = 60, keyMode = RateLimitKeyMode.IP)
     public Result<LoginVO> login(@RequestBody @Valid LoginDTO loginDTO) {
         LoginVO loginVO = userService.login(loginDTO);
         return Result.ok(loginVO);
@@ -73,6 +77,7 @@ public class UserController {
 
     @Operation(summary = "刷新访问令牌（使用 refreshToken 重新签发 accessToken + refreshToken）")
     @PostMapping("/refresh")
+    @DistributedRateLimit(name = "user:refresh", limit = 30, windowSeconds = 60, keyMode = RateLimitKeyMode.IP)
     public Result<LoginVO> refresh(@RequestBody Map<String, String> body) {
         String refreshToken = body != null ? body.get("refreshToken") : null;
         LoginVO loginVO = userService.refresh(refreshToken);

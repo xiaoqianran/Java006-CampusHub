@@ -46,3 +46,8 @@ management:
   metrics:
     tags:
       application: shiqian-user
+
+platform:
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    fail-open: ${RATE_LIMIT_FAIL_OPEN:false}
