@@ -1,11 +1,19 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { UploadRawFile, UploadUserFile } from 'element-plus'
 import { Close, UploadFilled } from '@element-plus/icons-vue'
 import { useAppStore, type UploadedFileItem, type ResourceAttachmentItem } from '@/stores/app'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
+import {
+  MAX_RESOURCE_FILE_COUNT,
+  RESOURCE_FILE_ACCEPT,
+  formatFileSize,
+  uploadFilesByTier,
+  validateResourceFile,
+  type UploadTierName
+} from '@/utils/resourceUpload'
 
 const route = useRoute()
 const router = useRouter()
@@ -20,7 +28,11 @@ const existingAttachments = ref<ResourceAttachmentItem[]>([])
 const uploadedFiles = ref<UploadedFileItem[]>([])  // 新增/替换的附件（编辑时支持多）
 const uploadProgress = ref(0)
 const uploadErrors = ref<string[]>([])
+const uploadStage = ref('')
 const showPreview = ref(false)
+let uploadController: AbortController | null = null
+let currentUploadPromise: Promise<void> | null = null
+let autoUploadTimer: number | null = null
 
 const form = reactive({
   title: '',
@@ -35,6 +47,14 @@ const canSubmit = computed(() => {
     || uploadedFiles.value.length > 0
   return Boolean(resourceId.value && form.title.trim() && form.cat && (form.contentMarkdown.trim() || hasFiles))
 })
+const attachmentCount = computed(() => existingAttachments.value.length + uploadedFiles.value.length)
+
+watch(
+  () => selectedFiles.value.map(item => item.uid).join(','),
+  () => {
+    if (selectedFiles.value.length && !uploading.value) scheduleImmediateUpload()
+  }
+)
 
 function fillForm() {
   const resource = store.getResource(resourceId.value)
@@ -85,84 +105,95 @@ onMounted(async () => {
   }
 })
 
-// ===== upload UX helpers (validation + simple per-file progress) =====
-function getFileExt(file: { name?: string }): string {
-  const n = file?.name || ''
-  const i = n.lastIndexOf('.')
-  return i > -1 ? n.slice(i + 1).toLowerCase() : ''
-}
+onUnmounted(() => {
+  if (autoUploadTimer) clearTimeout(autoUploadTimer)
+  uploadController?.abort()
+})
 
-function isAllowedFile(file: File): boolean {
-  const ext = getFileExt(file)
-  const allowedExts = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'jpg', 'jpeg', 'png', 'gif', 'zip', 'rar', '7z']
-  if (allowedExts.includes(ext)) return true
-  const type = (file as any).type || ''
-  return type.startsWith('image/') || type === 'application/pdf' || /word|excel|powerpoint|text|zip|rar/.test(type)
+function scheduleImmediateUpload() {
+  if (autoUploadTimer) clearTimeout(autoUploadTimer)
+  autoUploadTimer = window.setTimeout(() => {
+    autoUploadTimer = null
+    void uploadSelectedFiles().catch(error => {
+      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+        ElMessage.error(error instanceof Error ? error.message : '附件上传失败')
+      }
+    })
+  }, 120)
 }
-
-const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB client-side limit
 
 async function uploadSelectedFiles() {
-  let files = selectedFiles.value
+  if (currentUploadPromise) return currentUploadPromise
+
+  const task = performSelectedUpload()
+  currentUploadPromise = task
+  try {
+    await task
+  } finally {
+    if (currentUploadPromise === task) currentUploadPromise = null
+  }
+}
+
+async function performSelectedUpload() {
+  const pendingItems = [...selectedFiles.value]
+  selectedFiles.value = []
+  const files = pendingItems
     .map(item => item.raw)
     .filter((item): item is UploadRawFile => Boolean(item))
 
-  if (!files.length) {
-    throw new Error('请先选择附件')
-  }
+  if (!files.length) return
 
-  // client-side validation: size + type whitelist (pdf/doc/image etc)
-  const validFiles: UploadRawFile[] = []
-  const errors: string[] = []
-  for (const f of files) {
-    if (f.size > MAX_FILE_SIZE) {
-      errors.push(`${f.name}: 超过50MB限制`)
-    } else if (!isAllowedFile(f)) {
-      errors.push(`${f.name}: 不支持的文件类型（仅限文档/图片/压缩包）`)
-    } else {
-      validFiles.push(f)
-    }
+  uploadErrors.value = []
+  const remainingCount = Math.max(0, MAX_RESOURCE_FILE_COUNT - attachmentCount.value)
+  const acceptedFiles = files.slice(0, remainingCount)
+  if (files.length > remainingCount) {
+    uploadErrors.value.push(`每个资源最多保留 ${MAX_RESOURCE_FILE_COUNT} 个附件`)
   }
-  if (errors.length) {
-    uploadErrors.value = errors
-  }
-  files = validFiles as UploadRawFile[]
-  if (!files.length) {
-    throw new Error('没有符合要求的文件')
-  }
+  const validFiles = acceptedFiles.filter(file => {
+    const message = validateResourceFile(file)
+    if (message) uploadErrors.value.push(message)
+    return !message
+  })
+  if (!validFiles.length) throw new Error('没有可以上传的文件')
 
   uploading.value = true
   uploadProgress.value = 0
-  uploadErrors.value = errors
-  const newlyUploaded: UploadedFileItem[] = []
+  uploadController = new AbortController()
   try {
-    // sequential for per-file progress & error feedback (reuse existing FormData+store)
-    for (let i = 0; i < files.length; i++) {
-      const f = files[i]
-      try {
-        const res = await store.uploadFiles([f])
-        if (res && res[0]) newlyUploaded.push(res[0])
-      } catch (e: any) {
-        errors.push(`${f.name}: ${e?.message || '上传失败'}`)
-        uploadErrors.value = [...errors]
+    const result = await uploadFilesByTier<UploadedFileItem>(validFiles, {
+      signal: uploadController.signal,
+      retries: 1,
+      onProgress: percentage => {
+        uploadProgress.value = percentage
+      },
+      onTierChange: (tier: UploadTierName, concurrency: number) => {
+        uploadStage.value = `${tier}上传中（并发 ${concurrency}）`
+      },
+      onRetry: file => {
+        uploadStage.value = `${file.name} 上传失败，正在自动重试`
+      },
+      onFileUploaded: (_file, uploadedFile) => {
+        uploadedFiles.value = [...uploadedFiles.value, uploadedFile]
+      },
+      worker: async (file, onProgress) => {
+        const response = await store.uploadFiles([file], {
+          signal: uploadController?.signal,
+          onProgress
+        })
+        if (!response[0]) throw new Error('上传接口未返回文件信息')
+        return response[0]
       }
-      uploadProgress.value = Math.round(((i + 1) / files.length) * 100)
-    }
-    // 支持添加更多：追加而非替换（区别于Publish的初次）
-    uploadedFiles.value = [...uploadedFiles.value, ...newlyUploaded]
-    selectedFiles.value = []
-    const successCount = newlyUploaded.length
-    const errorCount = errors.length
-    if (successCount) {
-      ElMessage.success(`已上传 ${successCount} 个新附件${errorCount ? `（${errorCount} 个失败）` : ''}`)
-    } else if (errorCount) {
-      ElMessage.error('全部文件上传失败')
-    }
+    })
+
+    result.failures.forEach(({ file, error }) => {
+      uploadErrors.value.push(`${file.name}：${error instanceof Error ? error.message : '上传失败'}`)
+    })
+    if (!result.results.length) throw new Error('附件上传失败')
+    ElMessage.success(`已上传 ${result.results.length} 个新附件`)
   } finally {
     uploading.value = false
-    setTimeout(() => {
-      if (!uploading.value) uploadProgress.value = 0
-    }, 800)
+    uploadController = null
+    uploadStage.value = ''
   }
 }
 
@@ -180,6 +211,15 @@ function removeUploadedFile(index: number) {
   uploadedFiles.value.splice(index, 1)
 }
 
+function cancelUpload() {
+  uploadController?.abort()
+  uploadStage.value = '正在取消上传'
+}
+
+function handleExceed() {
+  ElMessage.warning(`每个资源最多保留 ${MAX_RESOURCE_FILE_COUNT} 个附件`)
+}
+
 async function submit() {
   if (!canSubmit.value) {
     ElMessage.warning('请填写标题、分类，并至少保留正文或一个附件')
@@ -188,6 +228,7 @@ async function submit() {
 
   submitting.value = true
   try {
+    if (currentUploadPromise) await currentUploadPromise
     if (selectedFiles.value.length) {
       await uploadSelectedFiles()
     }
@@ -243,11 +284,22 @@ async function submit() {
           </el-col>
           <el-col :span="24">
             <el-form-item label="附件（多附件支持：可移除现有，添加新上传；保存时全量替换）">
+              <el-alert
+                title="支持 PDF、Office、TXT/Markdown、图片、压缩包及常见源码；选中后立即上传。"
+                type="info"
+                :closable="false"
+                show-icon
+                style="margin-bottom: 12px"
+              />
               <el-upload
                 v-model:file-list="selectedFiles"
                 drag
                 multiple
                 action="#"
+                :accept="RESOURCE_FILE_ACCEPT"
+                :limit="MAX_RESOURCE_FILE_COUNT"
+                :disabled="uploading || attachmentCount >= MAX_RESOURCE_FILE_COUNT"
+                :on-exceed="handleExceed"
                 :auto-upload="false"
                 :show-file-list="false"
                 class="upload-panel"
@@ -267,16 +319,15 @@ async function submit() {
               >
                 <div style="flex:1; min-width:0; overflow:hidden;">
                   <b style="word-break:break-all;">{{ file.name }}</b>
-                  <span v-if="file.size != null" class="sub">{{ file.size }} 字节</span>
+                  <span v-if="file.size != null" class="sub">{{ formatFileSize(file.size) }}</span>
                 </div>
                 <el-button size="small" type="danger" text :icon="Close" title="移除此文件" @click="removeSelectedFile(index)" />
               </div>
             </div>
 
-            <!-- upload progress + per-file error feedback (minimal addition for edit) -->
-            <div v-if="uploading || uploadProgress > 0" style="margin: 8px 0 4px;">
+            <div v-if="uploading" class="edit-upload-progress">
+              <div><span>{{ uploadStage }}</span><el-button text type="danger" @click="cancelUpload">取消上传</el-button></div>
               <el-progress :percentage="uploadProgress" :stroke-width="18" :text-inside="true" />
-              <div style="font-size: 12px; color: #909399; margin-top: 2px;">文件上传中，请稍候…</div>
             </div>
             <div v-if="uploadErrors.length" style="margin: 4px 0; padding: 6px 8px; background: #fef0f0; color: #f56c6c; font-size: 12px; border-radius: 4px; line-height: 1.4;">
               验证/上传问题：{{ uploadErrors.join('； ') }}
@@ -346,7 +397,7 @@ async function submit() {
           </el-col>
         </el-row>
 
-        <el-button type="primary" :loading="submitting || uploading" :disabled="!canSubmit" @click="submit">保存修改</el-button>
+        <el-button type="primary" :loading="submitting" :disabled="!canSubmit || uploading" @click="submit">保存修改</el-button>
         <el-button @click="router.back()">取消</el-button>
       </el-form>
     </el-card>
@@ -360,5 +411,17 @@ async function submit() {
   padding: 16px;
   border: 1px solid var(--el-border-color);
   border-radius: 8px;
+}
+
+.edit-upload-progress {
+  margin: 8px 0;
+}
+
+.edit-upload-progress > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
 }
 </style>

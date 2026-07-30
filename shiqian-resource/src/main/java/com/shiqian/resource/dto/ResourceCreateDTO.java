@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.Valid;
 import lombok.Data;
 
 import java.util.List;
@@ -38,5 +39,7 @@ public class ResourceCreateDTO {
     private String fileType;
 
     // 附件列表（第二阶段正式支持）
+    @Valid
+    @Size(max = 10, message = "每个资源最多上传10个附件")
     private List<AttachmentCreateDTO> attachments;
 }

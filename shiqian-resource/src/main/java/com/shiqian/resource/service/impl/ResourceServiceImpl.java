@@ -64,7 +64,8 @@ public class ResourceServiceImpl implements ResourceService {
                 dto.getContentMarkdown(),
                 dto.getFileUrl(),
                 dto.getAttachments(),
-                false);
+                false,
+                dto.getContentType());
         Category category = categoryService.getCategoryById(dto.getCategoryId());
         if (category == null || category.getDeleted() == 1) {
             throw new BusinessException("分类不存在");
@@ -171,7 +172,8 @@ public class ResourceServiceImpl implements ResourceService {
                 effectiveContentMarkdown,
                 effectiveFileUrl,
                 dto.getAttachments(),
-                keepExistingAttachments);
+                keepExistingAttachments,
+                dto.getContentType());
 
         Category category = categoryService.getCategoryById(dto.getCategoryId());
         if (category == null || category.getDeleted() == 1) {
@@ -453,13 +455,33 @@ public class ResourceServiceImpl implements ResourceService {
             String contentMarkdown,
             String fileUrl,
             List<AttachmentCreateDTO> attachments,
-            boolean hasExistingAttachments) {
+            boolean hasExistingAttachments,
+            String requestedContentType) {
         boolean hasText = StringUtils.hasText(contentMarkdown);
         boolean hasLegacyFile = StringUtils.hasText(fileUrl);
         boolean hasAttachments = hasExistingAttachments || (attachments != null && attachments.stream()
                 .filter(java.util.Objects::nonNull)
                 .anyMatch(item -> StringUtils.hasText(item.getFileUrl())));
-        if (!hasText && !hasLegacyFile && !hasAttachments) {
+        boolean hasFiles = hasLegacyFile || hasAttachments;
+
+        if (StringUtils.hasText(requestedContentType)) {
+            String contentType = requestedContentType.trim().toUpperCase(java.util.Locale.ROOT);
+            if (!java.util.Set.of("FILE", "ARTICLE", "MIXED").contains(contentType)) {
+                throw new BusinessException("内容类型不合法");
+            }
+            if ("FILE".equals(contentType) && !hasFiles) {
+                throw new BusinessException("文件资料必须上传至少一个附件");
+            }
+            if ("ARTICLE".equals(contentType) && !hasText) {
+                throw new BusinessException("文章正文不能为空");
+            }
+            if ("MIXED".equals(contentType) && (!hasText || !hasFiles)) {
+                throw new BusinessException("图文资料必须同时填写正文并上传附件");
+            }
+            return;
+        }
+
+        if (!hasText && !hasFiles) {
             throw new BusinessException("请至少填写正文或上传一个附件");
         }
     }

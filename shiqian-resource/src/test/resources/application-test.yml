@@ -41,6 +41,15 @@ jwt:
   access-token-expiration: 7200000
   refresh-token-expiration: 604800000
 
+resource:
+  upload-dir: target/test-uploads
+  upload:
+    max-file-size: 52428800
+    max-files-per-request: 10
+    max-concurrent-files: 16
+    max-user-storage: 1073741824
+    allowed-extensions: pdf,doc,docx,xls,xlsx,ppt,pptx,txt,md,jpg,jpeg,png,gif,zip,rar,7z,java,py,js,ts,vue,c,cpp,h,go,rs,sql,json,xml,yaml,yml,html,css,sh
+
 mybatis-plus:
   mapper-locations: classpath*:mapper/**/*.xml
   configuration:

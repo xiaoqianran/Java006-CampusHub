@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { clearTokens, jsonBody, refreshAccessToken, request, setTokens, type PageResult } from '@/api/client'
+import { clearTokens, jsonBody, refreshAccessToken, request, setTokens, uploadRequest, type PageResult } from '@/api/client'
 
 export type Role = 'student' | 'admin'
 export type ResourceStatus = '已发布' | '待审核' | '待修改' | '已拒绝' | '已下架'
@@ -148,7 +148,7 @@ interface ResourceSubmitPayload {
   title: string
   cat: string
   summary: string
-  contentMarkdown: string
+  contentMarkdown?: string
   attachments?: UploadedFileItem[]
   files?: UploadedFileItem[]   // 临时兼容，submitResource 内部处理
 }
@@ -797,13 +797,13 @@ export const useAppStore = defineStore('app', () => {
     myResourcesLoadedAt.clear()
   }
 
-  async function uploadFiles(files: File[]) {
+  async function uploadFiles(
+    files: File[],
+    options: { signal?: AbortSignal, onProgress?: (percentage: number) => void } = {}
+  ) {
     const body = new FormData()
     files.forEach(file => body.append('files', file))
-    return request<UploadedFileItem[]>('/api/resource/files', {
-      method: 'POST',
-      body
-    })
+    return uploadRequest<UploadedFileItem[]>('/api/resource/files', body, options)
   }
 
   async function submitResource(payload: ResourceSubmitPayload) {
@@ -823,7 +823,8 @@ export const useAppStore = defineStore('app', () => {
       sortOrder: (file as any).sortOrder ?? index
     }))
 
-    const contentType = attachments.length && payload.contentMarkdown.trim()
+    const contentMarkdown = payload.contentMarkdown?.trim() || ''
+    const contentType = attachments.length && contentMarkdown
       ? 'MIXED'
       : attachments.length
         ? 'FILE'
@@ -836,7 +837,7 @@ export const useAppStore = defineStore('app', () => {
         title: payload.title,
         categoryId: categoryIdValue,
         summary: payload.summary,
-        contentMarkdown: payload.contentMarkdown,
+        contentMarkdown: contentMarkdown || null,
         contentType,
         attachments
       })

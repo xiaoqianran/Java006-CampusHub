@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.Valid;
 import lombok.Data;
 
 import java.util.List;
@@ -40,5 +41,7 @@ public class ResourceUpdateDTO {
     private String fileType;
 
     // 附件列表（编辑时可选：提供则替换所有旧附件，支持多附件；不提供则保留原有）
+    @Valid
+    @Size(max = 10, message = "每个资源最多保留10个附件")
     private List<AttachmentCreateDTO> attachments;
 }

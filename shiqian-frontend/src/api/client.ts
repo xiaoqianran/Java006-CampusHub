@@ -14,6 +14,7 @@ export interface PageResult<T> {
 
 const runtimeConfig = window.__SHIQIAN_CONFIG__ || {}
 const API_BASE = runtimeConfig.apiBaseUrl || import.meta.env.VITE_API_BASE_URL || ''
+let refreshInFlight: Promise<{ accessToken: string; refreshToken: string }> | null = null
 
 export function buildApiUrl(path: string, query?: Record<string, unknown>) {
   if (/^https?:\/\//.test(path)) {
@@ -41,23 +42,33 @@ export function clearTokens() {
 }
 
 export async function refreshAccessToken(): Promise<{ accessToken: string; refreshToken: string }> {
-  const refreshToken = getRefreshToken()
-  if (!refreshToken) {
-    throw new Error('无 refreshToken')
+  if (refreshInFlight) return refreshInFlight
+
+  const task = (async () => {
+    const refreshToken = getRefreshToken()
+    if (!refreshToken) {
+      throw new Error('无 refreshToken')
+    }
+    // 多文件并发遇到 401 时共享同一次刷新，避免重复刷新导致令牌竞争。
+    const resp = await fetch(buildUrl('/api/user/refresh'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken })
+    })
+    const result = await resp.json().catch(() => null) as Result<any> | null
+    if (!resp.ok || !result || result.code !== 200 || !result.data) {
+      throw new Error(result?.message || '刷新令牌失败')
+    }
+    const data = result.data as { accessToken: string; refreshToken: string }
+    setTokens(data.accessToken, data.refreshToken)
+    return data
+  })()
+  refreshInFlight = task
+  try {
+    return await task
+  } finally {
+    if (refreshInFlight === task) refreshInFlight = null
   }
-  // 直接 fetch，避免循环依赖 request 自身
-  const resp = await fetch(buildUrl('/api/user/refresh'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken })
-  })
-  const result = await resp.json().catch(() => null) as Result<any> | null
-  if (!resp.ok || !result || result.code !== 200 || !result.data) {
-    throw new Error(result?.message || '刷新令牌失败')
-  }
-  const data = result.data as { accessToken: string; refreshToken: string }
-  setTokens(data.accessToken, data.refreshToken)
-  return data
 }
 
 function buildUrl(path: string, query?: Record<string, unknown>) {
@@ -115,6 +126,82 @@ export async function request<T>(path: string, options: RequestInit & { query?: 
     throw new Error(result.message || '操作失败')
   }
   return result.data
+}
+
+interface UploadRequestOptions {
+  signal?: AbortSignal
+  onProgress?: (percentage: number) => void
+}
+
+function uploadOnce<T>(
+  path: string,
+  body: FormData,
+  token: string,
+  options: UploadRequestOptions
+): Promise<{ status: number; result: Result<T> | null }> {
+  return new Promise((resolve, reject) => {
+    if (options.signal?.aborted) {
+      reject(new DOMException('上传已取消', 'AbortError'))
+      return
+    }
+
+    const xhr = new XMLHttpRequest()
+    const abort = () => xhr.abort()
+    xhr.open('POST', buildUrl(path))
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+
+    xhr.upload.onprogress = event => {
+      if (event.lengthComputable && event.total > 0) {
+        options.onProgress?.(Math.round(event.loaded / event.total * 100))
+      }
+    }
+    xhr.onload = () => {
+      options.signal?.removeEventListener('abort', abort)
+      let result: Result<T> | null = null
+      try {
+        result = JSON.parse(xhr.responseText) as Result<T>
+      } catch {
+        result = null
+      }
+      resolve({ status: xhr.status, result })
+    }
+    xhr.onerror = () => {
+      options.signal?.removeEventListener('abort', abort)
+      reject(new Error('上传网络异常'))
+    }
+    xhr.onabort = () => {
+      options.signal?.removeEventListener('abort', abort)
+      reject(new DOMException('上传已取消', 'AbortError'))
+    }
+    options.signal?.addEventListener('abort', abort, { once: true })
+    xhr.send(body)
+  })
+}
+
+export async function uploadRequest<T>(
+  path: string,
+  body: FormData,
+  options: UploadRequestOptions = {}
+) {
+  let token = getAccessToken()
+  let response = await uploadOnce<T>(path, body, token, options)
+  const isAuthError = response.status === 401 || response.result?.code === 401
+
+  if (isAuthError && getRefreshToken() && !options.signal?.aborted) {
+    await refreshAccessToken()
+    token = getAccessToken()
+    options.onProgress?.(0)
+    response = await uploadOnce<T>(path, body, token, options)
+  }
+
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(response.result?.message || `HTTP ${response.status}`)
+  }
+  if (!response.result) throw new Error('上传接口返回为空')
+  if (response.result.code !== 200) {
+    throw new Error(response.result.message || '上传失败')
+  }
+  return response.result.data
 }
 
 export function jsonBody(payload: unknown) {

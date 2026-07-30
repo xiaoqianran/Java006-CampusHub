@@ -1,6 +1,7 @@
 package com.shiqian.resource.controller;
 
 import com.shiqian.common.result.Result;
+import com.shiqian.common.security.SecurityUtil;
 import com.shiqian.resource.dto.FileUploadVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,8 +28,17 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Tag(name = "资源文件", description = "资源附件上传与访问")
 @Slf4j
@@ -37,9 +47,30 @@ import java.util.UUID;
 public class ResourceFileController {
 
     private final Path uploadPath;
+    private final long maxFileSize;
+    private final int maxFilesPerRequest;
+    private final long maxUserStorage;
+    private final Set<String> allowedExtensions;
+    private final Semaphore uploadSlots;
+    private final ConcurrentMap<Long, AtomicLong> userStorageUsage = new ConcurrentHashMap<>();
 
-    public ResourceFileController(@Value("${resource.upload-dir:uploads/resources}") String uploadDir) {
+    public ResourceFileController(
+            @Value("${resource.upload-dir:uploads/resources}") String uploadDir,
+            @Value("${resource.upload.max-file-size:52428800}") long maxFileSize,
+            @Value("${resource.upload.max-files-per-request:10}") int maxFilesPerRequest,
+            @Value("${resource.upload.max-user-storage:1073741824}") long maxUserStorage,
+            @Value("${resource.upload.max-concurrent-files:16}") int maxConcurrentFiles,
+            @Value("${resource.upload.allowed-extensions:pdf,doc,docx,xls,xlsx,ppt,pptx,txt,md,jpg,jpeg,png,gif,zip,rar,7z,java,py,js,ts,vue,c,cpp,h,go,rs,sql,json,xml,yaml,yml,html,css,sh}")
+            String allowedExtensions) {
         this.uploadPath = Path.of(uploadDir).toAbsolutePath().normalize();
+        this.maxFileSize = maxFileSize;
+        this.maxFilesPerRequest = maxFilesPerRequest;
+        this.maxUserStorage = maxUserStorage;
+        this.uploadSlots = new Semaphore(Math.max(1, maxConcurrentFiles), true);
+        this.allowedExtensions = Arrays.stream(allowedExtensions.split(","))
+                .map(item -> item.trim().toLowerCase(Locale.ROOT))
+                .filter(StringUtils::hasText)
+                .collect(Collectors.toUnmodifiableSet());
     }
 
     @Operation(summary = "批量上传资源附件")
@@ -60,36 +91,74 @@ public class ResourceFileController {
             return Result.fail(400, "请选择要上传的文件");
         }
 
-        Files.createDirectories(uploadPath);
-        List<FileUploadVO> result = new ArrayList<>();
-        for (MultipartFile uploadFile : uploadFiles) {
-            if (uploadFile.isEmpty()) {
-                continue;
-            }
-            String originalName = StringUtils.cleanPath(uploadFile.getOriginalFilename() == null
-                    ? "resource-file"
-                    : uploadFile.getOriginalFilename());
-            String ext = "";
-            int dotIndex = originalName.lastIndexOf('.');
-            if (dotIndex >= 0) {
-                ext = originalName.substring(dotIndex);
-            }
-            String storedName = UUID.randomUUID() + ext;
-            Path target = uploadPath.resolve(storedName).normalize();
-            if (!target.startsWith(uploadPath)) {
-                return Result.fail(400, "非法文件名");
-            }
-            Files.copy(uploadFile.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
-
-            FileUploadVO vo = new FileUploadVO();
-            vo.setOriginalName(originalName);
-            vo.setFileUrl("/api/resource/files/" + UriUtils.encodePathSegment(storedName, StandardCharsets.UTF_8));
-            vo.setFileSize(uploadFile.getSize());
-            vo.setFileType(resolveFileType(uploadFile, originalName));
-            result.add(vo);
+        Long userId = SecurityUtil.getCurrentUserId();
+        if (userId == null) {
+            return Result.fail(401, "未登录");
         }
-        log.info("资源附件上传成功: count={}", result.size());
-        return Result.ok(result);
+
+        List<MultipartFile> nonEmptyFiles = uploadFiles.stream()
+                .filter(item -> item != null && !item.isEmpty())
+                .toList();
+        if (nonEmptyFiles.isEmpty()) {
+            return Result.fail(400, "不能上传空文件");
+        }
+        if (nonEmptyFiles.size() > maxFilesPerRequest) {
+            return Result.fail(400, "单次最多上传" + maxFilesPerRequest + "个文件");
+        }
+
+        for (MultipartFile uploadFile : nonEmptyFiles) {
+            String validationError = validateFile(uploadFile);
+            if (validationError != null) {
+                return Result.fail(400, validationError);
+            }
+        }
+
+        int permits = nonEmptyFiles.size();
+        if (!uploadSlots.tryAcquire(permits)) {
+            return Result.fail(429, "当前上传任务较多，请稍后重试");
+        }
+        try {
+            long batchSize = nonEmptyFiles.stream().mapToLong(MultipartFile::getSize).sum();
+            if (!reserveUserStorage(userId, batchSize)) {
+                return Result.fail(400, "个人文件空间不足，当前上限为1GB");
+            }
+
+            Path userUploadPath = uploadPath.resolve(String.valueOf(userId)).normalize();
+            List<FileUploadVO> result = new ArrayList<>();
+            List<Path> createdFiles = new ArrayList<>();
+            try {
+                Files.createDirectories(userUploadPath);
+                for (MultipartFile uploadFile : nonEmptyFiles) {
+                    String originalName = StringUtils.cleanPath(uploadFile.getOriginalFilename());
+                    String ext = originalName.substring(originalName.lastIndexOf('.')).toLowerCase(Locale.ROOT);
+                    String storedName = UUID.randomUUID() + ext;
+                    Path target = userUploadPath.resolve(storedName).normalize();
+                    if (!target.startsWith(userUploadPath)) {
+                        throw new IOException("非法文件名");
+                    }
+                    Files.copy(uploadFile.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
+                    createdFiles.add(target);
+
+                    FileUploadVO vo = new FileUploadVO();
+                    vo.setOriginalName(originalName);
+                    vo.setFileUrl("/api/resource/files/" + userId + "/"
+                            + UriUtils.encodePathSegment(storedName, StandardCharsets.UTF_8));
+                    vo.setFileSize(uploadFile.getSize());
+                    vo.setFileType(resolveFileType(uploadFile, originalName));
+                    result.add(vo);
+                }
+            } catch (IOException error) {
+                for (Path createdFile : createdFiles) {
+                    Files.deleteIfExists(createdFile);
+                }
+                releaseUserStorage(userId, batchSize);
+                throw error;
+            }
+            log.info("资源附件上传成功: userId={}, count={}, bytes={}", userId, result.size(), batchSize);
+            return Result.ok(result);
+        } finally {
+            uploadSlots.release(permits);
+        }
     }
 
     @Operation(summary = "访问资源附件")
@@ -116,5 +185,67 @@ public class ResourceFileController {
         }
         int dotIndex = originalName.lastIndexOf('.');
         return dotIndex >= 0 ? originalName.substring(dotIndex + 1) : "application/octet-stream";
+    }
+
+    private String validateFile(MultipartFile file) {
+        String originalName = StringUtils.cleanPath(file.getOriginalFilename() == null
+                ? ""
+                : file.getOriginalFilename());
+        if (!StringUtils.hasText(originalName) || originalName.length() > 255
+                || originalName.contains("..") || originalName.contains("/")
+                || originalName.contains("\\")) {
+            return "文件名不合法";
+        }
+        if (file.getSize() <= 0) {
+            return originalName + "：空文件不能上传";
+        }
+        if (file.getSize() > maxFileSize) {
+            return originalName + "：超过50MB";
+        }
+        int dotIndex = originalName.lastIndexOf('.');
+        String extension = dotIndex >= 0
+                ? originalName.substring(dotIndex + 1).toLowerCase(Locale.ROOT)
+                : "";
+        if (!allowedExtensions.contains(extension)) {
+            return originalName + "：不支持此文件类型";
+        }
+        return null;
+    }
+
+    private boolean reserveUserStorage(Long userId, long bytes) {
+        AtomicLong usage = userStorageUsage.computeIfAbsent(userId,
+                ignored -> new AtomicLong(calculateDirectorySize(uploadPath.resolve(String.valueOf(userId)))));
+        long reserved = usage.addAndGet(bytes);
+        if (reserved <= maxUserStorage) {
+            return true;
+        }
+        usage.addAndGet(-bytes);
+        return false;
+    }
+
+    private void releaseUserStorage(Long userId, long bytes) {
+        AtomicLong usage = userStorageUsage.get(userId);
+        if (usage != null) {
+            usage.updateAndGet(current -> Math.max(0, current - bytes));
+        }
+    }
+
+    private long calculateDirectorySize(Path directory) {
+        if (!Files.exists(directory)) {
+            return 0L;
+        }
+        try (Stream<Path> files = Files.walk(directory)) {
+            return files.filter(Files::isRegularFile)
+                    .mapToLong(path -> {
+                        try {
+                            return Files.size(path);
+                        } catch (IOException ignored) {
+                            return 0L;
+                        }
+                    })
+                    .sum();
+        } catch (IOException ignored) {
+            return 0L;
+        }
     }
 }

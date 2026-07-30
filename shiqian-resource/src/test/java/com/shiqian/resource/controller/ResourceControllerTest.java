@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shiqian.common.security.JwtUtil;
 import com.shiqian.resource.BaseResourceTest;
 import com.shiqian.resource.document.ResourceDocument;
+import com.shiqian.resource.dto.AttachmentCreateDTO;
 import com.shiqian.resource.dto.ResourceCreateDTO;
 import com.shiqian.resource.dto.ResourceUpdateDTO;
 import com.shiqian.resource.entity.Category;
@@ -18,6 +19,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -73,6 +76,29 @@ public class ResourceControllerTest extends BaseResourceTest {
         dto.setFileUrl("http://example.com/file.pdf");
         dto.setFileSize(1024L);
         dto.setFileType("application/pdf");
+
+        mockMvc.perform(post("/api/resource")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+    }
+
+    @Test
+    public void testCreateFileOnlyResourceDoesNotRequireMarkdown() throws Exception {
+        Category category = createCategory("文件资源分类");
+        ResourceCreateDTO dto = new ResourceCreateDTO();
+        dto.setTitle("仅附件资源");
+        dto.setCategoryId(category.getId());
+        dto.setContentType("FILE");
+
+        AttachmentCreateDTO attachment = new AttachmentCreateDTO();
+        attachment.setFileName("课程资料.txt");
+        attachment.setFileUrl("/api/resource/files/1/test.txt");
+        attachment.setFileSize(12L);
+        attachment.setFileType("text/plain");
+        dto.setAttachments(List.of(attachment));
 
         mockMvc.perform(post("/api/resource")
                         .header("Authorization", "Bearer " + userToken)

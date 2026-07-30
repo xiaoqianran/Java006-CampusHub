@@ -100,6 +100,7 @@ public class ResourceServiceTest extends BaseResourceTest {
         ResourceCreateDTO dto = new ResourceCreateDTO();
         dto.setTitle("附件型资源");
         dto.setCategoryId(category.getId());
+        dto.setContentType("FILE");
 
         AttachmentCreateDTO attachment = new AttachmentCreateDTO();
         attachment.setFileName("课程讲义.pdf");
@@ -114,6 +115,20 @@ public class ResourceServiceTest extends BaseResourceTest {
         assertEquals("FILE", found.getContentType());
         assertNull(found.getContentMarkdown());
         assertEquals(1, found.getAttachments().size());
+    }
+
+    @Test
+    public void testArticleContentTypeRequiresMarkdown() {
+        Category category = createCategory("文章分类");
+        ResourceCreateDTO dto = new ResourceCreateDTO();
+        dto.setTitle("空文章");
+        dto.setCategoryId(category.getId());
+        dto.setContentType("ARTICLE");
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> resourceService.createResource(1L, dto));
+
+        assertEquals("文章正文不能为空", exception.getMessage());
     }
 
     @Test

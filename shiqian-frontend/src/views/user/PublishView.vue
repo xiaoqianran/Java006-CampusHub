@@ -6,6 +6,14 @@ import { Close, Document, EditPen, Files, UploadFilled } from '@element-plus/ico
 import { useRouter } from 'vue-router'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
 import { useAppStore, type UploadedFileItem } from '@/stores/app'
+import {
+  MAX_RESOURCE_FILE_COUNT,
+  RESOURCE_FILE_ACCEPT,
+  formatFileSize,
+  uploadFilesByTier,
+  validateResourceFile,
+  type UploadTierName
+} from '@/utils/resourceUpload'
 
 type PublishMode = 'FILE' | 'ARTICLE' | 'MIXED'
 
@@ -17,7 +25,11 @@ const selectedFiles = ref<UploadUserFile[]>([])
 const uploadedFiles = ref<UploadedFileItem[]>([])
 const uploadProgress = ref(0)
 const uploadErrors = ref<string[]>([])
+const uploadStage = ref('')
 const showPreview = ref(false)
+let uploadController: AbortController | null = null
+let currentUploadPromise: Promise<void> | null = null
+let autoUploadTimer: number | null = null
 
 const form = reactive({
   mode: 'FILE' as PublishMode,
@@ -97,6 +109,12 @@ function clearDraft() {
 
 watch(form, scheduleAutoSave, { deep: true })
 watch(uploadedFiles, scheduleAutoSave, { deep: true })
+watch(
+  () => selectedFiles.value.map(item => item.uid).join(','),
+  () => {
+    if (selectedFiles.value.length && !uploading.value) scheduleImmediateUpload()
+  }
+)
 
 onMounted(() => {
   store.loadCategories().catch(() => undefined)
@@ -117,62 +135,93 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (saveTimer) clearTimeout(saveTimer)
+  if (autoUploadTimer) clearTimeout(autoUploadTimer)
+  uploadController?.abort()
 })
 
-function getFileExt(file: { name?: string }) {
-  const name = file.name || ''
-  const index = name.lastIndexOf('.')
-  return index > -1 ? name.slice(index + 1).toLowerCase() : ''
+function scheduleImmediateUpload() {
+  if (autoUploadTimer) clearTimeout(autoUploadTimer)
+  autoUploadTimer = window.setTimeout(() => {
+    autoUploadTimer = null
+    void uploadSelectedFiles().catch(error => {
+      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+        ElMessage.error(error instanceof Error ? error.message : '附件上传失败')
+      }
+    })
+  }, 120)
 }
-
-function isAllowedFile(file: File) {
-  const allowed = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'jpg', 'jpeg', 'png', 'gif', 'zip', 'rar', '7z']
-  const type = file.type || ''
-  return allowed.includes(getFileExt(file))
-    || type.startsWith('image/')
-    || /pdf|word|excel|powerpoint|text|zip|rar/.test(type)
-}
-
-const MAX_FILE_SIZE = 50 * 1024 * 1024
 
 async function uploadSelectedFiles() {
-  const files = selectedFiles.value
+  if (currentUploadPromise) return currentUploadPromise
+
+  const task = performSelectedUpload()
+  currentUploadPromise = task
+  try {
+    await task
+  } finally {
+    if (currentUploadPromise === task) currentUploadPromise = null
+  }
+}
+
+async function performSelectedUpload() {
+  const pendingItems = [...selectedFiles.value]
+  selectedFiles.value = []
+  const files = pendingItems
     .map(item => item.raw)
     .filter((item): item is UploadRawFile => Boolean(item))
   if (!files.length) return
 
-  const validFiles = files.filter(file => {
-    if (file.size > MAX_FILE_SIZE) {
-      uploadErrors.value.push(`${file.name}：超过 50MB`)
-      return false
-    }
-    if (!isAllowedFile(file)) {
-      uploadErrors.value.push(`${file.name}：不支持此文件类型`)
-      return false
-    }
-    return true
+  uploadErrors.value = []
+  const remainingCount = Math.max(0, MAX_RESOURCE_FILE_COUNT - uploadedFiles.value.length)
+  const acceptedFiles = files.slice(0, remainingCount)
+  if (files.length > remainingCount) {
+    uploadErrors.value.push(`每个资源最多上传 ${MAX_RESOURCE_FILE_COUNT} 个附件`)
+  }
+  const validFiles = acceptedFiles.filter(file => {
+    const message = validateResourceFile(file)
+    if (message) uploadErrors.value.push(message)
+    return !message
   })
   if (!validFiles.length) throw new Error('没有可以上传的文件')
 
   uploading.value = true
   uploadProgress.value = 0
-  const uploaded: UploadedFileItem[] = []
+  uploadController = new AbortController()
   try {
-    for (let index = 0; index < validFiles.length; index += 1) {
-      const file = validFiles[index]
-      try {
-        const result = await store.uploadFiles([file])
-        if (result[0]) uploaded.push(result[0])
-      } catch (error) {
-        uploadErrors.value.push(`${file.name}：${error instanceof Error ? error.message : '上传失败'}`)
+    const result = await uploadFilesByTier<UploadedFileItem>(validFiles, {
+      signal: uploadController.signal,
+      retries: 1,
+      onProgress: percentage => {
+        uploadProgress.value = percentage
+      },
+      onTierChange: (tier: UploadTierName, concurrency: number) => {
+        uploadStage.value = `${tier}上传中（并发 ${concurrency}）`
+      },
+      onRetry: file => {
+        uploadStage.value = `${file.name} 上传失败，正在自动重试`
+      },
+      onFileUploaded: (_file, uploadedFile) => {
+        uploadedFiles.value = [...uploadedFiles.value, uploadedFile]
+      },
+      worker: async (file, onProgress) => {
+        const response = await store.uploadFiles([file], {
+          signal: uploadController?.signal,
+          onProgress
+        })
+        if (!response[0]) throw new Error('上传接口未返回文件信息')
+        return response[0]
       }
-      uploadProgress.value = Math.round(((index + 1) / validFiles.length) * 100)
-    }
-    uploadedFiles.value = [...uploadedFiles.value, ...uploaded]
-    selectedFiles.value = []
-    if (!uploaded.length) throw new Error('附件上传失败')
+    })
+
+    result.failures.forEach(({ file, error }) => {
+      uploadErrors.value.push(`${file.name}：${error instanceof Error ? error.message : '上传失败'}`)
+    })
+    if (!result.results.length) throw new Error('附件上传失败')
+    ElMessage.success(`已上传 ${result.results.length} 个附件`)
   } finally {
     uploading.value = false
+    uploadController = null
+    uploadStage.value = ''
   }
 }
 
@@ -182,6 +231,15 @@ function removeSelectedFile(index: number) {
 
 function removeUploadedFile(index: number) {
   uploadedFiles.value.splice(index, 1)
+}
+
+function cancelUpload() {
+  uploadController?.abort()
+  uploadStage.value = '正在取消上传'
+}
+
+function handleExceed() {
+  ElMessage.warning(`每个资源最多上传 ${MAX_RESOURCE_FILE_COUNT} 个附件`)
 }
 
 async function submit() {
@@ -203,6 +261,7 @@ async function submit() {
 
   submitting.value = true
   try {
+    if (currentUploadPromise) await currentUploadPromise
     if (selectedFiles.value.length) await uploadSelectedFiles()
     if ((form.mode === 'FILE' || form.mode === 'MIXED') && !uploadedFiles.value.length) {
       throw new Error('附件尚未上传成功')
@@ -211,7 +270,7 @@ async function submit() {
       title: form.title.trim(),
       cat: form.cat,
       summary: form.summary.trim(),
-      contentMarkdown: form.contentMarkdown.trim(),
+      contentMarkdown: form.mode === 'FILE' ? undefined : form.contentMarkdown.trim(),
       attachments: uploadedFiles.value
     })
     localStorage.removeItem(DRAFT_KEY)
@@ -307,13 +366,29 @@ async function submit() {
       <section v-if="form.mode !== 'ARTICLE'" class="form-section">
         <div class="section-heading">
           <span class="step">3</span>
-          <div><h2>上传附件</h2><p>支持拖拽和多文件，单个文件不超过 50MB。</p></div>
+          <div><h2>上传附件</h2><p>选中文件后立即上传，最多 10 个，单个不超过 50MB。</p></div>
+        </div>
+        <el-alert
+          title="支持 PDF、Office、TXT/Markdown、图片、ZIP/RAR/7Z，以及 Java、Python、JavaScript、C/C++、Go、SQL 等常见源码文件。"
+          type="info"
+          :closable="false"
+          show-icon
+          style="margin-bottom: 14px"
+        />
+        <div class="concurrency-hint">
+          <span>≤ 2MB：4 个并发</span>
+          <span>2–10MB：2 个并发</span>
+          <span>＞10MB：逐个上传</span>
         </div>
         <el-upload
           v-model:file-list="selectedFiles"
           drag
           multiple
           action="#"
+          :accept="RESOURCE_FILE_ACCEPT"
+          :limit="Math.max(1, MAX_RESOURCE_FILE_COUNT - uploadedFiles.length)"
+          :disabled="!store.logged || uploading || uploadedFiles.length >= MAX_RESOURCE_FILE_COUNT"
+          :on-exceed="handleExceed"
           :auto-upload="false"
           :show-file-list="false"
           class="upload-panel"
@@ -324,7 +399,7 @@ async function submit() {
 
         <div v-if="selectedFiles.length || uploadedFiles.length" class="file-list">
           <div v-for="(file, index) in selectedFiles" :key="file.uid" class="file-row">
-            <span>{{ file.name }}</span>
+            <span>{{ file.name }} <small v-if="file.size">{{ formatFileSize(file.size) }}</small></span>
             <el-button text type="danger" :icon="Close" @click="removeSelectedFile(index)" />
           </div>
           <div v-for="(file, index) in uploadedFiles" :key="file.fileUrl" class="file-row success">
@@ -333,7 +408,10 @@ async function submit() {
             <el-button text type="danger" :icon="Close" @click="removeUploadedFile(index)" />
           </div>
         </div>
-        <el-progress v-if="uploading" :percentage="uploadProgress" style="margin-top: 12px" />
+        <div v-if="uploading" class="upload-progress">
+          <div><span>{{ uploadStage }}</span><el-button text type="danger" @click="cancelUpload">取消上传</el-button></div>
+          <el-progress :percentage="uploadProgress" />
+        </div>
         <el-alert v-if="uploadErrors.length" :title="uploadErrors.join('；')" type="error" :closable="false" style="margin-top: 12px" />
       </section>
 
@@ -365,7 +443,7 @@ async function submit() {
         <div>
           <el-button @click="saveDraft(true)">保存草稿</el-button>
           <el-button @click="loadDraft">恢复草稿</el-button>
-          <el-button type="primary" :loading="submitting || uploading" :disabled="!canSubmit" @click="submit">
+          <el-button type="primary" :loading="submitting" :disabled="!canSubmit || uploading" @click="submit">
             提交审核
           </el-button>
         </div>
@@ -392,6 +470,38 @@ async function submit() {
 .form-section {
   padding: 26px;
   border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.concurrency-hint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.concurrency-hint span {
+  padding: 5px 9px;
+  color: var(--el-text-color-secondary);
+  background: var(--el-fill-color-light);
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.upload-progress {
+  margin-top: 12px;
+}
+
+.upload-progress > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+
+.file-row small {
+  margin-left: 6px;
+  color: var(--el-text-color-secondary);
 }
 
 .section-heading {

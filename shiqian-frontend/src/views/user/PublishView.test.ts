@@ -1,6 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { shallowMount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import PublishView from './PublishView.vue'
+
+const mocks = vi.hoisted(() => ({
+  submitResource: vi.fn().mockResolvedValue(undefined),
+  push: vi.fn()
+}))
+
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: mocks.push })
+}))
 
 // Minimal store mock focused on what PublishView uses for attachments + submit
 vi.mock('@/stores/app', () => ({
@@ -9,7 +19,7 @@ vi.mock('@/stores/app', () => ({
     categories: ['编程', '数学'],
     loadCategories: vi.fn().mockResolvedValue(undefined),
     uploadFiles: vi.fn().mockResolvedValue([]),
-    submitResource: vi.fn().mockResolvedValue(undefined),
+    submitResource: mocks.submitResource,
     loadMyResources: vi.fn().mockResolvedValue(undefined)
   })
 }))
@@ -59,12 +69,31 @@ describe('PublishView (attachment removal)', () => {
     expect(typeof vm.clearDraft).toBe('function')
   })
 
-  it('canSaveDraft logic exists and submit clears draft key (smoke)', async () => {
+  it('submits a file-only resource without Markdown content', async () => {
     const wrapper = shallowMount(PublishView)
     const vm = wrapper.vm as any
 
-    // Basic existence check for the draft-related behavior added in previous waves
-    expect(wrapper.exists()).toBe(true)
-    // We don't fully simulate the complex submit here to keep test fast and isolated
+    vm.form.mode = 'FILE'
+    vm.form.title = 'TXT 课程资料'
+    vm.form.cat = '编程'
+    vm.form.contentMarkdown = ''
+    vm.uploadedFiles = [{
+      originalName: 'notes.txt',
+      fileUrl: '/api/resource/files/1/notes.txt',
+      fileSize: 12,
+      fileType: 'text/plain'
+    }]
+    await nextTick()
+
+    expect(vm.canSubmit).toBe(true)
+    await vm.submit()
+
+    expect(mocks.submitResource).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'TXT 课程资料',
+      contentMarkdown: undefined,
+      attachments: expect.arrayContaining([
+        expect.objectContaining({ originalName: 'notes.txt' })
+      ])
+    }))
   })
 })
