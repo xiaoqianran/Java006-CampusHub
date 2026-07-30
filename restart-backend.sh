@@ -1,15 +1,63 @@
 #!/usr/bin/env bash
-set -e
+set -Eeuo pipefail
 
 echo "=== 重新启动 CampusHub 后端服务 ==="
 date
 
 mkdir -p logs
 
+wait_service() {
+  local name="$1"
+  local port="$2"
+  local pid_file="$3"
+  local log_file="$4"
+  local timeout_seconds="${5:-120}"
+  local pid=""
+  local waited=0
+
+  pid="$(cat "$pid_file")"
+  while (( waited < timeout_seconds )); do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      echo "✗ $name 启动失败：进程已退出" >&2
+      tail -60 "$log_file" >&2 || true
+      return 1
+    fi
+
+    if timeout 2 bash -c "cat < /dev/null > /dev/tcp/127.0.0.1/$port" 2>/dev/null; then
+      echo "✓ $name 已就绪（端口 $port）"
+      return 0
+    fi
+
+    sleep 2
+    (( waited += 2 ))
+  done
+
+  echo "✗ $name 在 ${timeout_seconds}s 内未监听端口 $port" >&2
+  tail -60 "$log_file" >&2 || true
+  return 1
+}
+
+start_service() {
+  local name="$1"
+  local pid_file="$2"
+  local log_file="$3"
+  shift 3
+
+  # setsid 让应用脱离当前终端会话，避免启动脚本退出时服务被一并回收。
+  setsid "$@" </dev/null > "$log_file" 2>&1 &
+  local pid=$!
+  echo "$pid" > "$pid_file"
+  echo "  PID: $pid"
+}
+
 # 轻量级数据库就绪检查（推荐使用 ./02_StartBackend.sh 获得完整自动修复能力）
 if command -v docker >/dev/null 2>&1 && docker ps --format '{{.Names}}' | grep -q '^shiqian-mysql$'; then
   echo "→ 检查 MySQL 数据库状态..."
-  if ! docker exec shiqian-mysql mysql -uroot -proot -e "USE shiqian_user; SHOW TABLES LIKE 't_user';" >/dev/null 2>&1; then
+  user_table_count="$(docker exec shiqian-mysql mysql -uroot -proot -Nse \
+    "SELECT COUNT(*) FROM information_schema.TABLES
+     WHERE TABLE_SCHEMA = 'shiqian_user' AND TABLE_NAME = 't_user';" \
+    2>/dev/null || echo "0")"
+  if [[ "$user_table_count" != "1" ]]; then
     echo "   [警告] shiqian_user 数据库可能未就绪"
     echo "   建议执行：./02_StartBackend.sh （会自动修复数据库）"
     echo "   或手动创建：docker/mysql/init/ 下的 SQL 已包含所需结构"
@@ -29,31 +77,25 @@ pkill -f 'target/shiqian-(user|resource|gateway)' 2>/dev/null || true
 sleep 2
 
 echo "→ 启动 shiqian-user (端口 8081)..."
-nohup java $JAVA_OPTS_COMMON $USER_JAVA_OPTS \
+start_service "shiqian-user" "logs/user.pid" "logs/fresh-user.log" \
+  java $JAVA_OPTS_COMMON $USER_JAVA_OPTS \
   -jar shiqian-user/target/shiqian-user-1.0.0-SNAPSHOT.jar \
-  --spring.profiles.active=local \
-  > logs/fresh-user.log 2>&1 &
-echo $! > logs/user.pid
-
-sleep 5
+  --spring.profiles.active=local
+wait_service "shiqian-user" 8081 "logs/user.pid" "logs/fresh-user.log"
 
 echo "→ 启动 shiqian-resource (端口 8082)..."
-nohup java $JAVA_OPTS_COMMON $RESOURCE_JAVA_OPTS \
+start_service "shiqian-resource" "logs/resource.pid" "logs/fresh-resource.log" \
+  java $JAVA_OPTS_COMMON $RESOURCE_JAVA_OPTS \
   -jar shiqian-resource/target/shiqian-resource-1.0.0-SNAPSHOT.jar \
-  --spring.profiles.active=local \
-  > logs/fresh-resource.log 2>&1 &
-echo $! > logs/resource.pid
-
-sleep 6
+  --spring.profiles.active=local
+wait_service "shiqian-resource" 8082 "logs/resource.pid" "logs/fresh-resource.log"
 
 echo "→ 启动 shiqian-gateway (端口 8080)..."
-nohup java $JAVA_OPTS_COMMON $GATEWAY_JAVA_OPTS \
+start_service "shiqian-gateway" "logs/gateway.pid" "logs/fresh-gateway.log" \
+  java $JAVA_OPTS_COMMON $GATEWAY_JAVA_OPTS \
   -jar shiqian-gateway/target/shiqian-gateway-1.0.0-SNAPSHOT.jar \
-  --spring.profiles.active=local \
-  > logs/fresh-gateway.log 2>&1 &
-echo $! > logs/gateway.pid
-
-sleep 4
+  --spring.profiles.active=local
+wait_service "shiqian-gateway" 8080 "logs/gateway.pid" "logs/fresh-gateway.log"
 
 echo ""
 echo "=== 当前后端进程状态 ==="

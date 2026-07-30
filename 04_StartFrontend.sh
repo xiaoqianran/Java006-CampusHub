@@ -44,6 +44,32 @@ stop_old_frontend() {
   rm -f "$PID_FILE"
 }
 
+wait_frontend() {
+  local pid="$1"
+  local waited=0
+  local timeout_seconds=60
+
+  while (( waited < timeout_seconds )); do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      echo "前端启动失败：进程已退出" >&2
+      tail -60 "$LOG_FILE" >&2 || true
+      return 1
+    fi
+
+    if curl -fsS "http://127.0.0.1:5173/" >/dev/null 2>&1; then
+      echo "前端服务已就绪"
+      return 0
+    fi
+
+    sleep 2
+    (( waited += 2 ))
+  done
+
+  echo "前端在 ${timeout_seconds}s 内未就绪" >&2
+  tail -60 "$LOG_FILE" >&2 || true
+  return 1
+}
+
 load_nvm
 
 if ! has_cmd npm; then
@@ -64,10 +90,11 @@ npm install
 log "启动前端服务"
 stop_old_frontend
 cd "$FRONTEND_DIR"
-nohup npm run dev > "$LOG_FILE" 2>&1 &
-echo $! > "$PID_FILE"
-
-sleep 3
+# setsid 让 Vite 脱离当前终端会话，避免脚本退出时服务被回收。
+setsid npm run dev </dev/null > "$LOG_FILE" 2>&1 &
+frontend_pid=$!
+echo "$frontend_pid" > "$PID_FILE"
+wait_frontend "$frontend_pid"
 
 log "前端启动完成"
 echo "前端地址: http://localhost:5173"

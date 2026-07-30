@@ -114,6 +114,8 @@ wait_container_healthy() {
 ensure_mysql_databases() {
   local mysql_container="shiqian-mysql"
   local root_user="root"
+  local user_table_count="0"
+  local resource_table_count="0"
   # 优先使用环境变量 MYSQL_ROOT_PASSWORD，否则默认 root（与 docker-compose.yml 一致）
   local root_pass="${MYSQL_ROOT_PASSWORD:-root}"
 
@@ -122,17 +124,23 @@ ensure_mysql_databases() {
   local need_init=false
 
   # 检查 shiqian_user 数据库及核心表
-  if ! docker exec "$mysql_container" \
-      mysql -u"$root_user" -p"$root_pass" \
-      -e "USE shiqian_user; SHOW TABLES LIKE 't_user';" >/dev/null 2>&1; then
+  user_table_count="$(docker exec "$mysql_container" \
+      mysql -u"$root_user" -p"$root_pass" -Nse \
+      "SELECT COUNT(*) FROM information_schema.TABLES
+       WHERE TABLE_SCHEMA = 'shiqian_user' AND TABLE_NAME = 't_user';" \
+      2>/dev/null || echo "0")"
+  if [[ "$user_table_count" != "1" ]]; then
     echo "   [检测] shiqian_user 数据库或 t_user 表不存在"
     need_init=true
   fi
 
   # 检查 shiqian_resource 数据库及核心表
-  if ! docker exec "$mysql_container" \
-      mysql -u"$root_user" -p"$root_pass" \
-      -e "USE shiqian_resource; SHOW TABLES LIKE 't_resource';" >/dev/null 2>&1; then
+  resource_table_count="$(docker exec "$mysql_container" \
+      mysql -u"$root_user" -p"$root_pass" -Nse \
+      "SELECT COUNT(*) FROM information_schema.TABLES
+       WHERE TABLE_SCHEMA = 'shiqian_resource' AND TABLE_NAME = 't_resource';" \
+      2>/dev/null || echo "0")"
+  if [[ "$resource_table_count" != "1" ]]; then
     echo "   [检测] shiqian_resource 数据库或 t_resource 表不存在"
     need_init=true
   fi
