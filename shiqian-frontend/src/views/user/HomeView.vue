@@ -3,12 +3,17 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, ArrowRight } from '@element-plus/icons-vue'
 import ResourceCard from '@/components/ResourceCard.vue'
-import { useAppStore } from '@/stores/app'
+import { CONTENT_SCENES, useAppStore, type ContentScene } from '@/stores/app'
 
 const router = useRouter()
 const store = useAppStore()
 const homeKeyword = ref('')
 const resourceMode = ref<'newest' | 'hottest'>('newest')
+const scenePaths: Record<ContentScene, string> = {
+  BLOG: '/blog',
+  GALLERY: '/images',
+  SHARE: '/share'
+}
 
 const featuredResources = computed(() => {
   const resources = resourceMode.value === 'hottest'
@@ -26,21 +31,18 @@ onMounted(() => {
 function search() {
   const keyword = homeKeyword.value.trim()
   router.push({
-    path: '/resources',
+    path: '/explore',
     query: keyword ? { keyword } : {}
   })
 }
 
-function openCategory(category: string) {
-  router.push({
-    path: '/resources',
-    query: { category }
-  })
+function openScene(scene: ContentScene) {
+  router.push(scenePaths[scene])
 }
 
 function viewAllResources() {
   router.push({
-    path: '/resources',
+    path: '/explore',
     query: resourceMode.value === 'hottest' ? { sort: 'hottest' } : {}
   })
 }
@@ -48,11 +50,11 @@ function viewAllResources() {
 
 <template>
   <section class="hero">
-    <h1>让校园资料流动起来</h1>
-    <p>搜索课程笔记、实验报告、复习资料和项目模板，一个入口找到你需要的校园资源。</p>
-    <el-input v-model="homeKeyword" class="hero-search" size="large" placeholder="搜索课程、资料、真题、项目模板" :prefix-icon="Search" @keyup.enter="search">
+    <h1>分享校园里的每一种内容</h1>
+    <p>写博客、晒图片、分享课件与源码；内容不再被分类和格式限制。</p>
+    <el-input v-model="homeKeyword" class="hero-search" size="large" placeholder="搜索文章、图片、资料或自由标签" :prefix-icon="Search" @keyup.enter="search">
       <template #append>
-        <el-button type="primary" @click="search">搜索资源</el-button>
+        <el-button type="primary" @click="search">搜索内容</el-button>
       </template>
     </el-input>
   </section>
@@ -60,21 +62,24 @@ function viewAllResources() {
   <section class="section">
     <div class="page-title">
       <div>
-        <h1>按分类查找</h1>
-        <p class="sub">分类是资源中心的快捷筛选，不再跳转到独立页面。</p>
+        <h1>选择你想看的频道</h1>
+        <p class="sub">频道只区分展示方式，每个频道都能包含文字、图片和附件。</p>
       </div>
-      <el-button text type="primary" :icon="ArrowRight" @click="router.push('/resources')">全部资源</el-button>
+      <el-button text type="primary" :icon="ArrowRight" @click="router.push('/explore')">发现全部内容</el-button>
     </div>
-    <div v-loading="store.loading" class="category-shortcuts">
+    <div v-loading="store.loading" class="channel-shortcuts">
       <button
-        v-for="category in store.categories.slice(0, 8)"
-        :key="category"
+        v-for="channel in CONTENT_SCENES"
+        :key="channel.value"
         type="button"
-        class="category-shortcut"
-        @click="openCategory(category)"
+        class="channel-shortcut"
+        @click="openScene(channel.value)"
       >
-        <span>{{ category }}</span>
-        <small>{{ store.publishedResources.filter(item => item.cat === category).length }} 个</small>
+        <span>
+          <b>{{ channel.label }}</b>
+          <small>{{ channel.description }}</small>
+        </span>
+        <strong>{{ store.publishedResources.filter(item => item.scene === channel.value).length }}</strong>
       </button>
     </div>
   </section>
@@ -82,8 +87,8 @@ function viewAllResources() {
   <section class="section">
     <div class="page-title resource-section-title">
       <div>
-        <h1>资源推荐</h1>
-        <p class="sub">在同一位置切换最新发布和热门内容。</p>
+        <h1>内容推荐</h1>
+        <p class="sub">博客、图片和资料混合呈现。</p>
       </div>
       <el-radio-group v-model="resourceMode">
         <el-radio-button value="newest">最新发布</el-radio-button>
@@ -94,26 +99,26 @@ function viewAllResources() {
       <ResourceCard v-for="item in featuredResources" :key="`${resourceMode}-${item.id}`" :item="item" />
     </div>
     <div class="section-more">
-      <el-button type="primary" plain :icon="ArrowRight" @click="viewAllResources">查看全部资源</el-button>
+      <el-button type="primary" plain :icon="ArrowRight" @click="viewAllResources">查看全部内容</el-button>
     </div>
   </section>
 </template>
 
 <style scoped>
-.category-shortcuts {
+.channel-shortcuts {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   min-height: 70px;
 }
 
-.category-shortcut {
+.channel-shortcut {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 58px;
-  padding: 0 16px;
+  min-height: 92px;
+  padding: 18px;
   color: var(--text);
   background: var(--panel);
   border: 1px solid var(--line);
@@ -123,16 +128,27 @@ function viewAllResources() {
   transition: border-color .18s, background-color .18s, transform .18s;
 }
 
-.category-shortcut:hover {
+.channel-shortcut:hover {
   color: var(--primary);
   border-color: var(--primary);
   background: var(--primary-soft);
   transform: translateY(-1px);
 }
 
-.category-shortcut small {
+.channel-shortcut span {
+  display: grid;
+  gap: 7px;
+  text-align: left;
+}
+
+.channel-shortcut small {
   color: var(--muted);
-  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.channel-shortcut strong {
+  color: var(--primary);
+  font-size: 22px;
 }
 
 .section-more {
@@ -142,13 +158,13 @@ function viewAllResources() {
 }
 
 @media (max-width: 980px) {
-  .category-shortcuts {
+  .channel-shortcuts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 560px) {
-  .category-shortcuts {
+  .channel-shortcuts {
     grid-template-columns: 1fr;
   }
 

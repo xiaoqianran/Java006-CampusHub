@@ -31,14 +31,12 @@ describe('PublishView (attachment removal)', () => {
     localStorage.removeItem('shiqian_publish_draft')
   })
 
-  it('only shows attachment upload in mixed mode', async () => {
+  it('shows attachment upload in every channel', async () => {
     const wrapper = shallowMount(PublishView)
-    const vm = wrapper.vm as any
-
-    expect(wrapper.html()).not.toContain('点击或拖拽文件到此处')
-    vm.form.mode = 'MIXED'
-    await nextTick()
     expect(wrapper.html()).toContain('点击或拖拽文件到此处')
+    expect(wrapper.html()).toContain('博客帖')
+    expect(wrapper.html()).toContain('图片帖')
+    expect(wrapper.html()).toContain('资料分享帖')
   })
 
   it('exposes removeSelectedFile and removeUploadedFile methods', () => {
@@ -75,15 +73,13 @@ describe('PublishView (attachment removal)', () => {
     expect(wrapper.findComponent({ name: 'MarkdownLiveEditor' }).exists()).toBe(true)
   })
 
-  it('removes file-only mode and requires Markdown content', async () => {
+  it('allows an attachment-only gallery post without category or Markdown', async () => {
     const wrapper = shallowMount(PublishView)
     const vm = wrapper.vm as any
 
-    expect(wrapper.html()).not.toContain('上传文件')
-
-    vm.form.mode = 'MIXED'
-    vm.form.title = '图文课程资料'
-    vm.form.cat = '编程'
+    vm.form.scene = 'GALLERY'
+    vm.form.title = '校园摄影'
+    vm.form.cat = ''
     vm.form.contentMarkdown = ''
     vm.uploadedFiles = [{
       originalName: 'notes.txt',
@@ -93,27 +89,26 @@ describe('PublishView (attachment removal)', () => {
     }]
     await nextTick()
 
-    expect(vm.canSubmit).toBe(false)
-
-    vm.form.contentMarkdown = '# 课程资料说明'
     await nextTick()
     expect(vm.canSubmit).toBe(true)
     await vm.submit()
 
     expect(mocks.submitResource).toHaveBeenCalledWith(expect.objectContaining({
-      title: '图文课程资料',
-      contentMarkdown: '# 课程资料说明',
+      title: '校园摄影',
+      contentScene: 'GALLERY',
+      cat: undefined,
+      contentMarkdown: '',
       attachments: expect.arrayContaining([
         expect.objectContaining({ originalName: 'notes.txt' })
       ])
     }))
   })
 
-  it('submits article mode without hidden draft attachments', async () => {
+  it('allows a blog post to contain both text and attachments', async () => {
     const wrapper = shallowMount(PublishView)
     const vm = wrapper.vm as any
 
-    vm.form.mode = 'ARTICLE'
+    vm.form.scene = 'BLOG'
     vm.form.title = '学习笔记'
     vm.form.cat = '编程'
     vm.form.contentMarkdown = '正文内容'
@@ -129,8 +124,11 @@ describe('PublishView (attachment removal)', () => {
     await vm.submit()
 
     expect(mocks.submitResource).toHaveBeenCalledWith(expect.objectContaining({
+      contentScene: 'BLOG',
       contentMarkdown: '正文内容',
-      attachments: []
+      attachments: expect.arrayContaining([
+        expect.objectContaining({ originalName: 'old-draft.txt' })
+      ])
     }))
   })
 })

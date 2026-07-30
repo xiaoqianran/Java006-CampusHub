@@ -2,11 +2,15 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { UploadRawFile, UploadUserFile } from 'element-plus'
-import { Close, Document, EditPen, UploadFilled } from '@element-plus/icons-vue'
+import { Close, Document, EditPen, Picture, UploadFilled } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import AttachmentPreviewDialog from '@/components/AttachmentPreviewDialog.vue'
 import MarkdownLiveEditor from '@/components/MarkdownLiveEditor.vue'
-import { useAppStore, type UploadedFileItem } from '@/stores/app'
+import {
+  useAppStore,
+  type ContentScene,
+  type UploadedFileItem
+} from '@/stores/app'
 import { buildApiUrl } from '@/api/client'
 import {
   MAX_RESOURCE_FILE_COUNT,
@@ -16,8 +20,6 @@ import {
   validateResourceFile,
   type UploadTierName
 } from '@/utils/resourceUpload'
-
-type PublishMode = 'ARTICLE' | 'MIXED'
 
 const router = useRouter()
 const store = useAppStore()
@@ -35,9 +37,10 @@ let currentUploadPromise: Promise<void> | null = null
 let autoUploadTimer: number | null = null
 
 const form = reactive({
-  mode: 'ARTICLE' as PublishMode,
+  scene: 'BLOG' as ContentScene,
   title: '',
-  cat: '计算机科学',
+  cat: '',
+  tags: '',
   summary: '',
   contentMarkdown: ''
 })
@@ -45,9 +48,7 @@ const form = reactive({
 const hasFiles = computed(() => selectedFiles.value.length > 0 || uploadedFiles.value.length > 0)
 const hasText = computed(() => Boolean(form.contentMarkdown.trim()))
 const canSubmit = computed(() => {
-  if (!form.title.trim() || !form.cat) return false
-  if (!hasText.value) return false
-  return form.mode === 'ARTICLE' || hasFiles.value
+  return Boolean(form.title.trim() && (hasText.value || hasFiles.value))
 })
 
 const DRAFT_KEY = 'shiqian_publish_draft'
@@ -55,9 +56,10 @@ let saveTimer: number | null = null
 
 function draftPayload() {
   return {
-    mode: form.mode,
+    scene: form.scene,
     title: form.title,
     cat: form.cat,
+    tags: form.tags,
     summary: form.summary,
     contentMarkdown: form.contentMarkdown,
     attachments: uploadedFiles.value
@@ -66,10 +68,13 @@ function draftPayload() {
 
 function applyDraft(data: any) {
   Object.assign(form, {
-    // 旧版 FILE 草稿迁移为图文模式：保留附件，但必须补充正文后才能提交。
-    mode: data.mode === 'MIXED' || data.mode === 'FILE' ? 'MIXED' : 'ARTICLE',
+    // 旧草稿兼容：文章归入博客，文件/图文归入资料频道。
+    scene: ['BLOG', 'GALLERY', 'SHARE'].includes(data.scene)
+      ? data.scene
+      : data.mode === 'ARTICLE' ? 'BLOG' : 'SHARE',
     title: data.title || '',
-    cat: data.cat || '计算机科学',
+    cat: data.cat || '',
+    tags: data.tags || '',
     summary: data.summary || '',
     contentMarkdown: data.contentMarkdown || ''
   })
@@ -256,16 +261,12 @@ function handleExceed() {
 
 async function submit() {
   if (!store.logged) {
-    ElMessage.warning('请先登录后发布资源')
+    ElMessage.warning('请先登录后发布内容')
     router.push('/login')
     return
   }
   if (!canSubmit.value) {
-    ElMessage.warning(
-      form.mode === 'ARTICLE'
-        ? '请填写标题、分类和正文'
-        : '图文资料需要同时填写正文并选择附件'
-    )
+    ElMessage.warning('请填写标题，并至少添加正文、图片或一个附件')
     return
   }
 
@@ -273,15 +274,14 @@ async function submit() {
   try {
     if (currentUploadPromise) await currentUploadPromise
     if (selectedFiles.value.length) await uploadSelectedFiles()
-    if (form.mode === 'MIXED' && !uploadedFiles.value.length) {
-      throw new Error('附件尚未上传成功')
-    }
     await store.submitResource({
       title: form.title.trim(),
-      cat: form.cat,
+      cat: form.cat || undefined,
+      tags: form.tags.trim(),
       summary: form.summary.trim(),
       contentMarkdown: form.contentMarkdown.trim(),
-      attachments: form.mode === 'MIXED' ? uploadedFiles.value : []
+      contentScene: form.scene,
+      attachments: uploadedFiles.value
     })
     localStorage.removeItem(DRAFT_KEY)
     ElMessage.success('资源已提交审核')
@@ -298,15 +298,15 @@ async function submit() {
   <section class="publish-page">
     <div class="page-title">
       <div>
-        <h1>发布资源</h1>
-        <p class="sub">选择写文章或图文加附件，两种方式都需要填写正文。</p>
+        <h1>发布内容</h1>
+        <p class="sub">选择展示频道；正文、图片和附件任意一种非空即可发布。</p>
       </div>
       <span class="draft-hint">内容会自动保存为本地草稿</span>
     </div>
 
     <el-alert
       v-if="!store.logged"
-      title="请先登录后发布资源"
+      title="请先登录后发布内容"
       type="warning"
       show-icon
       :closable="false"
@@ -317,18 +317,23 @@ async function submit() {
       <section class="form-section">
         <div class="section-heading">
           <span class="step">1</span>
-          <div><h2>选择分享方式</h2><p>只展示当前类型真正需要填写的内容。</p></div>
+          <div><h2>选择内容频道</h2><p>频道只决定展示方式，不限制你上传的内容。</p></div>
         </div>
-        <el-radio-group v-model="form.mode" class="mode-grid">
-          <el-radio-button value="ARTICLE">
+        <el-radio-group v-model="form.scene" class="mode-grid">
+          <el-radio-button value="BLOG">
             <el-icon><EditPen /></el-icon>
-            <b>写一篇文章</b>
-            <span>笔记、教程、经验分享</span>
+            <b>博客帖</b>
+            <span>观点、教程、经验和长文</span>
           </el-radio-button>
-          <el-radio-button value="MIXED">
+          <el-radio-button value="GALLERY">
+            <el-icon><Picture /></el-icon>
+            <b>图片帖</b>
+            <span>作品、相册和视觉内容</span>
+          </el-radio-button>
+          <el-radio-button value="SHARE">
             <el-icon><Document /></el-icon>
-            <b>图文加附件</b>
-            <span>正文说明配套文件</span>
+            <b>资料分享帖</b>
+            <span>文件、源码、课件和讨论</span>
           </el-radio-button>
         </el-radio-group>
       </section>
@@ -336,20 +341,29 @@ async function submit() {
       <section class="form-section">
         <div class="section-heading">
           <span class="step">2</span>
-          <div><h2>基本信息</h2><p>标题和分类必填，摘要可稍后补充。</p></div>
+          <div><h2>基本信息</h2><p>只要求标题，分类和标签都可以留空。</p></div>
         </div>
         <el-form label-position="top">
           <el-row :gutter="16">
             <el-col :xs="24" :md="16">
-              <el-form-item label="资源标题">
+              <el-form-item label="标题">
                 <el-input v-model="form.title" maxlength="200" show-word-limit placeholder="一句话说明你要分享什么" />
               </el-form-item>
             </el-col>
             <el-col :xs="24" :md="8">
-              <el-form-item label="分类">
-                <el-select v-model="form.cat" class="full">
+              <el-form-item label="分类（选填）">
+                <el-select v-model="form.cat" class="full" clearable placeholder="不选择也可以发布">
                   <el-option v-for="category in store.categories" :key="category" :label="category" :value="category" />
                 </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="24">
+              <el-form-item label="自由标签（选填）">
+                <el-input
+                  v-model="form.tags"
+                  maxlength="500"
+                  placeholder="例如：Java, 校园生活, 摄影；使用逗号分隔"
+                />
               </el-form-item>
             </el-col>
             <el-col :span="24">
@@ -368,10 +382,10 @@ async function submit() {
         </el-form>
       </section>
 
-      <section v-if="form.mode === 'MIXED'" class="form-section">
+      <section class="form-section">
         <div class="section-heading">
           <span class="step">3</span>
-          <div><h2>上传附件</h2><p>选中文件后立即上传，最多 10 个，单个不超过 50MB。</p></div>
+          <div><h2>图片与附件（选填）</h2><p>所有频道都能上传图片和各种文件，选中后立即上传。</p></div>
         </div>
         <el-alert
           title="支持 PDF、Office、TXT/Markdown、图片、ZIP/RAR/7Z，以及 Java、Python、JavaScript、C/C++、Go、SQL 等常见源码文件。"
@@ -423,8 +437,8 @@ async function submit() {
 
       <section class="form-section">
         <div class="section-heading">
-          <span class="step">{{ form.mode === 'ARTICLE' ? 3 : 4 }}</span>
-          <div><h2>正文内容</h2><p>左侧写作，右侧同步预览最终排版。</p></div>
+          <span class="step">4</span>
+          <div><h2>正文内容（选填）</h2><p>可以只发正文，也可以只发图片或附件。</p></div>
         </div>
         <MarkdownLiveEditor
           v-model="form.contentMarkdown"
@@ -434,7 +448,7 @@ async function submit() {
 
       <div class="submit-bar">
         <div>
-          <b>{{ canSubmit ? '可以提交审核' : '还有必填内容未完成' }}</b>
+          <b>{{ canSubmit ? '可以提交审核' : '请填写标题并添加至少一种内容' }}</b>
           <p class="sub">提交后可在“我的发布”查看审核进度和反馈。</p>
         </div>
         <div>
@@ -545,7 +559,7 @@ async function submit() {
 
 .mode-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
   width: 100%;
 }

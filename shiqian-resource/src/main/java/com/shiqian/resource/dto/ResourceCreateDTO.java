@@ -2,7 +2,6 @@ package com.shiqian.resource.dto;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import jakarta.validation.Valid;
 import lombok.Data;
@@ -24,7 +23,12 @@ public class ResourceCreateDTO {
     @Size(max = 30, message = "内容类型最多30个字符")
     private String contentType;
 
-    @NotNull(message = "分类ID不能为空")
+    @Size(max = 30, message = "内容频道最多30个字符")
+    private String contentScene;
+
+    @Size(max = 500, message = "标签最多500个字符")
+    private String tags;
+
     @Min(value = 1, message = "分类ID必须大于0")
     private Long categoryId;
 

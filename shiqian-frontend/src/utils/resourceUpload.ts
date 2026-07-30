@@ -6,7 +6,7 @@ export const MEDIUM_FILE_LIMIT = 10 * 1024 * 1024
 export const RESOURCE_FILE_ACCEPT = [
   '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
   '.txt', '.md',
-  '.jpg', '.jpeg', '.png', '.gif',
+  '.jpg', '.jpeg', '.png', '.gif', '.webp',
   '.zip', '.rar', '.7z',
   '.java', '.py', '.js', '.ts', '.vue', '.c', '.cpp', '.h',
   '.go', '.rs', '.sql', '.json', '.xml', '.yaml', '.yml',

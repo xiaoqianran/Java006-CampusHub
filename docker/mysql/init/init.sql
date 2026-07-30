@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS `t_resource` (
     `summary` VARCHAR(500) DEFAULT NULL COMMENT '资源摘要',
     `content_markdown` LONGTEXT DEFAULT NULL COMMENT 'Markdown 正文',
     `content_type` VARCHAR(30) DEFAULT 'ARTICLE' COMMENT '内容类型 ARTICLE/FILE/MIXED',
+    `content_scene` VARCHAR(30) NOT NULL DEFAULT 'SHARE' COMMENT '内容频道 BLOG/GALLERY/SHARE',
+    `tags` VARCHAR(500) DEFAULT NULL COMMENT '可选自由标签，逗号分隔',
     `category_id` BIGINT DEFAULT NULL COMMENT '分类ID',
     `file_url` VARCHAR(500) DEFAULT NULL COMMENT '文件地址（可选，文字资源可为空）',
     `file_size` BIGINT NOT NULL DEFAULT 0 COMMENT '文件大小（字节）',
@@ -38,6 +40,7 @@ CREATE TABLE IF NOT EXISTS `t_resource` (
 
     PRIMARY KEY (`id`),
     INDEX `idx_user_id` (`user_id`),
+    INDEX `idx_content_scene` (`content_scene`),
     INDEX `idx_category_id` (`category_id`),
     INDEX `idx_status` (`status`),
     INDEX `idx_create_time` (`create_time`)

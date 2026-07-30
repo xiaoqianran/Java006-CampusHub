@@ -48,6 +48,8 @@ public class ResourceServiceImpl implements ResourceService {
     private static final int STATUS_NEEDS_CHANGES = 2;
     private static final int STATUS_REJECTED = 3;
     private static final int STATUS_OFFLINE = 4;
+    private static final java.util.Set<String> CONTENT_SCENES =
+            java.util.Set.of("BLOG", "GALLERY", "SHARE");
 
     private final ResourceMapper resourceMapper;
     private final ResourceAttachmentMapper resourceAttachmentMapper;
@@ -59,17 +61,14 @@ public class ResourceServiceImpl implements ResourceService {
 
     @Override
     public Resource createResource(Long userId, ResourceCreateDTO dto) {
-        validateContent(dto.getTitle(), dto.getSummary(), dto.getContentMarkdown());
+        validateContent(dto.getTitle(), dto.getSummary(), dto.getContentMarkdown(), dto.getTags());
         validateContentSource(
                 dto.getContentMarkdown(),
                 dto.getFileUrl(),
                 dto.getAttachments(),
                 false,
                 dto.getContentType());
-        Category category = categoryService.getCategoryById(dto.getCategoryId());
-        if (category == null || category.getDeleted() == 1) {
-            throw new BusinessException("分类不存在");
-        }
+        validateOptionalCategory(dto.getCategoryId());
 
         Resource resource = new Resource();
         BeanUtils.copyProperties(dto, resource);
@@ -78,14 +77,14 @@ public class ResourceServiceImpl implements ResourceService {
         resource.setViewCount(0);
         resource.setVersion(1);
         resource.setStatus(STATUS_PENDING);
+        resource.setContentScene(normalizeContentScene(dto.getContentScene(), "SHARE"));
 
-        // 内容类型由实际内容推断，也允许新客户端显式传入。
-        if (!StringUtils.hasText(resource.getContentType())) {
-            resource.setContentType(inferContentType(
-                    resource.getContentMarkdown(),
-                    dto.getAttachments(),
-                    resource.getFileUrl()));
-        }
+        // 内容类型描述实际载荷；频道只决定展示方式，不限制正文或附件组合。
+        resource.setContentType(inferContentType(
+                resource.getContentMarkdown(),
+                dto.getAttachments(),
+                resource.getFileUrl(),
+                false));
 
         // 兼容旧字段（未来逐步移除）
         if (!StringUtils.hasText(resource.getFileUrl())) {
@@ -130,14 +129,21 @@ public class ResourceServiceImpl implements ResourceService {
 
     @Override
     public List<Resource> getPublishedResourcesByIds(List<Long> ids) {
+        return getPublishedResourcesByIds(ids, null);
+    }
+
+    @Override
+    public List<Resource> getPublishedResourcesByIds(List<Long> ids, String contentScene) {
         if (ids == null || ids.isEmpty()) {
             return Collections.emptyList();
         }
 
+        String scene = normalizeContentScene(contentScene, null);
         Map<Long, Resource> resourcesById = new LinkedHashMap<>();
         resourceMapper.selectBatchIds(ids).stream()
                 .filter(resource -> resource.getDeleted() == null || resource.getDeleted() == 0)
                 .filter(resource -> resource.getStatus() != null && resource.getStatus() == STATUS_PUBLISHED)
+                .filter(resource -> scene == null || scene.equals(resource.getContentScene()))
                 .forEach(resource -> resourcesById.put(resource.getId(), resource));
 
         List<Resource> ordered = ids.stream()
@@ -145,6 +151,7 @@ public class ResourceServiceImpl implements ResourceService {
                 .filter(java.util.Objects::nonNull)
                 .toList();
         Resource.enrichAuthors(ordered);
+        enrichAttachments(ordered);
         return ordered;
     }
 
@@ -158,7 +165,7 @@ public class ResourceServiceImpl implements ResourceService {
         if (!canModify(existing, userId)) {
             throw new BusinessException("无权更新该资源");
         }
-        validateContent(dto.getTitle(), dto.getSummary(), dto.getContentMarkdown());
+        validateContent(dto.getTitle(), dto.getSummary(), dto.getContentMarkdown(), dto.getTags());
         boolean keepExistingAttachments = dto.getAttachments() == null
                 && resourceAttachmentMapper.selectCount(
                     new QueryWrapper<ResourceAttachment>().eq("resource_id", id)) > 0;
@@ -175,10 +182,7 @@ public class ResourceServiceImpl implements ResourceService {
                 keepExistingAttachments,
                 dto.getContentType());
 
-        Category category = categoryService.getCategoryById(dto.getCategoryId());
-        if (category == null || category.getDeleted() == 1) {
-            throw new BusinessException("分类不存在");
-        }
+        validateOptionalCategory(dto.getCategoryId());
 
         Resource resource = new Resource();
         BeanUtils.copyProperties(dto, resource);
@@ -188,17 +192,16 @@ public class ResourceServiceImpl implements ResourceService {
         resource.setDownloadCount(existing.getDownloadCount());
         resource.setViewCount(existing.getViewCount());
         resource.setStatus(existing.getStatus());
+        resource.setContentScene(normalizeContentScene(
+                dto.getContentScene(),
+                StringUtils.hasText(existing.getContentScene()) ? existing.getContentScene() : "SHARE"));
 
-        // 兼容旧客户端/partial update：若DTO未显式提供字段则保留原值（避免清空 contentType/file* 等）
-        if (!StringUtils.hasText(resource.getContentType()) && StringUtils.hasText(existing.getContentType())) {
-            resource.setContentType(existing.getContentType());
-        }
-        if (!StringUtils.hasText(resource.getContentType())) {
-            resource.setContentType(inferContentType(
-                    effectiveContentMarkdown,
-                    dto.getAttachments(),
-                    effectiveFileUrl));
-        }
+        // 根据保存后的实际内容重新计算，而不是让频道反向限制载荷。
+        resource.setContentType(inferContentType(
+                effectiveContentMarkdown,
+                dto.getAttachments(),
+                effectiveFileUrl,
+                keepExistingAttachments));
         if (!StringUtils.hasText(resource.getFileUrl()) && StringUtils.hasText(existing.getFileUrl())) {
             resource.setFileUrl(existing.getFileUrl());
         }
@@ -360,6 +363,17 @@ public class ResourceServiceImpl implements ResourceService {
 
     @Override
     public Page<Resource> pageResources(Integer page, Integer size, Long categoryId, String keyword, String sort) {
+        return pageResources(page, size, categoryId, keyword, sort, null);
+    }
+
+    @Override
+    public Page<Resource> pageResources(
+            Integer page,
+            Integer size,
+            Long categoryId,
+            String keyword,
+            String sort,
+            String contentScene) {
         Page<Resource> pageParam = new Page<>(page, size);
         QueryWrapper<Resource> wrapper = new QueryWrapper<>();
         wrapper.eq("deleted", 0);
@@ -367,12 +381,14 @@ public class ResourceServiceImpl implements ResourceService {
         if (categoryId != null) {
             wrapper.eq("category_id", categoryId);
         }
+        applyContentSceneFilter(wrapper, contentScene);
 
         if (StringUtils.hasText(keyword)) {
             wrapper.and(w -> w
                     .like("title", keyword)
                     .or().like("summary", keyword)
                     .or().like("description", keyword)  // legacy 兼容旧数据
+                    .or().like("tags", keyword)
                     .or().like("content_markdown", keyword));
         }
 
@@ -384,11 +400,23 @@ public class ResourceServiceImpl implements ResourceService {
         }
         Page<Resource> result = resourceMapper.selectPage(pageParam, wrapper);
         Resource.enrichAuthors(result.getRecords());
+        enrichAttachments(result.getRecords());
         return result;
     }
 
     @Override
     public Page<Resource> pagePublishedResources(Integer page, Integer size, Long categoryId, String keyword, String sort) {
+        return pagePublishedResources(page, size, categoryId, keyword, sort, null);
+    }
+
+    @Override
+    public Page<Resource> pagePublishedResources(
+            Integer page,
+            Integer size,
+            Long categoryId,
+            String keyword,
+            String sort,
+            String contentScene) {
         Page<Resource> pageParam = new Page<>(page, size);
         QueryWrapper<Resource> wrapper = new QueryWrapper<>();
         wrapper.eq("deleted", 0);
@@ -397,12 +425,14 @@ public class ResourceServiceImpl implements ResourceService {
         if (categoryId != null) {
             wrapper.eq("category_id", categoryId);
         }
+        applyContentSceneFilter(wrapper, contentScene);
 
         if (StringUtils.hasText(keyword)) {
             wrapper.and(w -> w
                     .like("title", keyword)
                     .or().like("summary", keyword)
                     .or().like("description", keyword)
+                    .or().like("tags", keyword)
                     .or().like("content_markdown", keyword));
         }
 
@@ -414,6 +444,7 @@ public class ResourceServiceImpl implements ResourceService {
         }
         Page<Resource> result = resourceMapper.selectPage(pageParam, wrapper);
         Resource.enrichAuthors(result.getRecords());
+        enrichAttachments(result.getRecords());
         return result;
     }
 
@@ -440,13 +471,15 @@ public class ResourceServiceImpl implements ResourceService {
         }
         Page<Resource> result = resourceMapper.selectPage(pageParam, wrapper);
         Resource.enrichAuthors(result.getRecords());
+        enrichAttachments(result.getRecords());
         return result;
     }
 
-    private void validateContent(String title, String summary, String contentMarkdown) {
+    private void validateContent(String title, String summary, String contentMarkdown, String tags) {
         if (sensitiveWordFilter.contains(title) ||
             (summary != null && sensitiveWordFilter.contains(summary)) ||
-            (contentMarkdown != null && sensitiveWordFilter.contains(contentMarkdown))) {
+            (contentMarkdown != null && sensitiveWordFilter.contains(contentMarkdown)) ||
+            (tags != null && sensitiveWordFilter.contains(tags))) {
             throw new BusinessException("资源内容包含敏感词");
         }
     }
@@ -469,29 +502,50 @@ public class ResourceServiceImpl implements ResourceService {
             if (!java.util.Set.of("FILE", "ARTICLE", "MIXED").contains(contentType)) {
                 throw new BusinessException("内容类型不合法");
             }
-            if ("FILE".equals(contentType) && !hasFiles) {
-                throw new BusinessException("文件资料必须上传至少一个附件");
-            }
-            if ("ARTICLE".equals(contentType) && !hasText) {
-                throw new BusinessException("文章正文不能为空");
-            }
-            if ("MIXED".equals(contentType) && (!hasText || !hasFiles)) {
-                throw new BusinessException("图文资料必须同时填写正文并上传附件");
-            }
-            return;
         }
 
         if (!hasText && !hasFiles) {
-            throw new BusinessException("请至少填写正文或上传一个附件");
+            throw new BusinessException("请至少填写正文、上传图片或添加一个附件");
+        }
+    }
+
+    private void validateOptionalCategory(Long categoryId) {
+        if (categoryId == null) {
+            return;
+        }
+        Category category = categoryService.getCategoryById(categoryId);
+        if (category == null || category.getDeleted() == 1) {
+            throw new BusinessException("分类不存在");
+        }
+    }
+
+    private String normalizeContentScene(String requestedScene, String fallback) {
+        if (!StringUtils.hasText(requestedScene)) {
+            return StringUtils.hasText(fallback)
+                    ? fallback.trim().toUpperCase(java.util.Locale.ROOT)
+                    : null;
+        }
+        String scene = requestedScene.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!CONTENT_SCENES.contains(scene)) {
+            throw new BusinessException("内容频道不合法");
+        }
+        return scene;
+    }
+
+    private void applyContentSceneFilter(QueryWrapper<Resource> wrapper, String contentScene) {
+        String scene = normalizeContentScene(contentScene, null);
+        if (scene != null) {
+            wrapper.eq("content_scene", scene);
         }
     }
 
     private String inferContentType(
             String contentMarkdown,
             List<AttachmentCreateDTO> attachments,
-            String fileUrl) {
+            String fileUrl,
+            boolean hasExistingAttachments) {
         boolean hasText = StringUtils.hasText(contentMarkdown);
-        boolean hasFiles = StringUtils.hasText(fileUrl)
+        boolean hasFiles = hasExistingAttachments || StringUtils.hasText(fileUrl)
                 || (attachments != null && attachments.stream()
                     .filter(java.util.Objects::nonNull)
                     .anyMatch(item -> StringUtils.hasText(item.getFileUrl())));
@@ -514,10 +568,36 @@ public class ResourceServiceImpl implements ResourceService {
         doc.setTitle(resource.getTitle());
         doc.setDescription(StringUtils.hasText(resource.getSummary()) ? resource.getSummary() : resource.getContentMarkdown());
         doc.setFileType(resource.getFileType());
+        doc.setContentScene(normalizeContentScene(resource.getContentScene(), "SHARE"));
+        doc.setTags(resource.getTags());
         doc.setCategoryId(resource.getCategoryId());
         doc.setUserId(resource.getUserId());
         doc.setStatus(resource.getStatus());
         return doc;
+    }
+
+    private void enrichAttachments(List<Resource> resources) {
+        if (resources == null || resources.isEmpty()) {
+            return;
+        }
+        List<Long> resourceIds = resources.stream()
+                .map(Resource::getId)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        if (resourceIds.isEmpty()) {
+            return;
+        }
+        Map<Long, List<ResourceAttachment>> grouped = resourceAttachmentMapper.selectList(
+                        new QueryWrapper<ResourceAttachment>()
+                                .in("resource_id", resourceIds)
+                                .orderByAsc("sort_order"))
+                .stream()
+                .collect(java.util.stream.Collectors.groupingBy(
+                        ResourceAttachment::getResourceId,
+                        LinkedHashMap::new,
+                        java.util.stream.Collectors.toList()));
+        resources.forEach(resource ->
+                resource.setAttachments(grouped.getOrDefault(resource.getId(), Collections.emptyList())));
     }
 
     @Override

@@ -6,7 +6,7 @@ const TEXT_EXTENSIONS = new Set([
   'txt', 'java', 'py', 'js', 'ts', 'vue', 'c', 'cpp', 'h',
   'go', 'rs', 'sql', 'json', 'xml', 'yaml', 'yml', 'html', 'css', 'sh'
 ])
-const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif'])
+const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp'])
 
 export function attachmentExtension(fileName = '', fileUrl = '') {
   const source = fileName || fileUrl.split('?')[0]

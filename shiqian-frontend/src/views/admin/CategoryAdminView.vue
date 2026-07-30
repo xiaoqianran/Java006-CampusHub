@@ -184,7 +184,7 @@ function handleCategoryCommand(command: string, category: CategoryApiItem) {
       <div class="page-title">
         <div>
           <h1>分类管理</h1>
-          <p class="sub">分类与用户端资源中心共用同一套数据。点击文件夹可查看该分类下的资源。</p>
+          <p class="sub">分类仅作为可选的历史与辅助元数据，不再是用户发布或浏览内容的必填入口。</p>
         </div>
         <el-button type="primary" @click="openAddCategory">新增分类</el-button>
       </div>

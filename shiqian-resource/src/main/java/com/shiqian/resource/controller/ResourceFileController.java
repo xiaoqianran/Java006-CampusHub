@@ -75,7 +75,7 @@ public class ResourceFileController {
             @Value("${resource.upload.max-concurrent-files:16}") int maxConcurrentFiles,
             @Value("${resource.upload.max-text-preview-bytes:524288}") int maxTextPreviewBytes,
             @Value("${resource.upload.max-archive-preview-entries:500}") int maxArchiveEntries,
-            @Value("${resource.upload.allowed-extensions:pdf,doc,docx,xls,xlsx,ppt,pptx,txt,md,jpg,jpeg,png,gif,zip,rar,7z,java,py,js,ts,vue,c,cpp,h,go,rs,sql,json,xml,yaml,yml,html,css,sh}")
+            @Value("${resource.upload.allowed-extensions:pdf,doc,docx,xls,xlsx,ppt,pptx,txt,md,jpg,jpeg,png,gif,webp,zip,rar,7z,java,py,js,ts,vue,c,cpp,h,go,rs,sql,json,xml,yaml,yml,html,css,sh}")
             String allowedExtensions) {
         this.uploadPath = Path.of(uploadDir).toAbsolutePath().normalize();
         this.maxFileSize = maxFileSize;

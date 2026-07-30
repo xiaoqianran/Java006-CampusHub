@@ -118,7 +118,7 @@ public class ResourceServiceTest extends BaseResourceTest {
     }
 
     @Test
-    public void testArticleContentTypeRequiresMarkdown() {
+    public void testAnyChannelStillRequiresAtLeastOneContentSource() {
         Category category = createCategory("文章分类");
         ResourceCreateDTO dto = new ResourceCreateDTO();
         dto.setTitle("空文章");
@@ -128,7 +128,7 @@ public class ResourceServiceTest extends BaseResourceTest {
         BusinessException exception = assertThrows(BusinessException.class,
                 () -> resourceService.createResource(1L, dto));
 
-        assertEquals("文章正文不能为空", exception.getMessage());
+        assertEquals("请至少填写正文、上传图片或添加一个附件", exception.getMessage());
     }
 
     @Test
@@ -141,7 +141,52 @@ public class ResourceServiceTest extends BaseResourceTest {
         BusinessException exception = assertThrows(BusinessException.class,
                 () -> resourceService.createResource(1L, dto));
 
-        assertEquals("请至少填写正文或上传一个附件", exception.getMessage());
+        assertEquals("请至少填写正文、上传图片或添加一个附件", exception.getMessage());
+    }
+
+    @Test
+    public void testCreateContentWithoutCategoryAndWithFreeScene() {
+        ResourceCreateDTO dto = new ResourceCreateDTO();
+        dto.setTitle("无分类图片帖");
+        dto.setContentScene("GALLERY");
+        dto.setTags("校园,摄影");
+
+        AttachmentCreateDTO attachment = new AttachmentCreateDTO();
+        attachment.setFileName("campus.jpg");
+        attachment.setFileUrl("http://example.com/campus.jpg");
+        attachment.setFileSize(2048L);
+        attachment.setFileType("image/jpeg");
+        attachment.setAssetKind("IMAGE");
+        dto.setAttachments(List.of(attachment));
+
+        Resource created = resourceService.createResource(1L, dto);
+        Resource found = resourceService.getResourceById(created.getId());
+
+        assertNull(found.getCategoryId());
+        assertEquals("GALLERY", found.getContentScene());
+        assertEquals("校园,摄影", found.getTags());
+        assertEquals("FILE", found.getContentType());
+    }
+
+    @Test
+    public void testPageResourcesByContentScene() {
+        ResourceCreateDTO blog = new ResourceCreateDTO();
+        blog.setTitle("博客内容");
+        blog.setContentMarkdown("正文");
+        blog.setContentScene("BLOG");
+        resourceService.createResource(1L, blog);
+
+        ResourceCreateDTO share = new ResourceCreateDTO();
+        share.setTitle("资料内容");
+        share.setContentMarkdown("说明");
+        share.setContentScene("SHARE");
+        resourceService.createResource(1L, share);
+
+        Page<Resource> result = resourceService.pageResources(
+                1, 10, null, null, null, "BLOG");
+
+        assertEquals(1, result.getTotal());
+        assertEquals("BLOG", result.getRecords().get(0).getContentScene());
     }
 
     @Test

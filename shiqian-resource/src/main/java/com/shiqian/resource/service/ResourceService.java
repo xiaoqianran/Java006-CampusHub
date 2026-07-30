@@ -15,9 +15,15 @@ public interface ResourceService {
 
     List<Resource> getPublishedResourcesByIds(List<Long> ids);
 
+    List<Resource> getPublishedResourcesByIds(List<Long> ids, String contentScene);
+
     Page<Resource> pageResources(Integer page, Integer size, Long categoryId, String keyword, String sort);
 
+    Page<Resource> pageResources(Integer page, Integer size, Long categoryId, String keyword, String sort, String contentScene);
+
     Page<Resource> pagePublishedResources(Integer page, Integer size, Long categoryId, String keyword, String sort);
+
+    Page<Resource> pagePublishedResources(Integer page, Integer size, Long categoryId, String keyword, String sort, String contentScene);
 
     Page<Resource> pageUserResources(Long userId, Integer page, Integer size, String sort);
 

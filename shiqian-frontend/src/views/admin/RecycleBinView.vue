@@ -3,7 +3,7 @@ import { onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AdminLayout from '@/components/AdminLayout.vue'
 import StatusTag from '@/components/StatusTag.vue'
-import { useAppStore } from '@/stores/app'
+import { contentSceneLabel, useAppStore } from '@/stores/app'
 
 const store = useAppStore()
 const keyword = ref('')
@@ -52,7 +52,7 @@ onMounted(load)
     <div class="page-title">
       <div>
         <h1>回收站</h1>
-        <p class="sub">管理员可查看已删除的资源。</p>
+        <p class="sub">管理员可查看已删除的博客、图片和资料。</p>
       </div>
       <div class="toolbar">
         <el-input v-model="keyword" clearable placeholder="搜索回收站" style="width: 260px" @keyup.enter="load" />
@@ -61,13 +61,13 @@ onMounted(load)
     </div>
 
     <el-table v-loading="loading" :data="store.recycleResources" class="panel">
-      <el-table-column label="资源" min-width="260">
+      <el-table-column label="内容" min-width="260">
         <template #default="{ row }">
           <b>{{ row.title }}</b>
           <div class="sub">作者：{{ row.author || '匿名用户' }}</div>
         </template>
       </el-table-column>
-      <el-table-column prop="cat" label="分类" width="110" />
+      <el-table-column label="频道" width="100"><template #default="{ row }">{{ contentSceneLabel(row.scene) }}</template></el-table-column>
       <el-table-column label="状态" width="100">
         <template #default="{ row }"><StatusTag :status="row.status" /></template>
       </el-table-column>

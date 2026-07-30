@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import ResourceCard from '@/components/ResourceCard.vue'
-import { useAppStore } from '@/stores/app'
+import { useAppStore, type ContentSceneFilter } from '@/stores/app'
 
 const store = useAppStore()
 const route = useRoute()
@@ -15,9 +15,29 @@ function queryValue(value: unknown) {
   return typeof value === 'string' ? value : ''
 }
 
+const currentScene = computed<ContentSceneFilter>(() => {
+  const value = String(route.meta.scene || 'ALL')
+  return ['BLOG', 'GALLERY', 'SHARE'].includes(value)
+    ? value as ContentSceneFilter
+    : 'ALL'
+})
+
+const pageInfo = computed(() => {
+  if (currentScene.value === 'BLOG') {
+    return { title: '博客', description: '阅读观点、教程、经验与校园故事。', search: '搜索博客和标签' }
+  }
+  if (currentScene.value === 'GALLERY') {
+    return { title: '图片', description: '浏览作品、相册和视觉灵感。', search: '搜索图片帖和标签' }
+  }
+  if (currentScene.value === 'SHARE') {
+    return { title: '资料', description: '发现课件、源码、文件和实用分享。', search: '搜索资料、文件和标签' }
+  }
+  return { title: '发现内容', description: '一起浏览博客、图片和资料。', search: '搜索全部内容和标签' }
+})
+
 function applyRouteFilters() {
   store.keyword = queryValue(route.query.keyword)
-  store.activeCategory = queryValue(route.query.category) || '全部分类'
+  store.activeScene = currentScene.value
   store.sortMode = route.query.sort === 'hottest' ? 'hottest' : 'newest'
 }
 
@@ -25,14 +45,13 @@ function filterQuery() {
   const query: Record<string, string> = {}
   const keyword = store.keyword.trim()
   if (keyword) query.keyword = keyword
-  if (store.activeCategory !== '全部分类') query.category = store.activeCategory
   if (store.sortMode === 'hottest') query.sort = 'hottest'
   return query
 }
 
 async function runSearch() {
   try {
-    await store.searchResources({ sort: store.sortMode })
+    await store.searchResources({ sort: store.sortMode, scene: currentScene.value })
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '资源加载失败')
   }
@@ -48,7 +67,6 @@ function scheduleSearch() {
 
 function resetFilters() {
   store.keyword = ''
-  store.activeCategory = '全部分类'
   store.sortMode = 'newest'
 }
 
@@ -56,27 +74,28 @@ applyRouteFilters()
 
 onMounted(async () => {
   try {
-    await store.loadHomeData()
     ready.value = true
     await runSearch()
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '资源中心加载失败')
+    ElMessage.error(error instanceof Error ? error.message : '内容加载失败')
   }
 })
 
-watch(() => route.query, () => {
+watch(() => [route.path, route.query], () => {
   applyRouteFilters()
+  if (ready.value) scheduleSearch()
 }, { deep: true })
 
-watch(() => [store.activeCategory, store.keyword, store.sortMode], () => {
+watch(() => [store.keyword, store.sortMode], () => {
   if (!ready.value) return
-  void router.replace({ path: '/resources', query: filterQuery() })
+  void router.replace({ path: route.path, query: filterQuery() })
   scheduleSearch()
 })
 
 onUnmounted(() => {
   if (searchTimer) clearTimeout(searchTimer)
   store.cancelResourceSearch()
+  store.activeScene = 'ALL'
 })
 </script>
 
@@ -84,31 +103,20 @@ onUnmounted(() => {
   <section>
     <div class="page-title">
       <div>
-        <h1>资源中心</h1>
-        <p class="sub">搜索、分类和排序集中在这里，查看详情后返回仍会保留当前筛选。</p>
+        <h1>{{ pageInfo.title }}</h1>
+        <p class="sub">{{ pageInfo.description }}</p>
       </div>
       <span class="result-count">共 {{ store.filteredResources.length }} 个结果</span>
     </div>
 
     <div class="filter-panel">
       <div class="toolbar">
-        <el-input v-model="store.keyword" clearable placeholder="搜索标题、课程或资料内容" class="resource-search" />
+        <el-input v-model="store.keyword" clearable :placeholder="pageInfo.search" class="resource-search" />
         <el-select v-model="store.sortMode" class="sort-select">
           <el-option label="最新发布" value="newest" />
           <el-option label="热门优先" value="hottest" />
         </el-select>
         <el-button @click="resetFilters">重置筛选</el-button>
-      </div>
-      <div class="category-filters" aria-label="资源分类筛选">
-        <button
-          v-for="category in ['全部分类', ...store.categories]"
-          :key="category"
-          type="button"
-          :class="{ active: store.activeCategory === category }"
-          @click="store.activeCategory = category"
-        >
-          {{ category }}
-        </button>
       </div>
     </div>
 
@@ -147,31 +155,6 @@ onUnmounted(() => {
 
 .sort-select {
   width: 140px;
-}
-
-.category-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.category-filters button {
-  padding: 7px 12px;
-  color: var(--muted);
-  background: transparent;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-  transition: color .18s, border-color .18s, background-color .18s;
-}
-
-.category-filters button:hover,
-.category-filters button.active {
-  color: var(--primary);
-  border-color: var(--primary);
-  background: var(--primary-soft);
 }
 
 .resource-results {

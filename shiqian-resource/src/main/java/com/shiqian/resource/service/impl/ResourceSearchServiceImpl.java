@@ -24,13 +24,26 @@ public class ResourceSearchServiceImpl implements ResourceSearchService {
 
     @Override
     public Page<ResourceDocument> search(String keyword, Integer page, Integer size, String sort) {
+        return search(keyword, page, size, sort, null);
+    }
+
+    @Override
+    public Page<ResourceDocument> search(
+            String keyword,
+            Integer page,
+            Integer size,
+            String sort,
+            String contentScene) {
         String text = StringUtils.hasText(keyword) ? keyword.trim() : "";
+        String scene = StringUtils.hasText(contentScene)
+                ? contentScene.trim().toUpperCase(java.util.Locale.ROOT)
+                : null;
         NativeQuery query = NativeQuery.builder()
                 .withQuery(q -> q
-                        .bool(b -> b
-                                .should(s -> s.multiMatch(m -> m
+                        .bool(b -> {
+                            b.should(s -> s.multiMatch(m -> m
                                         .query(text)
-                                        .fields("title^3", "description^2", "fileType")
+                                        .fields("title^3", "description^2", "tags^2", "fileType")
                                         .fuzziness("AUTO")
                                 ))
                                 .should(s -> s.matchPhrase(m -> m
@@ -56,12 +69,21 @@ public class ResourceSearchServiceImpl implements ResourceSearchService {
                                         .field("fileType")
                                         .value("*" + text + "*")
                                 ))
+                                .should(s -> s.wildcard(w -> w
+                                        .field("tags")
+                                        .value("*" + text + "*")
+                                ))
                                 .filter(f -> f.term(t -> t
                                         .field("status")
                                         .value(1)
-                                ))
-                                .minimumShouldMatch("1")
-                        )
+                                ));
+                            if (scene != null) {
+                                b.filter(f -> f.term(t -> t
+                                        .field("contentScene")
+                                        .value(scene)));
+                            }
+                            return b.minimumShouldMatch("1");
+                        })
                 )
                 .withPageable(PageRequest.of(page - 1, size))
                 .build();

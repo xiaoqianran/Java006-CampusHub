@@ -47,7 +47,6 @@ describe('app store - critical recent methods', () => {
 
   it('deduplicates concurrent home loads and reuses the short-lived cache', async () => {
     vi.mocked(request).mockImplementation(async path => {
-      if (path === '/api/category/tree') return [] as any
       if (path === '/api/resource') {
         return { records: [], total: 0, size: 100, current: 1, pages: 0 } as any
       }
@@ -58,7 +57,7 @@ describe('app store - critical recent methods', () => {
     await Promise.all([store.loadHomeData(), store.loadHomeData()])
     await store.loadHomeData()
 
-    expect(vi.mocked(request).mock.calls.filter(([path]) => path === '/api/category/tree')).toHaveLength(1)
+    expect(vi.mocked(request).mock.calls.filter(([path]) => path === '/api/category/tree')).toHaveLength(0)
     expect(vi.mocked(request).mock.calls.filter(([path]) => path === '/api/resource')).toHaveLength(1)
   })
 
@@ -95,6 +94,6 @@ describe('app store - critical recent methods', () => {
     await store.searchResources()
 
     expect(vi.mocked(request)).toHaveBeenCalledTimes(1)
-    expect(vi.mocked(request).mock.calls[0][0]).toBe('/api/resource/search')
+    expect(vi.mocked(request).mock.calls[0][0]).toBe('/api/resource')
   })
 })

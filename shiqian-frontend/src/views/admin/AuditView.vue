@@ -5,7 +5,13 @@ import AdminLayout from '@/components/AdminLayout.vue'
 import AttachmentPreviewDialog from '@/components/AttachmentPreviewDialog.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import { buildApiUrl } from '@/api/client'
-import { useAppStore, type ResourceAttachmentItem, type ResourceItem, type ResourceStatus } from '@/stores/app'
+import {
+  contentSceneLabel,
+  useAppStore,
+  type ResourceAttachmentItem,
+  type ResourceItem,
+  type ResourceStatus
+} from '@/stores/app'
 
 const MarkdownPreview = defineAsyncComponent(() => import('@/components/MarkdownPreview.vue'))
 const store = useAppStore()
@@ -25,7 +31,7 @@ const auditResources = computed(() => {
   return store.resources
     .filter(item => ['待审核', '待修改', '已拒绝'].includes(item.status))
     .filter(item => statusFilter.value === '全部' || item.status === statusFilter.value)
-    .filter(item => !text || `${item.title}${item.author}${item.cat}${item.desc}`.toLowerCase().includes(text))
+    .filter(item => !text || `${item.title}${item.author}${item.tags || ''}${item.desc}`.toLowerCase().includes(text))
     .sort((a, b) => b.id - a.id)
 })
 
@@ -143,7 +149,7 @@ async function batchApprove() {
     <div class="page-title">
       <div>
         <h1>审核工作台</h1>
-        <p class="sub">集中完成资源预览、附件检查、审核意见和发布决策。</p>
+        <p class="sub">集中预览博客、图片和资料，检查正文、图片及附件。</p>
       </div>
       <el-tag type="warning" size="large">待审核 {{ pendingCount }}</el-tag>
     </div>
@@ -152,7 +158,7 @@ async function batchApprove() {
       <el-input
         v-model="searchText"
         clearable
-        placeholder="搜索标题、作者、分类或摘要"
+        placeholder="搜索标题、作者、标签或摘要"
         style="width: 320px"
       />
       <el-radio-group v-model="statusFilter">
@@ -179,13 +185,13 @@ async function batchApprove() {
       @row-dblclick="openDetail"
     >
       <el-table-column type="selection" width="46" :selectable="(row: ResourceItem) => row.status === '待审核'" />
-      <el-table-column label="资源" min-width="320">
+      <el-table-column label="内容" min-width="320">
         <template #default="{ row }">
           <button class="title-button" @click="openDetail(row)">{{ row.title }}</button>
           <div class="sub one-line">{{ row.desc || '暂无摘要' }}</div>
         </template>
       </el-table-column>
-      <el-table-column prop="cat" label="分类" width="130" />
+      <el-table-column label="频道" width="100"><template #default="{ row }">{{ contentSceneLabel(row.scene) }}</template></el-table-column>
       <el-table-column prop="author" label="发布者" width="130" />
       <el-table-column label="内容" width="120">
         <template #default="{ row }">
@@ -221,7 +227,7 @@ async function batchApprove() {
           <div>
             <h2>{{ current?.title }}</h2>
             <div class="review-meta">
-              <span>{{ current?.cat }}</span>
+              <span>{{ contentSceneLabel(current?.scene) }}</span>
               <span>{{ current?.author }}</span>
               <StatusTag v-if="current" :status="current.status" />
             </div>

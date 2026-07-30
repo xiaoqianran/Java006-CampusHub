@@ -3,13 +3,24 @@ import { computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { StarFilled, Star, View, Download, User } from '@element-plus/icons-vue'
-import type { ResourceItem } from '@/stores/app'
-import { useAppStore } from '@/stores/app'
+import { contentSceneLabel, type ResourceItem, useAppStore } from '@/stores/app'
+import { buildApiUrl } from '@/api/client'
 
 const props = defineProps<{ item: ResourceItem }>()
 const store = useAppStore()
 const router = useRouter()
 const favorite = computed(() => store.isFavorite(props.item.id))
+const coverImage = computed(() => {
+  const attachment = props.item.attachments?.find(item =>
+    item.assetKind === 'IMAGE' || /\.(png|jpe?g|gif|webp)$/i.test(item.fileName)
+  )
+  return attachment ? buildApiUrl(attachment.fileUrl, { inline: true }) : ''
+})
+const visibleTags = computed(() => (props.item.tags || '')
+  .split(/[,，]/)
+  .map(item => item.trim())
+  .filter(Boolean)
+  .slice(0, 3))
 
 function openDetail() {
   router.push(`/detail/${props.item.id}`)
@@ -31,10 +42,11 @@ async function toggleFavorite(event: MouseEvent) {
 </script>
 
 <template>
-  <el-card class="resource-card" shadow="hover" @click="openDetail">
+  <el-card class="resource-card" :class="{ 'gallery-card': item.scene === 'GALLERY' }" shadow="hover" @click="openDetail">
+    <img v-if="coverImage" :src="coverImage" :alt="item.title" class="card-image" />
     <div class="resource-cover">
       <div>
-        <span class="cover-category">{{ item.cat }}</span>
+        <span class="cover-category">{{ contentSceneLabel(item.scene) }}</span>
         <h3>{{ item.title }}</h3>
       </div>
       <!-- Tags group keeps right-aligned together under space-between flex (minimal addition) -->
@@ -44,6 +56,9 @@ async function toggleFavorite(event: MouseEvent) {
       </div>
     </div>
     <p class="resource-desc">{{ item.desc }}</p>
+    <div v-if="visibleTags.length" class="card-tags">
+      <el-tag v-for="tag in visibleTags" :key="tag" size="small" effect="plain"># {{ tag }}</el-tag>
+    </div>
     <div class="resource-meta">
       <!-- 改进：使用 el-tag 徽章让作者信息更醒目、一致且视觉突出（badge 样式） -->
       <el-tag size="small" type="info" effect="plain" style="font-size:12px; padding: 0 6px; height:18px; line-height:18px;">
@@ -59,3 +74,24 @@ async function toggleFavorite(event: MouseEvent) {
     </div>
   </el-card>
 </template>
+
+<style scoped>
+.card-image {
+  width: calc(100% + 40px);
+  height: 190px;
+  margin: -20px -20px 16px;
+  object-fit: cover;
+  border-bottom: 1px solid var(--line);
+}
+
+.gallery-card .card-image {
+  height: 250px;
+}
+
+.card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -4px 0 12px;
+}
+</style>

@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS t_resource (
     summary VARCHAR(500) DEFAULT NULL,
     content_markdown LONGTEXT DEFAULT NULL,
     content_type VARCHAR(30) DEFAULT 'ARTICLE',
+    content_scene VARCHAR(30) NOT NULL DEFAULT 'SHARE',
+    tags VARCHAR(500) DEFAULT NULL,
     category_id BIGINT DEFAULT NULL,
     file_url VARCHAR(500) DEFAULT NULL,
     file_size BIGINT NOT NULL DEFAULT 0,
@@ -25,6 +27,7 @@ CREATE TABLE IF NOT EXISTS t_resource (
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_id ON t_resource(user_id);
+CREATE INDEX IF NOT EXISTS idx_content_scene ON t_resource(content_scene);
 CREATE INDEX IF NOT EXISTS idx_category_id ON t_resource(category_id);
 
 -- 资源附件表（测试用）

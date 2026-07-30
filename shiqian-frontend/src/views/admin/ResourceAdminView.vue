@@ -3,13 +3,18 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AdminLayout from '@/components/AdminLayout.vue'
 import StatusTag from '@/components/StatusTag.vue'
-import { useAppStore } from '@/stores/app'
+import {
+  CONTENT_SCENES,
+  contentSceneLabel,
+  useAppStore,
+  type ContentSceneFilter
+} from '@/stores/app'
 
 const store = useAppStore()
 
 const searchText = ref('')
 const statusFilter = ref<'全部' | '已发布' | '已下架'>('全部')
-const categoryFilter = ref('全部分类')
+const sceneFilter = ref<ContentSceneFilter>('ALL')
 const sortBy = ref<'default' | 'views' | 'downloads' | 'time'>('default')
 
 const filteredAdminResources = computed(() => {
@@ -19,15 +24,15 @@ const filteredAdminResources = computed(() => {
     list = list.filter(r =>
       r.title.toLowerCase().includes(text) ||
       (r.desc || '').toLowerCase().includes(text) ||
-      (r.cat || '').toLowerCase().includes(text) ||
+      (r.tags || '').toLowerCase().includes(text) ||
       (r.author || '').toLowerCase().includes(text)
     )
   }
   if (statusFilter.value !== '全部') {
     list = list.filter(r => r.status === statusFilter.value)
   }
-  if (categoryFilter.value !== '全部分类') {
-    list = list.filter(r => r.cat === categoryFilter.value)
+  if (sceneFilter.value !== 'ALL') {
+    list = list.filter(r => r.scene === sceneFilter.value)
   }
   // client-side sort (views/downloads/time) applied to the (search+status+cat) filtered list
   const sorted = [...list]
@@ -44,8 +49,6 @@ const filteredAdminResources = computed(() => {
 })
 
 onMounted(() => {
-  // ensure categories loaded for the new categoryFilter dropdown (robust even for direct admin nav)
-  store.loadCategories().catch(() => undefined)
   store.loadResources().catch(() => undefined)
 })
 
@@ -89,20 +92,20 @@ async function restoreOnline(id: number, title: string) {
   <AdminLayout>
     <div class="page-title">
       <div>
-        <h1>已发布资源</h1>
-        <p class="sub">负责资源发布后的运营管理。首次审核统一在“审核工作台”完成。</p>
+        <h1>内容管理</h1>
+        <p class="sub">统一管理博客、图片和资料；频道不会限制正文或附件形式。</p>
       </div>
     </div>
     <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
-      <el-input v-model="searchText" placeholder="搜索标题/描述/分类/作者..." clearable style="width:280px;" />
+      <el-input v-model="searchText" placeholder="搜索标题/描述/标签/作者..." clearable style="width:280px;" />
       <el-select v-model="statusFilter" placeholder="状态" style="width:140px">
         <el-option label="全部" value="全部" />
         <el-option label="已发布" value="已发布" />
         <el-option label="已下架" value="已下架" />
       </el-select>
-      <el-select v-model="categoryFilter" placeholder="分类" style="width:160px">
-        <el-option label="全部分类" value="全部分类" />
-        <el-option v-for="cat in store.categories" :key="cat" :label="cat" :value="cat" />
+      <el-select v-model="sceneFilter" placeholder="频道" style="width:160px">
+        <el-option label="全部频道" value="ALL" />
+        <el-option v-for="scene in CONTENT_SCENES" :key="scene.value" :label="scene.label" :value="scene.value" />
       </el-select>
       <el-select v-model="sortBy" placeholder="排序" style="width:140px">
         <el-option label="默认（最新）" value="default" />
@@ -113,8 +116,8 @@ async function restoreOnline(id: number, title: string) {
       <span class="sub">共 {{ filteredAdminResources.length }} 条</span>
     </div>
     <el-table :data="filteredAdminResources" class="panel">
-      <el-table-column label="资源" min-width="280"><template #default="{ row }"><b>{{ row.title }}</b></template></el-table-column>
-      <el-table-column prop="cat" label="分类" width="130" />
+      <el-table-column label="内容" min-width="280"><template #default="{ row }"><b>{{ row.title }}</b></template></el-table-column>
+      <el-table-column label="频道" width="100"><template #default="{ row }">{{ contentSceneLabel(row.scene) }}</template></el-table-column>
       <el-table-column prop="author" label="发布者" width="110" />
       <el-table-column label="状态" width="120"><template #default="{ row }"><StatusTag :status="row.status" /></template></el-table-column>
       <el-table-column prop="downloads" label="下载" width="80" />

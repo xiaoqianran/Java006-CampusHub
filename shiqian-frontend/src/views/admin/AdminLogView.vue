@@ -58,7 +58,7 @@ onMounted(() => {
     <div class="page-title">
       <div>
         <h1>操作审计日志</h1>
-        <p class="sub">轻量级记录关键管理员操作（资源审核、用户启禁用、回收站恢复/删除等）。</p>
+        <p class="sub">轻量级记录关键管理员操作（内容审核、用户启禁用、回收站恢复/删除等）。</p>
       </div>
     </div>
 
@@ -104,7 +104,7 @@ onMounted(() => {
     </div>
 
     <div v-if="!loading && !store.adminLogs.length" class="sub" style="margin-top:12px;">
-      暂无操作日志。执行资源审核、用户启禁用或回收站操作后会自动记录。
+      暂无操作日志。执行内容审核、用户启禁用或回收站操作后会自动记录。
     </div>
   </AdminLayout>
 </template>

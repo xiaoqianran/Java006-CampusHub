@@ -15,8 +15,10 @@ onMounted(() => {
 
 const primaryLinks = [
   { path: '/home', label: '首页' },
-  { path: '/resources', label: '资源中心' },
-  { path: '/publish', label: '发布资源' }
+  { path: '/blog', label: '博客' },
+  { path: '/images', label: '图片' },
+  { path: '/share', label: '资料' },
+  { path: '/publish', label: '发布' }
 ]
 
 const canAccessAdmin = computed(() => store.currentUser?.role === 'ADMIN')
@@ -31,9 +33,6 @@ function goAdmin() {
 }
 
 function isLinkActive(path: string) {
-  if (path === '/resources') {
-    return route.path === '/resources' || route.path.startsWith('/detail/')
-  }
   return route.path === path
 }
 
@@ -96,8 +95,8 @@ function handlePersonalCommand(command: string) {
       <router-view />
     </el-main>
     <el-footer class="footer">
-      <span>© 2026 时迁校园资源共享平台</span>
-      <span>让校园资料更容易被发现、分享和管理</span>
+      <span>© 2026 时迁校园内容社区</span>
+      <span>分享文章、图片和资料，让校园内容自由流动</span>
     </el-footer>
   </el-container>
 </template>

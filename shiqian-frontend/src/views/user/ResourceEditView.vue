@@ -4,8 +4,14 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { UploadRawFile, UploadUserFile } from 'element-plus'
 import { Close, UploadFilled } from '@element-plus/icons-vue'
-import { useAppStore, type UploadedFileItem, type ResourceAttachmentItem } from '@/stores/app'
-import MarkdownPreview from '@/components/MarkdownPreview.vue'
+import {
+  CONTENT_SCENES,
+  useAppStore,
+  type ContentScene,
+  type UploadedFileItem,
+  type ResourceAttachmentItem
+} from '@/stores/app'
+import MarkdownLiveEditor from '@/components/MarkdownLiveEditor.vue'
 import {
   MAX_RESOURCE_FILE_COUNT,
   RESOURCE_FILE_ACCEPT,
@@ -29,7 +35,6 @@ const uploadedFiles = ref<UploadedFileItem[]>([])  // 新增/替换的附件（�
 const uploadProgress = ref(0)
 const uploadErrors = ref<string[]>([])
 const uploadStage = ref('')
-const showPreview = ref(false)
 let uploadController: AbortController | null = null
 let currentUploadPromise: Promise<void> | null = null
 let autoUploadTimer: number | null = null
@@ -37,6 +42,8 @@ let autoUploadTimer: number | null = null
 const form = reactive({
   title: '',
   cat: '',
+  scene: 'SHARE' as ContentScene,
+  tags: '',
   summary: '',
   contentMarkdown: ''
 })
@@ -45,7 +52,7 @@ const canSubmit = computed(() => {
   const hasFiles = selectedFiles.value.length > 0
     || existingAttachments.value.length > 0
     || uploadedFiles.value.length > 0
-  return Boolean(resourceId.value && form.title.trim() && form.cat && (form.contentMarkdown.trim() || hasFiles))
+  return Boolean(resourceId.value && form.title.trim() && (form.contentMarkdown.trim() || hasFiles))
 })
 const attachmentCount = computed(() => existingAttachments.value.length + uploadedFiles.value.length)
 
@@ -61,7 +68,9 @@ function fillForm() {
   if (!resource) return false
 
   form.title = resource.title
-  form.cat = resource.cat
+  form.cat = resource.categoryId ? resource.cat : ''
+  form.scene = resource.scene
+  form.tags = resource.tags || ''
   form.summary = resource.summary || resource.desc || ''
   form.contentMarkdown = resource.contentMarkdown || ''
 
@@ -222,7 +231,7 @@ function handleExceed() {
 
 async function submit() {
   if (!canSubmit.value) {
-    ElMessage.warning('请填写标题、分类，并至少保留正文或一个附件')
+    ElMessage.warning('请填写标题，并至少保留正文、图片或一个附件')
     return
   }
 
@@ -241,7 +250,9 @@ async function submit() {
 
     await store.updateResource(resourceId.value, {
       title: form.title,
-      cat: form.cat,
+      cat: form.cat || undefined,
+      contentScene: form.scene,
+      tags: form.tags,
       summary: form.summary,
       contentMarkdown: form.contentMarkdown,
       // 始终传递 attachments（即使空数组也表示清空所有），以触发多附件编辑逻辑
@@ -262,8 +273,8 @@ async function submit() {
   <section>
     <div class="page-title">
       <div>
-        <h1>编辑资源</h1>
-        <p class="sub">正文和附件满足其一即可。待修改资源保存后，可回到“我的发布”重新提交审核。</p>
+        <h1>编辑内容</h1>
+        <p class="sub">频道只影响展示；正文、图片和附件满足其一即可。</p>
       </div>
     </div>
 
@@ -271,15 +282,27 @@ async function submit() {
       <el-form label-position="top">
         <el-row :gutter="16">
           <el-col :xs="24" :md="12">
-            <el-form-item label="资源标题">
+            <el-form-item label="标题">
               <el-input v-model="form.title" placeholder="例如：Java 课程设计项目模板" />
             </el-form-item>
           </el-col>
           <el-col :xs="24" :md="12">
-            <el-form-item label="资源分类">
-              <el-select v-model="form.cat" class="full">
+            <el-form-item label="内容频道">
+              <el-select v-model="form.scene" class="full">
+                <el-option v-for="scene in CONTENT_SCENES" :key="scene.value" :label="scene.label" :value="scene.value" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :md="12">
+            <el-form-item label="分类（选填）">
+              <el-select v-model="form.cat" class="full" clearable placeholder="不选择也可以保存">
                 <el-option v-for="category in store.categories" :key="category" :label="category" :value="category" />
               </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :md="12">
+            <el-form-item label="自由标签（选填）">
+              <el-input v-model="form.tags" maxlength="500" placeholder="使用逗号分隔" />
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -376,22 +399,10 @@ async function submit() {
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item>
-              <template #label>
-                <div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
-                  <span>正文内容（有附件时选填）</span>
-                  <el-button text type="primary" @click="showPreview = !showPreview">
-                    {{ showPreview ? '返回编辑' : '预览' }}
-                  </el-button>
-                </div>
-              </template>
-              <MarkdownPreview v-if="showPreview" :model-value="form.contentMarkdown" class="simple-preview" />
-              <el-input
-                v-else
+            <el-form-item label="正文内容（选填，实时预览）">
+              <MarkdownLiveEditor
                 v-model="form.contentMarkdown"
-                type="textarea"
-                :rows="12"
-                placeholder="直接输入普通文字即可，也兼容简单 Markdown。"
+                placeholder="可以只写正文，也可以只保留图片或附件。"
               />
             </el-form-item>
           </el-col>

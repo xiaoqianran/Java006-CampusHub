@@ -6,7 +6,7 @@ import { ArrowLeft, Star, StarFilled, Download, View, User } from '@element-plus
 import StatusTag from '@/components/StatusTag.vue'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
 import AttachmentPreviewDialog from '@/components/AttachmentPreviewDialog.vue'
-import { useAppStore, type ResourceAttachmentItem } from '@/stores/app'
+import { contentSceneLabel, useAppStore, type ResourceAttachmentItem } from '@/stores/app'
 import { buildApiUrl } from '@/api/client'
 
 const route = useRoute()
@@ -16,8 +16,8 @@ const resource = computed(() => store.getResource(Number(route.params.id)))
 const related = computed(() => {
   if (!resource.value) return []
   const others = store.publishedResources.filter(item => item.id !== resource.value!.id)
-  const sameCat = others.filter(item => item.cat === resource.value!.cat)
-  const otherCat = others.filter(item => item.cat !== resource.value!.cat)
+  const sameScene = others.filter(item => item.scene === resource.value!.scene)
+  const otherScene = others.filter(item => item.scene !== resource.value!.scene)
   const currentAuthor = resource.value!.author
   // Client-side popularity score mixing views + downloads (reuse loaded resources, no backend call)
   // + small same-author boost for smarter recs (surfaces co-authored content without breaking mix)
@@ -26,11 +26,13 @@ const related = computed(() => {
     if (item.author === currentAuthor) s += 25
     return s
   }
-  sameCat.sort((a, b) => score(b) - score(a))
-  otherCat.sort((a, b) => score(b) - score(a))
-  // Mix: top 2 same-cat + top 2 cross-cat (existing diversity) + author boost for "相关推荐"
-  return [...sameCat.slice(0, 2), ...otherCat.slice(0, 2)].slice(0, 4)
+  sameScene.sort((a, b) => score(b) - score(a))
+  otherScene.sort((a, b) => score(b) - score(a))
+  return [...sameScene.slice(0, 2), ...otherScene.slice(0, 2)].slice(0, 4)
 })
+const imageAttachments = computed(() => resource.value?.attachments?.filter(att =>
+  att.assetKind === 'IMAGE' || /\.(png|jpe?g|gif|webp)$/i.test(att.fileName)
+) || [])
 
 const detailLoading = ref(true)
 const previewVisible = ref(false)
@@ -112,7 +114,10 @@ function goBack() {
     router.back()
     return
   }
-  router.push('/resources')
+  const path = resource.value?.scene === 'BLOG'
+    ? '/blog'
+    : resource.value?.scene === 'GALLERY' ? '/images' : '/share'
+  router.push(path)
 }
 </script>
 
@@ -121,7 +126,8 @@ function goBack() {
     <el-button text :icon="ArrowLeft" class="detail-back" @click="goBack">返回上一页</el-button>
     <section v-if="resource" class="detail-layout">
     <el-card class="detail-card" shadow="never">
-      <el-tag>{{ resource.cat }}</el-tag>
+      <el-tag>{{ contentSceneLabel(resource.scene) }}</el-tag>
+      <el-tag v-if="resource.categoryId" type="info" effect="plain" style="margin-left: 6px">{{ resource.cat }}</el-tag>
       <el-tag v-if="(resource.downloads + resource.views) > 15" type="danger" size="small" effect="light" style="margin-left: 6px">受欢迎</el-tag>
       <h1 class="detail-title">{{ resource.title }}</h1>
 
@@ -129,6 +135,9 @@ function goBack() {
       <p v-if="resource.summary || resource.desc" class="sub detail-summary">
         {{ resource.summary || resource.desc }}
       </p>
+      <div v-if="resource.tags" class="detail-tags">
+        <el-tag v-for="tag in resource.tags.split(/[,，]/).filter(Boolean)" :key="tag" size="small" effect="plain"># {{ tag.trim() }}</el-tag>
+      </div>
 
       <div class="resource-meta">
         <!-- 改进：badge 徽章形式突出显示作者，与 ResourceCard 保持视觉一致性 -->
@@ -141,7 +150,7 @@ function goBack() {
       </div>
 
       <div style="margin: 24px 0; display: flex; gap: 12px">
-        <el-button type="primary" :icon="Download" @click="download">
+        <el-button v-if="primaryDownloadUrl()" type="primary" :icon="Download" @click="download">
           下载{{ resource.attachments && resource.attachments.length ? '主文件' : '资源' }}
         </el-button>
         <el-button :icon="store.isFavorite(resource.id) ? StarFilled : Star" @click="toggleFavorite">
@@ -149,8 +158,18 @@ function goBack() {
         </el-button>
       </div>
 
+      <section v-if="resource.scene === 'GALLERY' && imageAttachments.length" class="image-gallery">
+        <img
+          v-for="image in imageAttachments"
+          :key="image.id || image.fileUrl"
+          :src="buildApiUrl(image.fileUrl, { inline: true })"
+          :alt="image.fileName"
+          @click="previewFile(image)"
+        />
+      </section>
+
       <!-- 正文：优先 contentMarkdown 的 Markdown 渲染 -->
-      <h2>资源正文</h2>
+      <h2>正文</h2>
       <div v-if="resource.contentMarkdown" class="markdown-section">
         <MarkdownPreview :model-value="resource.contentMarkdown" />
       </div>
@@ -193,8 +212,7 @@ function goBack() {
             <a @click="router.push(`/detail/${item.id}`)"><b>{{ item.title }}</b></a>
             <span class="sub" style="margin-left: 4px;">{{ item.type }}</span>
             <el-tag v-if="item.author === resource?.author" type="warning" size="small" effect="plain" style="margin-left: 4px; vertical-align: middle;">同作者</el-tag>
-            <el-tag v-else-if="item.cat === resource?.cat && ((item.downloads || 0) * 2 + (item.views || 0)) > 15" type="success" size="small" effect="plain" style="margin-left: 4px; vertical-align: middle;">同分类热门</el-tag>
-            <el-tag v-else-if="item.cat === resource?.cat" type="success" size="small" effect="plain" style="margin-left: 4px; vertical-align: middle;">同分类</el-tag>
+            <el-tag v-else-if="item.scene === resource?.scene" type="success" size="small" effect="plain" style="margin-left: 4px; vertical-align: middle;">同频道</el-tag>
             <el-tag v-else-if="((item.downloads || 0) + (item.views || 0)) > 10" type="info" size="small" effect="plain" style="margin-left: 4px; vertical-align: middle;">热门</el-tag>
           </p>
         </div>
@@ -221,6 +239,34 @@ function goBack() {
   color: var(--text-secondary, #4b5563);
   margin-bottom: 8px;
   line-height: 1.6;
+}
+
+.detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.image-gallery {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 22px 0;
+}
+
+.image-gallery img {
+  width: 100%;
+  max-height: 560px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  cursor: zoom-in;
+}
+
+.image-gallery img:first-child:last-child {
+  grid-column: 1 / -1;
+  object-fit: contain;
 }
 
 .markdown-section {
@@ -271,6 +317,12 @@ function goBack() {
 
 [data-theme="dark"] .attachment-item {
   background: #1f2937;
+}
+
+@media (max-width: 720px) {
+  .image-gallery {
+    grid-template-columns: 1fr;
+  }
 }
 
 .attachment-item .file-name {

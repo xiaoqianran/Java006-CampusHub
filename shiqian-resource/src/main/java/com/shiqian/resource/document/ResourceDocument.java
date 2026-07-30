@@ -22,6 +22,12 @@ public class ResourceDocument {
     @Field(type = FieldType.Keyword)
     private String fileType;
 
+    @Field(type = FieldType.Keyword)
+    private String contentScene;
+
+    @Field(type = FieldType.Text, analyzer = "standard")
+    private String tags;
+
     @Field(type = FieldType.Long)
     private Long categoryId;
 

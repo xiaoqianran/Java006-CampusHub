@@ -2,7 +2,7 @@
 import { onMounted, ref, computed } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import StatusTag from '@/components/StatusTag.vue'
-import { useAppStore } from '@/stores/app'
+import { contentSceneLabel, useAppStore } from '@/stores/app'
 
 const store = useAppStore()
 
@@ -33,7 +33,7 @@ async function remove(id: number) {
 
 async function resubmit(id: number) {
   try {
-    await ElMessageBox.confirm('确认重新提交这条资源进入审核吗？', '重新提交', { type: 'warning' })
+    await ElMessageBox.confirm('确认重新提交这条内容进入审核吗？', '重新提交', { type: 'warning' })
     await store.resubmitResource(id)
     ElMessage.success('已重新提交审核')
   } catch (error) {
@@ -64,7 +64,7 @@ async function saveProfile() {
     <div class="page-title">
       <div>
         <h1>我的发布</h1>
-        <p class="sub">查看发布进度和审核意见。待修改资源编辑完成后可以重新提交。</p>
+        <p class="sub">查看博客、图片和资料的发布进度及审核意见。</p>
       </div>
       <el-select v-model="store.sortMode" style="width: 140px" size="small">
         <el-option label="最新" value="newest" />
@@ -109,13 +109,13 @@ async function saveProfile() {
 
     <el-table :data="filteredMyResources" class="panel" style="width: 100%">
       <!-- 我的发布列表（我的资源作者即当前用户，store 统一使用后端数据；现支持状态过滤 + 附件/统计可视化） -->
-      <el-table-column label="资源" min-width="280">
+      <el-table-column label="内容" min-width="280">
         <template #default="{ row }">
           <b>{{ row.title }}</b>
           <div class="sub">{{ row.desc }}</div>
         </template>
       </el-table-column>
-      <el-table-column prop="cat" label="分类" width="130" />
+      <el-table-column label="频道" width="100"><template #default="{ row }">{{ contentSceneLabel(row.scene) }}</template></el-table-column>
       <el-table-column label="状态" width="120"><template #default="{ row }"><StatusTag :status="row.status" /></template></el-table-column>
       <el-table-column label="审核反馈" min-width="180">
         <template #default="{ row }"><span class="sub">{{ row.reviewReason || row.offlineReason || '—' }}</span></template>

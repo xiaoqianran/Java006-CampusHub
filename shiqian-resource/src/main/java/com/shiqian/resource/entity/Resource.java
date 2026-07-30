@@ -27,6 +27,11 @@ public class Resource {
 
     private String contentType;   // ARTICLE / FILE / MIXED
 
+    private String contentScene;  // BLOG / GALLERY / SHARE
+
+    private String tags;          // 可选，自由标签，逗号分隔
+
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private Long categoryId;
 
     // 以下旧字段保留兼容，未来逐步废弃

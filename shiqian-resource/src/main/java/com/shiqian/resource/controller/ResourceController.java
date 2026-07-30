@@ -67,10 +67,11 @@ public class ResourceController {
             @RequestParam(defaultValue = "10") Integer size,
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) String sort) {
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String scene) {
         Page<Resource> result = "ADMIN".equals(SecurityUtil.getCurrentRole())
-                ? resourceService.pageResources(page, size, categoryId, keyword, sort)
-                : resourceService.pagePublishedResources(page, size, categoryId, keyword, sort);
+                ? resourceService.pageResources(page, size, categoryId, keyword, sort, scene)
+                : resourceService.pagePublishedResources(page, size, categoryId, keyword, sort, scene);
         return Result.ok(result);
     }
 
@@ -262,12 +263,14 @@ public class ResourceController {
             @RequestParam String keyword,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer size,
-            @RequestParam(required = false) String sort) {
-        org.springframework.data.domain.Page<ResourceDocument> searchResult = resourceSearchService.search(keyword, page, size, sort);
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String scene) {
+        org.springframework.data.domain.Page<ResourceDocument> searchResult =
+                resourceSearchService.search(keyword, page, size, sort, scene);
         List<Long> orderedIds = searchResult.getContent().stream()
                 .map(ResourceDocument::getId)
                 .toList();
-        List<Resource> resources = resourceService.getPublishedResourcesByIds(orderedIds);
+        List<Resource> resources = resourceService.getPublishedResourcesByIds(orderedIds, scene);
         Page<Resource> result = new Page<>(page, size, searchResult.getTotalElements());
         result.setRecords(resources);
         return Result.ok(result);

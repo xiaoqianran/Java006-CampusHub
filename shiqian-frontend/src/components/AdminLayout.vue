@@ -12,14 +12,13 @@ const groups = [
     label: '内容管理',
     links: [
       { path: '/admin/audit', label: '审核工作台' },
-      { path: '/admin/resources', label: '已发布资源' },
+      { path: '/admin/resources', label: '内容管理' },
       { path: '/admin/recycle-bin', label: '回收站' }
     ]
   },
   {
     label: '平台管理',
     links: [
-      { path: '/admin/categories', label: '分类管理' },
       { path: '/admin/users', label: '用户管理' },
       { path: '/admin/logs', label: '操作日志' }
     ]
