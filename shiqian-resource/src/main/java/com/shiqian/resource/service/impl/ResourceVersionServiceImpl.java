@@ -21,6 +21,7 @@ import com.shiqian.resource.outbox.OutboxService;
 import com.shiqian.resource.outbox.ResourceEventPayload;
 import com.shiqian.resource.service.ResourceTaxonomyService;
 import com.shiqian.resource.service.ResourceVersionService;
+import com.shiqian.resource.service.StoredObjectService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
@@ -42,6 +43,7 @@ public class ResourceVersionServiceImpl implements ResourceVersionService {
     private final ResourceTaxonomyService taxonomyService;
     private final OutboxService outboxService;
     private final ObjectMapper objectMapper;
+    private final StoredObjectService storedObjectService;
 
     @Override
     public void ensureInitialSnapshot(Resource resource) {
@@ -140,9 +142,17 @@ public class ResourceVersionServiceImpl implements ResourceVersionService {
                 readJson(target.getCategoryIdsJson(), new TypeReference<List<Long>>() {}),
                 readJson(target.getTagNamesJson(), new TypeReference<List<String>>() {}));
         taxonomyService.sync(resourceId, targetTaxonomy);
-        restoreAttachments(resourceId, readJson(
+        List<ResourceAttachment> restoredAttachments = readJson(
                 target.getAttachmentsJson(),
-                new TypeReference<List<ResourceAttachment>>() {}));
+                new TypeReference<List<ResourceAttachment>>() {});
+        restoreAttachments(resourceId, restoredAttachments);
+        storedObjectService.bindResourceFiles(
+                current.getUserId(),
+                resourceId,
+                restoredAttachments.stream()
+                        .map(ResourceAttachment::getFileUrl)
+                        .filter(StringUtils::hasText)
+                        .toList());
 
         Resource restored = resourceMapper.selectById(resourceId);
         restored.setVersion(nextVersion);

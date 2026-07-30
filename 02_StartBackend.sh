@@ -16,6 +16,11 @@ fi
 : "${RABBITMQ_USER:?请在 .env 中设置 RABBITMQ_USER}"
 : "${RABBITMQ_PASSWORD:?请在 .env 中设置 RABBITMQ_PASSWORD}"
 
+if [[ "${STORAGE_PROVIDER:-local}" == "minio" ]]; then
+  : "${MINIO_ACCESS_KEY:?STORAGE_PROVIDER=minio 时必须设置 MINIO_ACCESS_KEY}"
+  : "${MINIO_SECRET_KEY:?STORAGE_PROVIDER=minio 时必须设置 MINIO_SECRET_KEY}"
+fi
+
 log() {
   echo ""
   echo "=== $* ==="

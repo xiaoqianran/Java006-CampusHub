@@ -12,4 +12,8 @@ public class FileUploadVO {
     private Long fileSize;
 
     private String fileType;
+
+    private String mimeType;
+
+    private String assetKind;
 }

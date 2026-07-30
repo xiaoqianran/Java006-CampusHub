@@ -48,6 +48,11 @@ resource:
     monitor:
       enabled: false
   upload-dir: target/test-uploads
+  storage:
+    provider: local
+    local:
+      root: target/test-object-storage
+    cleanup-initial-delay-ms: 86400000
   upload:
     max-file-size: 52428800
     max-files-per-request: 10

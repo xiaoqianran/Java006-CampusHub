@@ -25,6 +25,7 @@ import com.shiqian.resource.service.AuthorEnrichmentService;
 import com.shiqian.resource.service.ResourceTaxonomyService;
 import com.shiqian.resource.service.ResourceService;
 import com.shiqian.resource.service.ResourceVersionService;
+import com.shiqian.resource.service.StoredObjectService;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -63,6 +64,7 @@ public class ResourceServiceImpl implements ResourceService {
     private final AuthorEnrichmentService authorEnrichmentService;
     private final ResourceTaxonomyService taxonomyService;
     private final ResourceVersionService resourceVersionService;
+    private final StoredObjectService storedObjectService;
 
     @Override
     @CacheEvict(
@@ -100,6 +102,7 @@ public class ResourceServiceImpl implements ResourceService {
                 dto.getAttachments(),
                 resource.getFileUrl(),
                 false));
+        applyPrimaryAttachment(resource, dto.getAttachments());
 
         // 兼容旧字段（未来逐步移除）
         if (!StringUtils.hasText(resource.getFileUrl())) {
@@ -117,7 +120,7 @@ public class ResourceServiceImpl implements ResourceService {
 
         // 第二阶段：保存附件（使用辅助方法，支持空列表清空）
         if (dto.getAttachments() != null) {
-            syncAttachments(resource.getId(), dto.getAttachments());
+            syncAttachments(userId, resource.getId(), dto.getAttachments());
         }
         taxonomyService.sync(resource.getId(), taxonomy);
         // 新主键不应存在历史快照；若测试库或人工修复后留下孤儿记录，先清理再建 v1。
@@ -235,13 +238,20 @@ public class ResourceServiceImpl implements ResourceService {
                 dto.getAttachments(),
                 effectiveFileUrl,
                 keepExistingAttachments));
-        if (!StringUtils.hasText(resource.getFileUrl()) && StringUtils.hasText(existing.getFileUrl())) {
+        applyPrimaryAttachment(resource, dto.getAttachments());
+        if (dto.getAttachments() == null
+                && !StringUtils.hasText(resource.getFileUrl())
+                && StringUtils.hasText(existing.getFileUrl())) {
             resource.setFileUrl(existing.getFileUrl());
         }
-        if (resource.getFileSize() == null && existing.getFileSize() != null) {
+        if (dto.getAttachments() == null
+                && resource.getFileSize() == null
+                && existing.getFileSize() != null) {
             resource.setFileSize(existing.getFileSize());
         }
-        if (!StringUtils.hasText(resource.getFileType()) && StringUtils.hasText(existing.getFileType())) {
+        if (dto.getAttachments() == null
+                && !StringUtils.hasText(resource.getFileType())
+                && StringUtils.hasText(existing.getFileType())) {
             resource.setFileType(existing.getFileType());
         }
 
@@ -249,7 +259,7 @@ public class ResourceServiceImpl implements ResourceService {
 
         // 如果提供了 attachments（含空列表表示清空），则替换 t_resource_attachment 中的记录
         if (dto.getAttachments() != null) {
-            syncAttachments(id, dto.getAttachments());
+            syncAttachments(existing.getUserId(), id, dto.getAttachments());
         }
         taxonomyService.sync(id, taxonomy);
         Resource updated = resourceMapper.selectById(id);
@@ -733,6 +743,7 @@ public class ResourceServiceImpl implements ResourceService {
     @CacheEvict(cacheNames = CacheNames.RESOURCE_DETAIL, key = "#id")
     @Transactional(rollbackFor = Exception.class)
     public void permanentDeleteResource(Long id) {
+        storedObjectService.deleteResourceFiles(id);
         resourceAttachmentMapper.delete(
                 new QueryWrapper<ResourceAttachment>().eq("resource_id", id));
         taxonomyService.removeResourceRelations(id);
@@ -756,7 +767,10 @@ public class ResourceServiceImpl implements ResourceService {
      * 附件同步辅助方法：用于创建和更新场景。
      * 如果 attachments != null，则删除该资源的所有旧附件（update场景），然后插入新列表（可为空以清空）。
      */
-    private void syncAttachments(Long resourceId, List<AttachmentCreateDTO> attachments) {
+    private void syncAttachments(
+            Long ownerId,
+            Long resourceId,
+            List<AttachmentCreateDTO> attachments) {
         if (attachments == null) {
             return;
         }
@@ -778,5 +792,39 @@ public class ResourceServiceImpl implements ResourceService {
             att.setSortOrder(attDto.getSortOrder() != null ? attDto.getSortOrder() : 0);
             resourceAttachmentMapper.insert(att);
         }
+        storedObjectService.bindResourceFiles(
+                ownerId,
+                resourceId,
+                attachments.stream()
+                        .filter(java.util.Objects::nonNull)
+                        .map(AttachmentCreateDTO::getFileUrl)
+                        .filter(StringUtils::hasText)
+                        .toList());
+    }
+
+    private void applyPrimaryAttachment(
+            Resource resource,
+            List<AttachmentCreateDTO> attachments) {
+        if (attachments == null) {
+            return;
+        }
+        AttachmentCreateDTO primary = attachments.stream()
+                .filter(java.util.Objects::nonNull)
+                .filter(item -> StringUtils.hasText(item.getFileUrl()))
+                .findFirst()
+                .orElse(null);
+        if (primary == null) {
+            resource.setFileUrl("");
+            resource.setFileSize(0L);
+            resource.setFileType(StringUtils.hasText(resource.getContentMarkdown())
+                    ? "Markdown资源"
+                    : "文字资源");
+            return;
+        }
+        resource.setFileUrl(primary.getFileUrl());
+        resource.setFileSize(primary.getFileSize() == null ? 0L : primary.getFileSize());
+        resource.setFileType(StringUtils.hasText(primary.getMimeType())
+                ? primary.getMimeType()
+                : primary.getFileType());
     }
 }

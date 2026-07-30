@@ -2,22 +2,32 @@ package com.shiqian.resource.controller;
 
 import com.shiqian.common.result.Result;
 import com.shiqian.common.security.SecurityUtil;
+import com.shiqian.resource.config.ResourceStorageProperties;
 import com.shiqian.resource.dto.ArchivePreviewVO;
 import com.shiqian.resource.dto.FileUploadVO;
+import com.shiqian.resource.dto.SignedFileUrlVO;
 import com.shiqian.resource.dto.TextFilePreviewVO;
+import com.shiqian.resource.entity.StoredObject;
+import com.shiqian.resource.service.StoredObjectService;
+import com.shiqian.resource.storage.StoredObjectAccess;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.MediaTypeFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -25,335 +35,288 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.util.UriUtils;
 
-import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
 import java.util.zip.ZipException;
+import java.util.zip.ZipInputStream;
 
-@Tag(name = "资源文件", description = "资源附件上传与访问")
+@Tag(name = "资源文件", description = "资源附件上传与私有对象访问")
 @Slf4j
 @RestController
 @RequestMapping("/api/resource/files")
+@RequiredArgsConstructor
 public class ResourceFileController {
 
-    private final Path uploadPath;
-    private final long maxFileSize;
-    private final int maxFilesPerRequest;
-    private final long maxUserStorage;
-    private final int maxTextPreviewBytes;
-    private final int maxArchiveEntries;
-    private final Set<String> allowedExtensions;
-    private final Semaphore uploadSlots;
-    private final ConcurrentMap<Long, AtomicLong> userStorageUsage = new ConcurrentHashMap<>();
     private static final Set<String> TEXT_PREVIEW_EXTENSIONS = Set.of(
             "txt", "md", "java", "py", "js", "ts", "vue", "c", "cpp", "h",
             "go", "rs", "sql", "json", "xml", "yaml", "yml", "html", "css", "sh");
 
-    public ResourceFileController(
-            @Value("${resource.upload-dir:uploads/resources}") String uploadDir,
-            @Value("${resource.upload.max-file-size:52428800}") long maxFileSize,
-            @Value("${resource.upload.max-files-per-request:10}") int maxFilesPerRequest,
-            @Value("${resource.upload.max-user-storage:1073741824}") long maxUserStorage,
-            @Value("${resource.upload.max-concurrent-files:16}") int maxConcurrentFiles,
-            @Value("${resource.upload.max-text-preview-bytes:524288}") int maxTextPreviewBytes,
-            @Value("${resource.upload.max-archive-preview-entries:500}") int maxArchiveEntries,
-            @Value("${resource.upload.allowed-extensions:pdf,doc,docx,xls,xlsx,ppt,pptx,txt,md,jpg,jpeg,png,gif,webp,zip,rar,7z,java,py,js,ts,vue,c,cpp,h,go,rs,sql,json,xml,yaml,yml,html,css,sh}")
-            String allowedExtensions) {
-        this.uploadPath = Path.of(uploadDir).toAbsolutePath().normalize();
-        this.maxFileSize = maxFileSize;
-        this.maxFilesPerRequest = maxFilesPerRequest;
-        this.maxUserStorage = maxUserStorage;
-        this.maxTextPreviewBytes = Math.max(1024, maxTextPreviewBytes);
-        this.maxArchiveEntries = Math.max(1, maxArchiveEntries);
-        this.uploadSlots = new Semaphore(Math.max(1, maxConcurrentFiles), true);
-        this.allowedExtensions = Arrays.stream(allowedExtensions.split(","))
-                .map(item -> item.trim().toLowerCase(Locale.ROOT))
-                .filter(StringUtils::hasText)
-                .collect(Collectors.toUnmodifiableSet());
-    }
+    private final StoredObjectService storedObjectService;
+    private final ResourceStorageProperties storageProperties;
+
+    @Value("${resource.upload-dir:uploads/resources}")
+    private String legacyUploadDir;
+
+    @Value("${resource.upload.max-files-per-request:10}")
+    private int maxFilesPerRequest;
+
+    @Value("${resource.upload.max-text-preview-bytes:524288}")
+    private int maxTextPreviewBytes;
+
+    @Value("${resource.upload.max-archive-preview-entries:500}")
+    private int maxArchiveEntries;
 
     @Operation(summary = "批量上传资源附件")
     @PostMapping
     @PreAuthorize("hasAuthority('resource:create')")
     public Result<List<FileUploadVO>> uploadFiles(
             @RequestParam(value = "files", required = false) List<MultipartFile> files,
-            @RequestParam(value = "file", required = false) MultipartFile file) throws IOException {
+            @RequestParam(value = "file", required = false) MultipartFile file) {
         List<MultipartFile> uploadFiles = new ArrayList<>();
-        if (files != null) {
-            uploadFiles.addAll(files);
-        }
-        if (file != null) {
-            uploadFiles.add(file);
-        }
-
-        if (uploadFiles.isEmpty()) {
-            return Result.fail(400, "请选择要上传的文件");
-        }
-
-        Long userId = SecurityUtil.getCurrentUserId();
-        if (userId == null) {
-            return Result.fail(401, "未登录");
-        }
-
+        if (files != null) uploadFiles.addAll(files);
+        if (file != null) uploadFiles.add(file);
         List<MultipartFile> nonEmptyFiles = uploadFiles.stream()
                 .filter(item -> item != null && !item.isEmpty())
                 .toList();
+        if (uploadFiles.isEmpty()) {
+            return Result.fail(400, "请选择要上传的文件");
+        }
         if (nonEmptyFiles.isEmpty()) {
             return Result.fail(400, "不能上传空文件");
         }
         if (nonEmptyFiles.size() > maxFilesPerRequest) {
             return Result.fail(400, "单次最多上传" + maxFilesPerRequest + "个文件");
         }
-
-        for (MultipartFile uploadFile : nonEmptyFiles) {
-            String validationError = validateFile(uploadFile);
-            if (validationError != null) {
-                return Result.fail(400, validationError);
-            }
+        Long userId = SecurityUtil.getCurrentUserId();
+        if (userId == null) {
+            return Result.fail(401, "未登录");
         }
+        return Result.ok(storedObjectService.storeFiles(userId, nonEmptyFiles));
+    }
 
-        int permits = nonEmptyFiles.size();
-        if (!uploadSlots.tryAcquire(permits)) {
-            return Result.fail(429, "当前上传任务较多，请稍后重试");
+    @Operation(summary = "获取 MinIO 私有文件临时签名地址")
+    @GetMapping("/object/{publicId}/signed-url")
+    public Result<SignedFileUrlVO> signedUrl(
+            @PathVariable String publicId,
+            @RequestParam(value = "inline", defaultValue = "false") boolean inline) {
+        String url = storedObjectService.createSignedUrl(
+                        publicId,
+                        SecurityUtil.getCurrentUserId(),
+                        SecurityUtil.hasAuthority("resource:audit"),
+                        inline)
+                .orElse("/api/resource/files/object/" + publicId + "?inline=" + inline);
+        return Result.ok(new SignedFileUrlVO(
+                url,
+                LocalDateTime.now().plus(storageProperties.getSignedUrlTtl())));
+    }
+
+    @Operation(summary = "访问统一存储中的资源附件")
+    @GetMapping("/object/{publicId}")
+    public ResponseEntity<?> getStoredObject(
+            @PathVariable String publicId,
+            @RequestParam(value = "inline", defaultValue = "false") boolean inline) {
+        Long requesterId = SecurityUtil.getCurrentUserId();
+        boolean privileged = SecurityUtil.hasAuthority("resource:audit");
+        var signedUrl = storedObjectService.createSignedUrl(
+                publicId, requesterId, privileged, inline);
+        if (signedUrl.isPresent()) {
+            return ResponseEntity.status(HttpStatus.FOUND)
+                    .location(URI.create(signedUrl.get()))
+                    .build();
         }
-        try {
-            long batchSize = nonEmptyFiles.stream().mapToLong(MultipartFile::getSize).sum();
-            if (!reserveUserStorage(userId, batchSize)) {
-                return Result.fail(400, "个人文件空间不足，当前上限为1GB");
-            }
-
-            Path userUploadPath = uploadPath.resolve(String.valueOf(userId)).normalize();
-            List<FileUploadVO> result = new ArrayList<>();
-            List<Path> createdFiles = new ArrayList<>();
-            try {
-                Files.createDirectories(userUploadPath);
-                for (MultipartFile uploadFile : nonEmptyFiles) {
-                    String originalName = StringUtils.cleanPath(uploadFile.getOriginalFilename());
-                    String ext = originalName.substring(originalName.lastIndexOf('.')).toLowerCase(Locale.ROOT);
-                    String storedName = UUID.randomUUID() + ext;
-                    Path target = userUploadPath.resolve(storedName).normalize();
-                    if (!target.startsWith(userUploadPath)) {
-                        throw new IOException("非法文件名");
-                    }
-                    Files.copy(uploadFile.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
-                    createdFiles.add(target);
-
-                    FileUploadVO vo = new FileUploadVO();
-                    vo.setOriginalName(originalName);
-                    vo.setFileUrl("/api/resource/files/" + userId + "/"
-                            + UriUtils.encodePathSegment(storedName, StandardCharsets.UTF_8));
-                    vo.setFileSize(uploadFile.getSize());
-                    vo.setFileType(resolveFileType(uploadFile, originalName));
-                    result.add(vo);
-                }
-            } catch (IOException error) {
-                for (Path createdFile : createdFiles) {
-                    Files.deleteIfExists(createdFile);
-                }
-                releaseUserStorage(userId, batchSize);
-                throw error;
-            }
-            log.info("资源附件上传成功: userId={}, count={}, bytes={}", userId, result.size(), batchSize);
-            return Result.ok(result);
-        } finally {
-            uploadSlots.release(permits);
-        }
+        StoredObjectAccess access = storedObjectService.open(
+                publicId, requesterId, privileged);
+        StoredObject metadata = access.metadata();
+        return streamResponse(
+                access.inputStream(),
+                metadata.getFileSize(),
+                metadata.getMimeType(),
+                metadata.getOriginalName(),
+                inline);
     }
 
     @Operation(summary = "预览文本附件")
     @GetMapping("/preview/text")
-    public Result<TextFilePreviewVO> previewText(@RequestParam("path") String relativePath) throws IOException {
-        Path target = resolveStoredFile(relativePath);
-        if (target == null) {
-            return Result.fail(404, "预览文件不存在");
+    public Result<TextFilePreviewVO> previewText(
+            @RequestParam("path") String relativePath) throws IOException {
+        try (PreviewSource source = resolvePreviewSource(relativePath)) {
+            if (source == null) {
+                return Result.fail(404, "预览文件不存在");
+            }
+            if (!TEXT_PREVIEW_EXTENSIONS.contains(source.extension())) {
+                return Result.fail(400, "该文件不支持文本预览");
+            }
+            int limit = Math.max(1024, maxTextPreviewBytes);
+            byte[] bytes = source.inputStream().readNBytes(limit + 1);
+            boolean truncated = bytes.length > limit;
+            int contentLength = Math.min(bytes.length, limit);
+            String content = new String(bytes, 0, contentLength, StandardCharsets.UTF_8);
+            return Result.ok(new TextFilePreviewVO(content, truncated, source.size()));
         }
-        if (!TEXT_PREVIEW_EXTENSIONS.contains(fileExtension(target))) {
-            return Result.fail(400, "该文件不支持文本预览");
-        }
-
-        byte[] bytes;
-        try (InputStream input = Files.newInputStream(target)) {
-            bytes = input.readNBytes(maxTextPreviewBytes + 1);
-        }
-        boolean truncated = bytes.length > maxTextPreviewBytes;
-        int contentLength = Math.min(bytes.length, maxTextPreviewBytes);
-        String content = new String(bytes, 0, contentLength, StandardCharsets.UTF_8);
-        return Result.ok(new TextFilePreviewVO(content, truncated, Files.size(target)));
     }
 
     @Operation(summary = "预览 ZIP 附件目录")
     @GetMapping("/preview/archive")
-    public Result<ArchivePreviewVO> previewArchive(@RequestParam("path") String relativePath) throws IOException {
-        Path target = resolveStoredFile(relativePath);
-        if (target == null) {
+    public Result<ArchivePreviewVO> previewArchive(
+            @RequestParam("path") String relativePath) throws IOException {
+        PreviewSource source = resolvePreviewSource(relativePath);
+        if (source == null) {
             return Result.fail(404, "预览文件不存在");
         }
-        if (!"zip".equals(fileExtension(target))) {
+        if (!"zip".equals(source.extension())) {
+            source.close();
             return Result.fail(400, "当前仅支持预览 ZIP 压缩包目录");
         }
 
+        int limit = Math.max(1, maxArchiveEntries);
         List<ArchivePreviewVO.Entry> entries = new ArrayList<>();
-        int totalEntries;
-        try (ZipFile zipFile = new ZipFile(target.toFile())) {
-            totalEntries = zipFile.size();
-            var enumeration = zipFile.entries();
-            while (enumeration.hasMoreElements() && entries.size() < maxArchiveEntries) {
-                ZipEntry entry = enumeration.nextElement();
-                String name = entry.getName();
-                if (name.length() > 500) {
-                    name = name.substring(0, 497) + "...";
+        int totalEntries = 0;
+        boolean truncated = false;
+        try (source; ZipInputStream zip = new ZipInputStream(source.inputStream())) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                totalEntries++;
+                if (entries.size() < limit) {
+                    String name = entry.getName();
+                    if (name.length() > 500) {
+                        name = name.substring(0, 497) + "...";
+                    }
+                    entries.add(new ArchivePreviewVO.Entry(
+                            name,
+                            entry.isDirectory(),
+                            entry.getSize(),
+                            entry.getCompressedSize()));
+                } else {
+                    truncated = true;
                 }
-                entries.add(new ArchivePreviewVO.Entry(
-                        name,
-                        entry.isDirectory(),
-                        entry.getSize(),
-                        entry.getCompressedSize()));
+                zip.closeEntry();
             }
         } catch (ZipException error) {
             return Result.fail(400, "ZIP 文件已损坏或格式不正确");
         }
-        return Result.ok(new ArchivePreviewVO(
-                entries,
-                totalEntries,
-                totalEntries > entries.size()));
+        return Result.ok(new ArchivePreviewVO(entries, totalEntries, truncated));
     }
 
-    @Operation(summary = "访问资源附件")
+    /**
+     * 兼容历史本地文件 URL；新上传文件不会再暴露用户目录或磁盘路径。
+     */
+    @Operation(summary = "访问历史本地资源附件")
     @GetMapping("/**")
-    public ResponseEntity<org.springframework.core.io.Resource> getFile(
+    public ResponseEntity<org.springframework.core.io.Resource> getLegacyFile(
             HttpServletRequest request,
             @RequestParam(value = "inline", defaultValue = "false") boolean inline) throws IOException {
         String prefix = "/api/resource/files/";
         String uri = request.getRequestURI();
         String filename = uri.startsWith(prefix) ? uri.substring(prefix.length()) : "";
         filename = UriUtils.decode(filename, StandardCharsets.UTF_8);
-        Path target = resolveStoredFile(filename);
+        Path target = resolveLegacyFile(filename);
         if (target == null) {
             return ResponseEntity.notFound().build();
         }
-
         UrlResource resource = new UrlResource(target.toUri());
         MediaType mediaType = MediaTypeFactory.getMediaType(target.getFileName().toString())
                 .orElse(MediaType.APPLICATION_OCTET_STREAM);
-        ContentDisposition disposition = (inline
-                ? ContentDisposition.inline()
-                : ContentDisposition.attachment())
-                .filename(target.getFileName().toString(), StandardCharsets.UTF_8)
-                .build();
         return ResponseEntity.ok()
                 .contentType(mediaType)
                 .contentLength(Files.size(target))
-                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        contentDisposition(target.getFileName().toString(), inline))
                 .body(resource);
     }
 
-    private Path resolveStoredFile(String relativePath) {
+    private PreviewSource resolvePreviewSource(String relativePath) throws IOException {
+        if (StringUtils.hasText(relativePath) && relativePath.startsWith("object/")) {
+            String publicId = relativePath.substring("object/".length());
+            if (publicId.contains("/")) {
+                return null;
+            }
+            StoredObjectAccess access = storedObjectService.open(
+                    publicId,
+                    SecurityUtil.getCurrentUserId(),
+                    SecurityUtil.hasAuthority("resource:audit"));
+            StoredObject metadata = access.metadata();
+            return new PreviewSource(
+                    access.inputStream(),
+                    metadata.getFileSize() == null ? 0L : metadata.getFileSize(),
+                    metadata.getExtension());
+        }
+        Path target = resolveLegacyFile(relativePath);
+        if (target == null) {
+            return null;
+        }
+        return new PreviewSource(
+                Files.newInputStream(target),
+                Files.size(target),
+                fileExtension(target.getFileName().toString()));
+    }
+
+    private Path resolveLegacyFile(String relativePath) {
         if (!StringUtils.hasText(relativePath)
                 || relativePath.contains("..")
                 || relativePath.contains("\\")
                 || relativePath.startsWith("/")) {
             return null;
         }
-        Path target = uploadPath.resolve(relativePath).normalize();
-        if (!target.startsWith(uploadPath) || !Files.isRegularFile(target)) {
+        Path root = Path.of(legacyUploadDir).toAbsolutePath().normalize();
+        Path target = root.resolve(relativePath).normalize();
+        if (!target.startsWith(root) || !Files.isRegularFile(target)) {
             return null;
         }
         return target;
     }
 
-    private String fileExtension(Path path) {
-        String name = path.getFileName().toString();
+    private String fileExtension(String name) {
         int dotIndex = name.lastIndexOf('.');
         return dotIndex >= 0
                 ? name.substring(dotIndex + 1).toLowerCase(Locale.ROOT)
                 : "";
     }
 
-    private String resolveFileType(MultipartFile file, String originalName) {
-        if (StringUtils.hasText(file.getContentType())) {
-            return file.getContentType();
+    private ResponseEntity<InputStreamResource> streamResponse(
+            InputStream inputStream,
+            Long size,
+            String mimeType,
+            String originalName,
+            boolean inline) {
+        MediaType mediaType;
+        try {
+            mediaType = StringUtils.hasText(mimeType)
+                    ? MediaType.parseMediaType(mimeType)
+                    : MediaType.APPLICATION_OCTET_STREAM;
+        } catch (IllegalArgumentException ignored) {
+            mediaType = MediaType.APPLICATION_OCTET_STREAM;
         }
-        int dotIndex = originalName.lastIndexOf('.');
-        return dotIndex >= 0 ? originalName.substring(dotIndex + 1) : "application/octet-stream";
+        ResponseEntity.BodyBuilder response = ResponseEntity.ok()
+                .contentType(mediaType)
+                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition(originalName, inline));
+        if (size != null && size >= 0) {
+            response.contentLength(size);
+        }
+        return response.body(new InputStreamResource(inputStream));
     }
 
-    private String validateFile(MultipartFile file) {
-        String originalName = StringUtils.cleanPath(file.getOriginalFilename() == null
-                ? ""
-                : file.getOriginalFilename());
-        if (!StringUtils.hasText(originalName) || originalName.length() > 255
-                || originalName.contains("..") || originalName.contains("/")
-                || originalName.contains("\\")) {
-            return "文件名不合法";
-        }
-        if (file.getSize() <= 0) {
-            return originalName + "：空文件不能上传";
-        }
-        if (file.getSize() > maxFileSize) {
-            return originalName + "：超过50MB";
-        }
-        int dotIndex = originalName.lastIndexOf('.');
-        String extension = dotIndex >= 0
-                ? originalName.substring(dotIndex + 1).toLowerCase(Locale.ROOT)
-                : "";
-        if (!allowedExtensions.contains(extension)) {
-            return originalName + "：不支持此文件类型";
-        }
-        return null;
+    private String contentDisposition(String fileName, boolean inline) {
+        return (inline ? ContentDisposition.inline() : ContentDisposition.attachment())
+                .filename(fileName, StandardCharsets.UTF_8)
+                .build()
+                .toString();
     }
 
-    private boolean reserveUserStorage(Long userId, long bytes) {
-        AtomicLong usage = userStorageUsage.computeIfAbsent(userId,
-                ignored -> new AtomicLong(calculateDirectorySize(uploadPath.resolve(String.valueOf(userId)))));
-        long reserved = usage.addAndGet(bytes);
-        if (reserved <= maxUserStorage) {
-            return true;
-        }
-        usage.addAndGet(-bytes);
-        return false;
-    }
-
-    private void releaseUserStorage(Long userId, long bytes) {
-        AtomicLong usage = userStorageUsage.get(userId);
-        if (usage != null) {
-            usage.updateAndGet(current -> Math.max(0, current - bytes));
-        }
-    }
-
-    private long calculateDirectorySize(Path directory) {
-        if (!Files.exists(directory)) {
-            return 0L;
-        }
-        try (Stream<Path> files = Files.walk(directory)) {
-            return files.filter(Files::isRegularFile)
-                    .mapToLong(path -> {
-                        try {
-                            return Files.size(path);
-                        } catch (IOException ignored) {
-                            return 0L;
-                        }
-                    })
-                    .sum();
-        } catch (IOException ignored) {
-            return 0L;
+    private record PreviewSource(InputStream inputStream, long size, String extension)
+            implements AutoCloseable {
+        @Override
+        public void close() throws IOException {
+            inputStream.close();
         }
     }
 }

@@ -96,6 +96,21 @@ resource:
     consistency-interval-ms: ${RESOURCE_SEARCH_CONSISTENCY_INTERVAL_MS:3600000}
     consistency-initial-delay-ms: ${RESOURCE_SEARCH_CONSISTENCY_INITIAL_DELAY_MS:600000}
   upload-dir: uploads/resources
+  storage:
+    provider: ${STORAGE_PROVIDER:local}
+    signed-url-ttl: ${STORAGE_SIGNED_URL_TTL:10m}
+    temporary-ttl: ${STORAGE_TEMPORARY_TTL:24h}
+    cleanup-batch-size: ${STORAGE_CLEANUP_BATCH_SIZE:100}
+    cleanup-interval-ms: ${STORAGE_CLEANUP_INTERVAL_MS:3600000}
+    cleanup-initial-delay-ms: ${STORAGE_CLEANUP_INITIAL_DELAY_MS:600000}
+    local:
+      root: ${LOCAL_STORAGE_ROOT:uploads/objects}
+    minio:
+      endpoint: ${MINIO_ENDPOINT:http://127.0.0.1:9000}
+      public-endpoint: ${MINIO_PUBLIC_ENDPOINT:}
+      access-key: ${MINIO_ACCESS_KEY:}
+      secret-key: ${MINIO_SECRET_KEY:}
+      bucket: ${MINIO_BUCKET:campushub-resources}
   upload:
     max-file-size: 52428800
     max-files-per-request: 10
