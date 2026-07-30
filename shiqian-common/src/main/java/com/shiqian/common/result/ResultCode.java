@@ -12,7 +12,10 @@ public enum ResultCode {
     UNAUTHORIZED(401, "未登录或token已过期"),
     FORBIDDEN(403, "无权限访问"),
     NOT_FOUND(404, "资源不存在"),
-    PARAM_ERROR(400, "参数校验失败");
+    PARAM_ERROR(400, "参数校验失败"),
+    CONFLICT(409, "数据冲突"),
+    TOO_MANY_REQUESTS(429, "请求过于频繁"),
+    SERVICE_UNAVAILABLE(503, "服务暂时不可用");
 
     private final Integer code;
     private final String message;

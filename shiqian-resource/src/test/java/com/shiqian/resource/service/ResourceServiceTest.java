@@ -27,6 +27,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
 import static org.mockito.ArgumentMatchers.isA;
 
 @Transactional
@@ -487,17 +488,15 @@ public class ResourceServiceTest extends BaseResourceTest {
     }
 
     @Test
-    public void testSyncIndexOnCreate() {
+    public void testCreateDoesNotWriteIndexInsideTransaction() {
         Category category = createCategory("测试分类");
-        Resource resource = createResource("ES同步测试", category.getId());
+        createResource("ES同步测试", category.getId());
 
-        Optional<ResourceDocument> docOpt = resourceDocumentRepository.findById(resource.getId());
-        assertTrue(docOpt.isPresent());
-        assertEquals("ES同步测试", docOpt.get().getTitle());
+        verify(resourceDocumentRepository, never()).save(any(ResourceDocument.class));
     }
 
     @Test
-    public void testSyncIndexOnUpdate() {
+    public void testUpdateDoesNotWriteIndexInsideTransaction() {
         Category category = createCategory("测试分类");
         Resource resource = createResource("旧标题", category.getId());
 
@@ -511,24 +510,18 @@ public class ResourceServiceTest extends BaseResourceTest {
 
         resourceService.updateResource(1L, resource.getId(), dto);
 
-        Optional<ResourceDocument> docOpt = resourceDocumentRepository.findById(resource.getId());
-        assertTrue(docOpt.isPresent());
-        assertEquals("新标题", docOpt.get().getTitle());
-        assertEquals("新摘要", docOpt.get().getDescription());
+        verify(resourceDocumentRepository, never()).save(any(ResourceDocument.class));
     }
 
     @Test
-    public void testSyncIndexOnDelete() {
+    public void testDeleteDoesNotWriteIndexInsideTransaction() {
         Category category = createCategory("测试分类");
         Resource resource = createResource("删除测试", category.getId());
         Long id = resource.getId();
 
-        assertTrue(resourceDocumentRepository.findById(id).isPresent());
-
         resourceService.deleteResource(1L, id);
 
-        Optional<ResourceDocument> docOpt = resourceDocumentRepository.findById(id);
-        assertFalse(docOpt.isPresent());
+        verify(resourceDocumentRepository, never()).deleteById(anyLong());
     }
 
     private Category createCategory(String name) {
@@ -551,7 +544,6 @@ public class ResourceServiceTest extends BaseResourceTest {
 
         Resource updated = resourceService.getResourceById(resource.getId());
         assertEquals(1, updated.getStatus());
-        assertEquals(1, esDocs.get(resource.getId()).getStatus());
     }
 
     @Test
@@ -606,13 +598,13 @@ public class ResourceServiceTest extends BaseResourceTest {
     }
 
     @Test
-    public void testAuditResourceSendMessage() {
+    public void testAuditDoesNotSendMessageBeforeTransactionCommit() {
         Category category = createCategory("测试分类");
         Resource resource = createResource("待审核资源", category.getId());
 
         resourceService.auditResource(resource.getId(), 2, 3L);
 
-        verify(rabbitTemplate).convertAndSend(
+        verify(rabbitTemplate, never()).convertAndSend(
                 eq("resource.topic"),
                 eq("resource.audit"),
                 isA(com.shiqian.resource.dto.ResourceAuditMessage.class));

@@ -1,6 +1,7 @@
 package com.shiqian.gateway.filter;
 
 import com.shiqian.common.security.JwtUtil;
+import com.shiqian.gateway.security.ReactiveTokenVersionVerifier;
 import io.jsonwebtoken.Claims;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -28,6 +29,7 @@ public class JwtGlobalAuthFilter implements GlobalFilter, Ordered {
     private static final String USER_ROLE_HEADER = "X-User-Role";
 
     private final JwtUtil jwtUtil;
+    private final ReactiveTokenVersionVerifier tokenVersionVerifier;
 
     @Value("${gateway.auth.whitelist:}")
     private List<String> whitelist;
@@ -40,33 +42,43 @@ public class JwtGlobalAuthFilter implements GlobalFilter, Ordered {
             "/actuator"
     );
 
-    public JwtGlobalAuthFilter(JwtUtil jwtUtil) {
+    public JwtGlobalAuthFilter(JwtUtil jwtUtil, ReactiveTokenVersionVerifier tokenVersionVerifier) {
         this.jwtUtil = jwtUtil;
+        this.tokenVersionVerifier = tokenVersionVerifier;
     }
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        if (isPublicRequest(exchange)) {
-            return chain.filter(exchange);
+        ServerWebExchange sanitizedExchange = stripClientIdentityHeaders(exchange);
+        if (isPublicRequest(sanitizedExchange)) {
+            return chain.filter(sanitizedExchange);
         }
 
-        String token = extractToken(exchange);
-        if (!StringUtils.hasText(token) || !jwtUtil.validateToken(token)) {
-            return unauthorized(exchange);
+        String token = extractToken(sanitizedExchange);
+        if (!StringUtils.hasText(token)) {
+            return unauthorized(sanitizedExchange);
         }
 
         Claims claims = jwtUtil.parseToken(token);
         if (claims == null) {
-            return unauthorized(exchange);
+            return unauthorized(sanitizedExchange);
         }
 
-        ServerWebExchange authenticatedExchange = exchange.mutate()
-                .request(builder -> builder
-                        .header(USER_ID_HEADER, String.valueOf(claims.get("userId", Long.class)))
-                        .header(USERNAME_HEADER, claims.get("username", String.class))
-                        .header(USER_ROLE_HEADER, claims.get("role", String.class)))
-                .build();
-        return chain.filter(authenticatedExchange);
+        return tokenVersionVerifier.isCurrent(claims)
+                .flatMap(current -> {
+                    if (!current) {
+                        return unauthorized(sanitizedExchange);
+                    }
+                    Long userId = jwtUtil.getLongClaim(claims, "userId");
+                    ServerWebExchange authenticatedExchange = sanitizedExchange.mutate()
+                            .request(builder -> builder
+                                    .header(USER_ID_HEADER, String.valueOf(userId))
+                                    .header(USERNAME_HEADER, claims.get("username", String.class))
+                                    .header(USER_ROLE_HEADER, claims.get("role", String.class)))
+                            .build();
+                    return chain.filter(authenticatedExchange);
+                })
+                .onErrorResume(error -> unauthorized(sanitizedExchange));
     }
 
     @Override
@@ -97,6 +109,16 @@ public class JwtGlobalAuthFilter implements GlobalFilter, Ordered {
             return header.substring(BEARER_PREFIX.length());
         }
         return null;
+    }
+
+    private ServerWebExchange stripClientIdentityHeaders(ServerWebExchange exchange) {
+        return exchange.mutate()
+                .request(builder -> builder.headers(headers -> {
+                    headers.remove(USER_ID_HEADER);
+                    headers.remove(USERNAME_HEADER);
+                    headers.remove(USER_ROLE_HEADER);
+                }))
+                .build();
     }
 
     private Mono<Void> unauthorized(ServerWebExchange exchange) {

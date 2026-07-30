@@ -8,6 +8,26 @@ CREATE DATABASE IF NOT EXISTS `shiqian_resource`
     DEFAULT CHARACTER SET utf8mb4
     DEFAULT COLLATE utf8mb4_unicode_ci;
 
+USE `shiqian_user`;
+
+CREATE TABLE IF NOT EXISTS `t_user` (
+    `id` BIGINT AUTO_INCREMENT COMMENT '主键',
+    `username` VARCHAR(50) NOT NULL COMMENT '登录用户名',
+    `password` VARCHAR(200) NOT NULL COMMENT 'BCrypt密码',
+    `nickname` VARCHAR(50) NOT NULL DEFAULT '' COMMENT '昵称',
+    `email` VARCHAR(100) DEFAULT NULL COMMENT '邮箱',
+    `phone` VARCHAR(20) DEFAULT NULL COMMENT '手机号',
+    `avatar` VARCHAR(500) DEFAULT NULL COMMENT '头像',
+    `role` VARCHAR(20) NOT NULL DEFAULT 'USER' COMMENT '兼容角色字段',
+    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态',
+    `token_version` BIGINT NOT NULL DEFAULT 0 COMMENT '令牌安全版本',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `deleted` TINYINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (`id`),
+    UNIQUE INDEX `idx_username` (`username`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
+
 USE `shiqian_resource`;
 
 -- 资源主表
@@ -74,3 +94,25 @@ CREATE TABLE IF NOT EXISTS `t_resource_attachment` (
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci
   COMMENT='资源附件表';
+
+CREATE TABLE IF NOT EXISTS `t_admin_operation_log` (
+    `id` BIGINT AUTO_INCREMENT,
+    `operator_id` BIGINT NOT NULL DEFAULT 0,
+    `operator_name` VARCHAR(100) NOT NULL DEFAULT '系统',
+    `operation_type` VARCHAR(100) NOT NULL,
+    `target_type` VARCHAR(50) DEFAULT NULL,
+    `target_id` BIGINT DEFAULT NULL,
+    `detail` VARCHAR(1000) DEFAULT NULL,
+    `request_method` VARCHAR(10) DEFAULT NULL,
+    `request_uri` VARCHAR(500) DEFAULT NULL,
+    `request_ip` VARCHAR(64) DEFAULT NULL,
+    `request_params` TEXT DEFAULT NULL,
+    `result` VARCHAR(30) DEFAULT NULL,
+    `error_message` VARCHAR(1000) DEFAULT NULL,
+    `duration_ms` BIGINT DEFAULT NULL,
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    INDEX `idx_admin_log_operator` (`operator_id`),
+    INDEX `idx_admin_log_type` (`operation_type`),
+    INDEX `idx_admin_log_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='管理员操作日志';

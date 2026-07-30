@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+if [[ -f .env ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+fi
+
+: "${MYSQL_ROOT_PASSWORD:?请先复制 .env.example 为 .env 并设置 MYSQL_ROOT_PASSWORD}"
+: "${JWT_SECRET:?请在 .env 中设置 JWT_SECRET}"
+: "${RABBITMQ_USER:?请在 .env 中设置 RABBITMQ_USER}"
+: "${RABBITMQ_PASSWORD:?请在 .env 中设置 RABBITMQ_PASSWORD}"
+
 echo "=== 重新启动 CampusHub 后端服务 ==="
 date
 
@@ -53,7 +65,7 @@ start_service() {
 # 轻量级数据库就绪检查（推荐使用 ./02_StartBackend.sh 获得完整自动修复能力）
 if command -v docker >/dev/null 2>&1 && docker ps --format '{{.Names}}' | grep -q '^shiqian-mysql$'; then
   echo "→ 检查 MySQL 数据库状态..."
-  user_table_count="$(docker exec shiqian-mysql mysql -uroot -proot -Nse \
+  user_table_count="$(docker exec shiqian-mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse \
     "SELECT COUNT(*) FROM information_schema.TABLES
      WHERE TABLE_SCHEMA = 'shiqian_user' AND TABLE_NAME = 't_user';" \
     2>/dev/null || echo "0")"

@@ -11,6 +11,7 @@ import com.shiqian.resource.service.FavoriteService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
 import java.util.List;
@@ -27,6 +28,7 @@ public class FavoriteServiceImpl implements FavoriteService {
     private final ResourceMapper resourceMapper;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void addFavorite(Long userId, Long resourceId) {
         Resource resource = resourceMapper.selectById(resourceId);
         if (resource == null || resource.getDeleted() == 1) {
@@ -43,6 +45,7 @@ public class FavoriteServiceImpl implements FavoriteService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void removeFavorite(Long userId, Long resourceId) {
         QueryWrapper<Favorite> wrapper = new QueryWrapper<>();
         wrapper.eq("user_id", userId);

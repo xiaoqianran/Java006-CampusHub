@@ -8,6 +8,7 @@ import com.shiqian.user.dto.LoginVO;
 import com.shiqian.user.dto.RegisterDTO;
 import com.shiqian.user.dto.UpdateUserDTO;
 import com.shiqian.user.dto.UserInfoVO;
+import com.shiqian.user.dto.ChangePasswordDTO;
 import com.shiqian.common.security.LoginUser;
 import com.shiqian.user.service.UserService;
 import jakarta.validation.Valid;
@@ -22,9 +23,14 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestHeader;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Positive;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -34,6 +40,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/user")
 @RequiredArgsConstructor
+@Validated
 public class UserController {
 
     private final UserService userService;
@@ -72,12 +79,33 @@ public class UserController {
         return Result.ok(loginVO);
     }
 
+    @Operation(summary = "退出登录（撤销当前访问令牌及该用户全部刷新令牌）")
+    @PostMapping("/logout")
+    public Result<Void> logout(
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        String accessToken = authorization != null && authorization.startsWith("Bearer ")
+                ? authorization.substring("Bearer ".length())
+                : null;
+        userService.logout(userId, accessToken);
+        SecurityContextHolder.clearContext();
+        return Result.ok();
+    }
+
     @Operation(summary = "更新当前用户信息")
     @PutMapping("/me")
     public Result<Void> updateCurrentUser(@RequestBody @Valid UpdateUserDTO updateUserDTO) {
         LoginUser loginUser = (LoginUser) SecurityContextHolder.getContext()
                 .getAuthentication().getPrincipal();
         userService.updateUserInfo(loginUser.getUserId(), updateUserDTO);
+        return Result.ok();
+    }
+
+    @Operation(summary = "修改当前用户密码（修改后所有旧令牌失效）")
+    @PutMapping("/me/password")
+    public Result<Void> changePassword(@RequestBody @Valid ChangePasswordDTO changePasswordDTO) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        userService.changePassword(userId, changePasswordDTO);
         return Result.ok();
     }
 
@@ -95,8 +123,8 @@ public class UserController {
     @GetMapping("/admin/users")
     @PreAuthorize("hasAuthority('user:manage')")
     public Result<Page<UserInfoVO>> pageUsers(
-            @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(defaultValue = "1") @Min(1) Integer page,
+            @RequestParam(defaultValue = "10") @Min(1) @Max(100) Integer size,
             @RequestParam(required = false) String keyword) {
         return Result.ok(userService.pageUsers(page, size, keyword));
     }
@@ -105,7 +133,7 @@ public class UserController {
     @PutMapping("/admin/users/{id}/status")
     @PreAuthorize("hasAuthority('user:manage')")
     public Result<Void> updateUserStatus(
-            @PathVariable Long id,
+            @PathVariable @Positive Long id,
             @RequestBody @Valid java.util.Map<String, Integer> body) {
         Long operatorId = SecurityUtil.getCurrentUserId();
         Integer status = body.get("status");
@@ -117,7 +145,7 @@ public class UserController {
     @PutMapping("/admin/users/{id}/role")
     @PreAuthorize("hasAuthority('user:manage')")
     public Result<Void> updateUserRole(
-            @PathVariable Long id,
+            @PathVariable @Positive Long id,
             @RequestBody java.util.Map<String, String> body) {
         Long operatorId = SecurityUtil.getCurrentUserId();
         String role = body != null ? body.get("role") : null;

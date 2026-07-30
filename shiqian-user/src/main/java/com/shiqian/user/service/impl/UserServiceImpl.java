@@ -8,9 +8,11 @@ import com.shiqian.user.dto.LoginVO;
 import com.shiqian.user.dto.RegisterDTO;
 import com.shiqian.user.dto.UpdateUserDTO;
 import com.shiqian.user.dto.UserInfoVO;
+import com.shiqian.user.dto.ChangePasswordDTO;
 import com.shiqian.user.entity.User;
 import com.shiqian.user.mapper.UserMapper;
 import com.shiqian.user.service.UserService;
+import com.shiqian.user.service.TokenSessionService;
 import com.shiqian.common.security.JwtUtil;
 import com.shiqian.common.security.RoleEnum;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.transaction.annotation.Transactional;
 import io.jsonwebtoken.Claims;
 
 @Slf4j
@@ -28,6 +31,7 @@ public class UserServiceImpl implements UserService {
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final TokenSessionService tokenSessionService;
 
     @Override
     public boolean checkDatabaseConnection() {
@@ -41,6 +45,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void register(RegisterDTO registerDTO) {
         if (checkUsernameExists(registerDTO.getUsername())) {
             throw new BusinessException("用户名已存在");
@@ -66,6 +71,7 @@ public class UserServiceImpl implements UserService {
         user.setPhone(registerDTO.getPhone());
         user.setRole(RoleEnum.USER.name());
         user.setStatus(1);
+        user.setTokenVersion(0L);
 
         userMapper.insert(user);
     }
@@ -106,18 +112,7 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException("账号已被禁用，请联系管理员");
         }
 
-        String accessToken = jwtUtil.generateAccessToken(user.getId(), user.getUsername(), user.getRole());
-        String refreshToken = jwtUtil.generateRefreshToken(user.getId(), user.getUsername(), user.getRole());
-
-        LoginVO loginVO = new LoginVO();
-        loginVO.setAccessToken(accessToken);
-        loginVO.setRefreshToken(refreshToken);
-        loginVO.setUserId(user.getId());
-        loginVO.setUsername(user.getUsername());
-        loginVO.setNickname(user.getNickname());
-        loginVO.setRole(user.getRole());
-
-        return loginVO;
+        return issueTokenPair(user);
     }
 
     @Override
@@ -133,34 +128,47 @@ public class UserServiceImpl implements UserService {
 
         Long userId = claims.get("userId", Long.class);
         String username = claims.get("username", String.class);
-        String role = claims.get("role", String.class);
+        String tokenType = claims.get("tokenType", String.class);
+        String jti = claims.getId();
+        Long claimedVersion = jwtUtil.getLongClaim(claims, "tokenVersion");
 
-        if (userId == null || !StringUtils.hasText(username)) {
+        if (userId == null || !StringUtils.hasText(username)
+                || !com.shiqian.common.security.TokenType.REFRESH.name().equals(tokenType)
+                || !StringUtils.hasText(jti)
+                || claimedVersion == null) {
             throw new BusinessException(401, "refreshToken 无效");
         }
 
         // 安全校验：用户仍存在、未删除、启用状态
         User user = userMapper.selectById(userId);
         if (user == null || user.getDeleted() == 1 || user.getStatus() != 1
-                || !username.equals(user.getUsername())) {
+                || !username.equals(user.getUsername())
+                || !normalizeTokenVersion(user.getTokenVersion()).equals(claimedVersion)) {
             throw new BusinessException(401, "用户状态异常，请重新登录");
         }
 
-        String newAccessToken = jwtUtil.generateAccessToken(userId, username, role != null ? role : user.getRole());
-        String newRefreshToken = jwtUtil.generateRefreshToken(userId, username, role != null ? role : user.getRole());
-
-        LoginVO loginVO = new LoginVO();
-        loginVO.setAccessToken(newAccessToken);
-        loginVO.setRefreshToken(newRefreshToken);
-        loginVO.setUserId(userId);
-        loginVO.setUsername(username);
-        loginVO.setNickname(user.getNickname());
-        loginVO.setRole(user.getRole());
-
-        return loginVO;
+        tokenSessionService.consumeRefreshToken(refreshToken, userId, jti);
+        // 必须使用数据库中的最新角色签发，禁止继承旧 Refresh Token 的角色。
+        return issueTokenPair(user);
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void logout(Long userId, String accessToken) {
+        if (userId == null || !StringUtils.hasText(accessToken)) {
+            throw new BusinessException(401, "未登录");
+        }
+        User user = userMapper.selectById(userId);
+        if (user == null || user.getDeleted() == 1) {
+            throw new BusinessException(404, "用户不存在");
+        }
+        tokenSessionService.blacklistAccessToken(accessToken);
+        invalidateUserTokens(user);
+        userMapper.updateById(user);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public void updateUserInfo(Long userId, UpdateUserDTO updateUserDTO) {
         User user = userMapper.selectById(userId);
         if (user == null) {
@@ -189,6 +197,24 @@ public class UserServiceImpl implements UserService {
             user.setAvatar(updateUserDTO.getAvatar());
         }
 
+        userMapper.updateById(user);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void changePassword(Long userId, ChangePasswordDTO changePasswordDTO) {
+        User user = userMapper.selectById(userId);
+        if (user == null || user.getDeleted() == 1 || user.getStatus() != 1) {
+            throw new BusinessException(404, "用户不存在或已被禁用");
+        }
+        if (!passwordEncoder.matches(changePasswordDTO.getOldPassword(), user.getPassword())) {
+            throw new BusinessException(400, "原密码错误");
+        }
+        if (passwordEncoder.matches(changePasswordDTO.getNewPassword(), user.getPassword())) {
+            throw new BusinessException(400, "新密码不能与原密码相同");
+        }
+        user.setPassword(passwordEncoder.encode(changePasswordDTO.getNewPassword()));
+        invalidateUserTokens(user);
         userMapper.updateById(user);
     }
 
@@ -236,12 +262,16 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void updateUserStatus(Long targetUserId, Integer status, Long operatorId) {
         if (targetUserId == null || status == null) {
             throw new BusinessException("参数错误");
         }
         if (targetUserId.equals(operatorId)) {
             throw new BusinessException(400, "不能修改自己的状态");
+        }
+        if (status != 0 && status != 1) {
+            throw new BusinessException(400, "用户状态只能是 0 或 1");
         }
 
         User user = userMapper.selectById(targetUserId);
@@ -260,11 +290,13 @@ public class UserServiceImpl implements UserService {
         }
 
         user.setStatus(status);
+        invalidateUserTokens(user);
         userMapper.updateById(user);
         log.info("管理员{} {}了用户{} (status={})", operatorId, status == 1 ? "启用" : "禁用", targetUserId, status);
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void updateUserRole(Long targetUserId, String role, Long operatorId) {
         if (targetUserId == null || role == null || role.trim().isEmpty()) {
             throw new BusinessException("参数错误");
@@ -294,7 +326,38 @@ public class UserServiceImpl implements UserService {
         }
 
         user.setRole(newRole);
+        invalidateUserTokens(user);
         userMapper.updateById(user);
         log.info("管理员{} 将用户{} 的角色修改为 {}", operatorId, targetUserId, newRole);
+    }
+
+    private LoginVO issueTokenPair(User user) {
+        Long tokenVersion = normalizeTokenVersion(user.getTokenVersion());
+        String accessToken = jwtUtil.generateAccessToken(
+                user.getId(), user.getUsername(), user.getRole(), tokenVersion);
+        String refreshToken = jwtUtil.generateRefreshToken(
+                user.getId(), user.getUsername(), user.getRole(), tokenVersion);
+        tokenSessionService.storeRefreshToken(refreshToken, user.getId(), tokenVersion);
+
+        LoginVO loginVO = new LoginVO();
+        loginVO.setAccessToken(accessToken);
+        loginVO.setRefreshToken(refreshToken);
+        loginVO.setUserId(user.getId());
+        loginVO.setUsername(user.getUsername());
+        loginVO.setNickname(user.getNickname());
+        loginVO.setRole(user.getRole());
+        return loginVO;
+    }
+
+    private void invalidateUserTokens(User user) {
+        Long nextVersion = normalizeTokenVersion(user.getTokenVersion()) + 1;
+        user.setTokenVersion(nextVersion);
+        // 先提升版本并撤销 Refresh Token；Redis 失败时数据库事务回滚，避免状态半更新。
+        tokenSessionService.syncUserVersion(user.getId(), nextVersion);
+        tokenSessionService.revokeAll(user.getId());
+    }
+
+    private Long normalizeTokenVersion(Long tokenVersion) {
+        return tokenVersion != null && tokenVersion >= 0 ? tokenVersion : 0L;
     }
 }

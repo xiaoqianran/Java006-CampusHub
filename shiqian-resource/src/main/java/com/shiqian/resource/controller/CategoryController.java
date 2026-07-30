@@ -6,6 +6,9 @@ import com.shiqian.resource.dto.CategoryDTO;
 import com.shiqian.resource.entity.Category;
 import com.shiqian.resource.service.CategoryService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -21,6 +24,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.validation.annotation.Validated;
 
 import java.util.List;
 
@@ -29,6 +33,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/category")
 @RequiredArgsConstructor
+@Validated
 public class CategoryController {
 
     private final CategoryService categoryService;
@@ -46,7 +51,7 @@ public class CategoryController {
     @Operation(summary = "更新分类")
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('resource:audit')")
-    public Result<Void> updateCategory(@PathVariable Long id,
+    public Result<Void> updateCategory(@PathVariable @Positive Long id,
                                        @RequestBody @Valid CategoryDTO categoryDTO) {
         Category category = new Category();
         BeanUtils.copyProperties(categoryDTO, category);
@@ -58,14 +63,14 @@ public class CategoryController {
     @Operation(summary = "删除分类")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('resource:audit')")
-    public Result<Void> deleteCategory(@PathVariable Long id) {
+    public Result<Void> deleteCategory(@PathVariable @Positive Long id) {
         categoryService.deleteCategory(id);
         return Result.ok();
     }
 
     @Operation(summary = "根据ID获取分类")
     @GetMapping("/{id}")
-    public Result<Category> getCategoryById(@PathVariable Long id) {
+    public Result<Category> getCategoryById(@PathVariable @Positive Long id) {
         Category category = categoryService.getCategoryById(id);
         return Result.ok(category);
     }
@@ -80,8 +85,8 @@ public class CategoryController {
     @Operation(summary = "分页查询分类列表")
     @GetMapping
     public Result<Page<Category>> pageCategories(
-            @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "10") Integer size) {
+            @RequestParam(defaultValue = "1") @Min(1) Integer page,
+            @RequestParam(defaultValue = "10") @Min(1) @Max(100) Integer size) {
         Page<Category> pageParam = new Page<>(page, size);
         Page<Category> result = categoryService.pageCategories(pageParam);
         return Result.ok(result);

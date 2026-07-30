@@ -7,8 +7,6 @@ import com.shiqian.common.content.SensitiveWordFilter;
 import com.shiqian.common.exception.BusinessException;
 import com.shiqian.common.security.SecurityUtil;
 import org.springframework.security.access.prepost.PreAuthorize;
-import com.shiqian.resource.config.RabbitMQConfig;
-import com.shiqian.resource.document.ResourceDocument;
 import com.shiqian.resource.dto.ResourceAuditMessage;
 import com.shiqian.resource.dto.AttachmentCreateDTO;
 import com.shiqian.resource.dto.ResourceCreateDTO;
@@ -17,8 +15,10 @@ import com.shiqian.resource.entity.Category;
 import com.shiqian.resource.entity.Resource;
 import com.shiqian.resource.entity.ResourceAttachment;
 import com.shiqian.resource.mapper.ResourceAttachmentMapper;
+import com.shiqian.resource.mapper.FavoriteMapper;
 import com.shiqian.resource.mapper.ResourceMapper;
-import com.shiqian.resource.repository.ResourceDocumentRepository;
+import com.shiqian.resource.event.ResourceAuditCommittedEvent;
+import com.shiqian.resource.event.ResourceIndexEvent;
 import com.shiqian.resource.service.AdminLogService;
 import com.shiqian.resource.service.CategoryService;
 import com.shiqian.resource.service.ResourceService;
@@ -31,11 +31,12 @@ import java.util.Map;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.BeanUtils;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Slf4j
@@ -54,12 +55,13 @@ public class ResourceServiceImpl implements ResourceService {
     private final ResourceMapper resourceMapper;
     private final ResourceAttachmentMapper resourceAttachmentMapper;
     private final CategoryService categoryService;
-    private final ResourceDocumentRepository resourceDocumentRepository;
-    private final RabbitTemplate rabbitTemplate;
+    private final FavoriteMapper favoriteMapper;
+    private final ApplicationEventPublisher eventPublisher;
     private final SensitiveWordFilter sensitiveWordFilter;
     private final AdminLogService adminLogService;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public Resource createResource(Long userId, ResourceCreateDTO dto) {
         validateContent(dto.getTitle(), dto.getSummary(), dto.getContentMarkdown(), dto.getTags());
         validateContentSource(
@@ -105,7 +107,7 @@ public class ResourceServiceImpl implements ResourceService {
             syncAttachments(resource.getId(), dto.getAttachments());
         }
 
-        resourceDocumentRepository.save(buildResourceDocument(resource));
+        eventPublisher.publishEvent(ResourceIndexEvent.upsert(resource.getId()));
         log.info("资源创建成功: id={}, title={}, userId={}, attachments={}", 
                  resource.getId(), resource.getTitle(), userId, 
                  dto.getAttachments() != null ? dto.getAttachments().size() : 0);
@@ -157,6 +159,7 @@ public class ResourceServiceImpl implements ResourceService {
 
     @Override
     @CacheEvict(value = "resource:detail", key = "#id")
+    @Transactional(rollbackFor = Exception.class)
     public void updateResource(Long userId, Long id, ResourceUpdateDTO dto) {
         Resource existing = resourceMapper.selectById(id);
         if (existing == null || existing.getDeleted() == 1) {
@@ -219,14 +222,14 @@ public class ResourceServiceImpl implements ResourceService {
             syncAttachments(id, dto.getAttachments());
         }
 
-        Resource updated = resourceMapper.selectById(id);
-        resourceDocumentRepository.save(buildResourceDocument(updated));
+        eventPublisher.publishEvent(ResourceIndexEvent.upsert(id));
         log.info("资源更新成功: id={}, title={}, version={}, attachmentsProvided={}", 
                  id, resource.getTitle(), resource.getVersion(), dto.getAttachments() != null);
     }
 
     @Override
     @CacheEvict(value = "resource:detail", key = "#id")
+    @Transactional(rollbackFor = Exception.class)
     public void deleteResource(Long userId, Long id) {
         Resource existing = resourceMapper.selectById(id);
         if (existing == null || existing.getDeleted() == 1) {
@@ -236,7 +239,7 @@ public class ResourceServiceImpl implements ResourceService {
             throw new BusinessException(403, "无权删除该资源");
         }
         resourceMapper.deleteById(id);
-        resourceDocumentRepository.deleteById(id);
+        eventPublisher.publishEvent(ResourceIndexEvent.delete(id));
         log.info("资源删除成功: id={}, userId={}", id, userId);
     }
 
@@ -268,6 +271,7 @@ public class ResourceServiceImpl implements ResourceService {
 
     @Override
     @CacheEvict(value = "resource:detail", key = "#resourceId")
+    @Transactional(rollbackFor = Exception.class)
     public void auditResource(Long resourceId, Integer status, Long operatorId) {
         String legacyReason = status != null && status >= STATUS_NEEDS_CHANGES
                 ? "管理员审核未通过"
@@ -277,6 +281,7 @@ public class ResourceServiceImpl implements ResourceService {
 
     @Override
     @CacheEvict(value = "resource:detail", key = "#resourceId")
+    @Transactional(rollbackFor = Exception.class)
     public void reviewResource(Long resourceId, Integer status, String reason, Long operatorId) {
         applyReview(resourceId, status, reason, operatorId);
     }
@@ -320,22 +325,17 @@ public class ResourceServiceImpl implements ResourceService {
         };
         adminLogService.recordLog(operatorId, action, resourceId, normalizedReason);
 
-        // 审核状态必须同步到搜索索引，否则新通过的资源无法被 status=1 搜索命中。
-        Resource reviewed = resourceMapper.selectById(resourceId);
-        resourceDocumentRepository.save(buildResourceDocument(reviewed));
-
         ResourceAuditMessage message = new ResourceAuditMessage(
                 resourceId, status, operatorId, now);
-        rabbitTemplate.convertAndSend(
-                RabbitMQConfig.RESOURCE_TOPIC_EXCHANGE,
-                RabbitMQConfig.RESOURCE_AUDIT_ROUTING_KEY,
-                message);
+        eventPublisher.publishEvent(ResourceIndexEvent.upsert(resourceId));
+        eventPublisher.publishEvent(new ResourceAuditCommittedEvent(message));
         log.info("资源审核完成: resourceId={}, status={}, operatorId={}, reason={}",
                 resourceId, status, operatorId, normalizedReason);
     }
 
     @Override
     @CacheEvict(value = "resource:detail", key = "#resourceId")
+    @Transactional(rollbackFor = Exception.class)
     public void resubmitResource(Long userId, Long resourceId) {
         Resource existing = resourceMapper.selectById(resourceId);
         if (existing == null || existing.getDeleted() == 1) {
@@ -356,8 +356,7 @@ public class ResourceServiceImpl implements ResourceService {
                 .set("review_time", null);
         resourceMapper.update(null, update);
 
-        Resource updated = resourceMapper.selectById(resourceId);
-        resourceDocumentRepository.save(buildResourceDocument(updated));
+        eventPublisher.publishEvent(ResourceIndexEvent.upsert(resourceId));
         log.info("资源重新提交成功: id={}, userId={}", resourceId, userId);
     }
 
@@ -562,20 +561,6 @@ public class ResourceServiceImpl implements ResourceService {
         return userId.equals(resource.getUserId()) || "ADMIN".equals(SecurityUtil.getCurrentRole());
     }
 
-    private ResourceDocument buildResourceDocument(Resource resource) {
-        ResourceDocument doc = new ResourceDocument();
-        doc.setId(resource.getId());
-        doc.setTitle(resource.getTitle());
-        doc.setDescription(StringUtils.hasText(resource.getSummary()) ? resource.getSummary() : resource.getContentMarkdown());
-        doc.setFileType(resource.getFileType());
-        doc.setContentScene(normalizeContentScene(resource.getContentScene(), "SHARE"));
-        doc.setTags(resource.getTags());
-        doc.setCategoryId(resource.getCategoryId());
-        doc.setUserId(resource.getUserId());
-        doc.setStatus(resource.getStatus());
-        return doc;
-    }
-
     private void enrichAttachments(List<Resource> resources) {
         if (resources == null || resources.isEmpty()) {
             return;
@@ -602,6 +587,8 @@ public class ResourceServiceImpl implements ResourceService {
 
     @Override
     @PreAuthorize("hasAuthority('resource:audit')")
+    @CacheEvict(value = "resource:detail", key = "#id")
+    @Transactional(rollbackFor = Exception.class)
     public void restoreResource(Long id) {
         int rows = resourceMapper.restoreById(id);
         if (rows == 0) {
@@ -609,16 +596,26 @@ public class ResourceServiceImpl implements ResourceService {
         }
         Long operatorId = SecurityUtil.getCurrentUserId();
         adminLogService.recordLog(operatorId, "RESOURCE_RESTORE", id, null);
+        eventPublisher.publishEvent(ResourceIndexEvent.upsert(id));
         log.info("资源从回收站恢复: id={}", id);
     }
 
     @Override
     @PreAuthorize("hasAuthority('resource:audit')")
+    @CacheEvict(value = "resource:detail", key = "#id")
+    @Transactional(rollbackFor = Exception.class)
     public void permanentDeleteResource(Long id) {
-        resourceDocumentRepository.deleteById(id);
-        resourceMapper.physicalDeleteById(id);
+        resourceAttachmentMapper.delete(
+                new QueryWrapper<ResourceAttachment>().eq("resource_id", id));
+        favoriteMapper.delete(
+                new QueryWrapper<com.shiqian.resource.entity.Favorite>().eq("resource_id", id));
+        int rows = resourceMapper.physicalDeleteById(id);
+        if (rows == 0) {
+            throw new BusinessException("资源不存在");
+        }
         Long operatorId = SecurityUtil.getCurrentUserId();
         adminLogService.recordLog(operatorId, "RESOURCE_PERMANENT_DELETE", id, null);
+        eventPublisher.publishEvent(ResourceIndexEvent.delete(id));
         log.info("资源永久删除: id={}", id);
     }
 

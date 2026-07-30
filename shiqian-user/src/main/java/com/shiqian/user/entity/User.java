@@ -28,6 +28,11 @@ public class User {
 
     private Integer status;
 
+    /**
+     * 令牌安全版本。角色、状态或密码变化时递增，使旧令牌全部失效。
+     */
+    private Long tokenVersion;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 

@@ -6,7 +6,6 @@ import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 
 @Data
 @TableName("t_resource")
@@ -78,21 +77,14 @@ public class Resource {
     @TableField(exist = false)
     private String authorNickname;
 
-    // 演示用轻量昵称映射（保持最小变更，无需跨服务调用；生产环境建议通过用户服务批量查询或冗余字段）
-    // 改进：为演示数据匹配真实昵称；未知用户回退为友好文案而非暴露ID
-    private static final Map<Long, String> NICKNAME_MAP = Map.of(
-            1L, "管理员",
-            2L, "学生一号"
-    );
-
     /**
-     * 轻量方法：为资源列表富化 authorNickname（供 Service 页查询调用）
+     * 跨服务用户查询接入前的安全占位；不再维护任何用户ID到昵称的硬编码映射。
      */
     public static void enrichAuthors(Collection<Resource> resources) {
         if (resources == null) return;
         for (Resource r : resources) {
             if (r.getAuthorNickname() == null && r.getUserId() != null) {
-                r.setAuthorNickname(NICKNAME_MAP.getOrDefault(r.getUserId(), "匿名用户"));
+                r.setAuthorNickname("用户#" + r.getUserId());
             }
         }
     }

@@ -4,6 +4,18 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
+if [[ -f .env ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+fi
+
+: "${MYSQL_ROOT_PASSWORD:?请先复制 .env.example 为 .env 并设置 MYSQL_ROOT_PASSWORD}"
+: "${JWT_SECRET:?请在 .env 中设置 JWT_SECRET}"
+: "${RABBITMQ_USER:?请在 .env 中设置 RABBITMQ_USER}"
+: "${RABBITMQ_PASSWORD:?请在 .env 中设置 RABBITMQ_PASSWORD}"
+
 log() {
   echo ""
   echo "=== $* ==="
@@ -116,8 +128,7 @@ ensure_mysql_databases() {
   local root_user="root"
   local user_table_count="0"
   local resource_table_count="0"
-  # 优先使用环境变量 MYSQL_ROOT_PASSWORD，否则默认 root（与 docker-compose.yml 一致）
-  local root_pass="${MYSQL_ROOT_PASSWORD:-root}"
+  local root_pass="$MYSQL_ROOT_PASSWORD"
 
   echo "→ 检查 MySQL 数据库结构完整性..."
 
@@ -216,8 +227,14 @@ start_backend() {
   if [[ -f "docker/mysql/init/upgrade-resource-workflow.sql" ]]; then
     echo "→ 检查资源审核工作流字段..."
     docker exec -i shiqian-mysql \
-      mysql -uroot -p"${MYSQL_ROOT_PASSWORD:-root}" \
+      mysql -uroot -p"$MYSQL_ROOT_PASSWORD" \
       < docker/mysql/init/upgrade-resource-workflow.sql
+  fi
+  if [[ -f "docker/mysql/init/upgrade-security-phase1.sql" ]]; then
+    echo "→ 检查安全版本和管理员日志表..."
+    docker exec -i shiqian-mysql \
+      mysql -uroot -p"$MYSQL_ROOT_PASSWORD" \
+      < docker/mysql/init/upgrade-security-phase1.sql
   fi
 
   wait_container_healthy redis "Redis"

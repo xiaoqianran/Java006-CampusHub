@@ -1,6 +1,7 @@
 package com.shiqian.gateway.filter;
 
 import com.shiqian.common.security.JwtUtil;
+import com.shiqian.gateway.security.ReactiveTokenVersionVerifier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -19,11 +20,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class JwtGlobalAuthFilterTest {
 
     private JwtUtil jwtUtil;
     private JwtGlobalAuthFilter filter;
+    private ReactiveTokenVersionVerifier tokenVersionVerifier;
 
     @BeforeEach
     void setUp() {
@@ -33,7 +38,9 @@ class JwtGlobalAuthFilterTest {
         ReflectionTestUtils.setField(jwtUtil, "accessTokenExpiration", 7200000L);
         ReflectionTestUtils.setField(jwtUtil, "refreshTokenExpiration", 604800000L);
 
-        filter = new JwtGlobalAuthFilter(jwtUtil);
+        tokenVersionVerifier = mock(ReactiveTokenVersionVerifier.class);
+        when(tokenVersionVerifier.isCurrent(any())).thenReturn(Mono.just(true));
+        filter = new JwtGlobalAuthFilter(jwtUtil, tokenVersionVerifier);
         ReflectionTestUtils.setField(filter, "whitelist",
                 List.of("/api/user/register", "/api/user/login", "/api/user/refresh", "/api/user/health", "/actuator"));
     }
@@ -119,6 +126,40 @@ class JwtGlobalAuthFilterTest {
         }).block();
 
         assertNotNull(captured.get());
+        assertEquals("1", captured.get().getRequest().getHeaders().getFirst("X-User-Id"));
+        assertEquals("testuser", captured.get().getRequest().getHeaders().getFirst("X-Username"));
+        assertEquals("USER", captured.get().getRequest().getHeaders().getFirst("X-User-Role"));
+    }
+
+    @Test
+    void shouldRejectRefreshTokenOnProtectedEndpoint() {
+        String token = jwtUtil.generateRefreshToken(1L, "testuser", "ADMIN");
+        when(tokenVersionVerifier.isCurrent(any())).thenReturn(Mono.just(false));
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/user/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token));
+
+        filter.filter(exchange, chain -> Mono.empty()).block();
+
+        assertEquals(401, exchange.getResponse().getStatusCode().value());
+    }
+
+    @Test
+    void shouldStripSpoofedIdentityHeaders() {
+        String token = jwtUtil.generateAccessToken(1L, "testuser", "USER");
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/user/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .header("X-User-Id", "999")
+                        .header("X-Username", "attacker")
+                        .header("X-User-Role", "ADMIN"));
+        AtomicReference<ServerWebExchange> captured = new AtomicReference<>();
+
+        filter.filter(exchange, chainExchange -> {
+            captured.set(chainExchange);
+            return Mono.empty();
+        }).block();
+
         assertEquals("1", captured.get().getRequest().getHeaders().getFirst("X-User-Id"));
         assertEquals("testuser", captured.get().getRequest().getHeaders().getFirst("X-Username"));
         assertEquals("USER", captured.get().getRequest().getHeaders().getFirst("X-User-Role"));

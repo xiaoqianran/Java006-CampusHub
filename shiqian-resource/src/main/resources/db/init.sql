@@ -68,6 +68,28 @@ CREATE TABLE IF NOT EXISTS t_favorite (
     INDEX idx_resource_id (resource_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='资源收藏表';
 
+CREATE TABLE IF NOT EXISTS t_admin_operation_log (
+    id BIGINT AUTO_INCREMENT COMMENT '主键',
+    operator_id BIGINT NOT NULL DEFAULT 0 COMMENT '操作人ID',
+    operator_name VARCHAR(100) NOT NULL DEFAULT '系统' COMMENT '操作人名称快照',
+    operation_type VARCHAR(100) NOT NULL COMMENT '操作类型',
+    target_type VARCHAR(50) DEFAULT NULL COMMENT '目标类型',
+    target_id BIGINT DEFAULT NULL COMMENT '目标ID',
+    detail VARCHAR(1000) DEFAULT NULL COMMENT '操作详情',
+    request_method VARCHAR(10) DEFAULT NULL COMMENT 'HTTP方法',
+    request_uri VARCHAR(500) DEFAULT NULL COMMENT '请求URI',
+    request_ip VARCHAR(64) DEFAULT NULL COMMENT '请求IP',
+    request_params TEXT DEFAULT NULL COMMENT '脱敏后的请求参数',
+    result VARCHAR(30) DEFAULT NULL COMMENT '操作结果',
+    error_message VARCHAR(1000) DEFAULT NULL COMMENT '脱敏后的错误信息',
+    duration_ms BIGINT DEFAULT NULL COMMENT '耗时毫秒',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (id),
+    INDEX idx_admin_log_operator (operator_id),
+    INDEX idx_admin_log_type (operation_type),
+    INDEX idx_admin_log_time (create_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='管理员操作日志';
+
 -- 资源分类表
 CREATE TABLE IF NOT EXISTS t_category (
     id BIGINT AUTO_INCREMENT COMMENT '主键',

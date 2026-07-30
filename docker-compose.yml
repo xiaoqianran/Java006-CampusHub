@@ -4,7 +4,7 @@ services:
     container_name: shiqian-mysql
     mem_limit: 768m
     environment:
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在.env中设置MYSQL_ROOT_PASSWORD}
       TZ: Asia/Shanghai
     ports:
       - "127.0.0.1:3306:3306"
@@ -18,7 +18,7 @@ services:
       --performance-schema=OFF
       --innodb-buffer-pool-size=256M
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      test: ["CMD-SHELL", "MYSQL_PWD=$${MYSQL_ROOT_PASSWORD} mysqladmin ping -h localhost -u root --silent"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -80,8 +80,8 @@ services:
     container_name: shiqian-rabbitmq
     mem_limit: 768m
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?请在.env中设置RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?请在.env中设置RABBITMQ_PASSWORD}
       TZ: Asia/Shanghai
     ports:
       - "127.0.0.1:5672:5672"
@@ -121,8 +121,8 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:?请在.env中设置GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?请在.env中设置GRAFANA_ADMIN_PASSWORD}
       GF_USERS_ALLOW_SIGN_UP: "false"
       TZ: Asia/Shanghai
     volumes:

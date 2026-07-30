@@ -15,6 +15,11 @@ import com.shiqian.resource.service.FavoriteService;
 import com.shiqian.resource.service.ResourceSearchService;
 import com.shiqian.resource.service.ResourceService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -32,6 +37,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.validation.annotation.Validated;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -41,6 +47,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/resource")
 @RequiredArgsConstructor
+@Validated
 public class ResourceController {
 
     private final ResourceService resourceService;
@@ -63,8 +70,8 @@ public class ResourceController {
     @Operation(summary = "分页查询资源列表")
     @GetMapping
     public Result<Page<Resource>> pageResources(
-            @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(defaultValue = "1") @Min(1) Integer page,
+            @RequestParam(defaultValue = "10") @Min(1) @Max(100) Integer size,
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String sort,
@@ -79,8 +86,8 @@ public class ResourceController {
     @GetMapping("/mine")
     @PreAuthorize("hasAuthority('resource:read')")
     public Result<Page<Resource>> pageMyResources(
-            @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(defaultValue = "1") @Min(1) Integer page,
+            @RequestParam(defaultValue = "10") @Min(1) @Max(100) Integer size,
             @RequestParam(required = false) String sort) {
         Long userId = SecurityUtil.getCurrentUserId();
         if (userId == null) {
@@ -93,8 +100,8 @@ public class ResourceController {
     @GetMapping("/favorites")
     @PreAuthorize("hasAuthority('resource:favorite')")
     public Result<Page<Resource>> pageFavoriteResources(
-            @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(defaultValue = "1") @Min(1) Integer page,
+            @RequestParam(defaultValue = "10") @Min(1) @Max(100) Integer size,
             @RequestParam(required = false) String sort) {
         Long userId = SecurityUtil.getCurrentUserId();
         if (userId == null) {
@@ -107,8 +114,8 @@ public class ResourceController {
     @GetMapping("/recycle-bin")
     @PreAuthorize("hasAuthority('resource:audit')")
     public Result<Page<Resource>> pageRecycleResources(
-            @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(defaultValue = "1") @Min(1) Integer page,
+            @RequestParam(defaultValue = "10") @Min(1) @Max(100) Integer size,
             @RequestParam(required = false) String keyword) {
         return Result.ok(resourceService.pageRecycleResources(page, size, keyword));
     }
@@ -116,7 +123,7 @@ public class ResourceController {
     @Operation(summary = "从回收站恢复资源")
     @PutMapping("/{id}/restore")
     @PreAuthorize("hasAuthority('resource:audit')")
-    public Result<Void> restoreResource(@PathVariable Long id) {
+    public Result<Void> restoreResource(@PathVariable @Positive Long id) {
         resourceService.restoreResource(id);
         return Result.ok();
     }
@@ -124,14 +131,14 @@ public class ResourceController {
     @Operation(summary = "永久删除资源（不可恢复）")
     @DeleteMapping("/{id}/permanent")
     @PreAuthorize("hasAuthority('resource:audit')")
-    public Result<Void> permanentDeleteResource(@PathVariable Long id) {
+    public Result<Void> permanentDeleteResource(@PathVariable @Positive Long id) {
         resourceService.permanentDeleteResource(id);
         return Result.ok();
     }
 
     @Operation(summary = "根据ID获取资源详情")
     @GetMapping("/{id}")
-    public Result<Resource> getResourceById(@PathVariable Long id) {
+    public Result<Resource> getResourceById(@PathVariable @Positive Long id) {
         Resource resource = resourceService.getResourceById(id);
         if (resource == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "资源不存在或已删除");
@@ -153,7 +160,7 @@ public class ResourceController {
     @Operation(summary = "更新资源")
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('resource:update')")
-    public Result<Void> updateResource(@PathVariable Long id,
+    public Result<Void> updateResource(@PathVariable @Positive Long id,
                                        @RequestBody @Valid ResourceUpdateDTO dto) {
         Long userId = SecurityUtil.getCurrentUserId();
         if (userId == null) {
@@ -166,7 +173,7 @@ public class ResourceController {
     @Operation(summary = "重新提交待修改资源")
     @PutMapping("/{id}/resubmit")
     @PreAuthorize("hasAuthority('resource:update')")
-    public Result<Void> resubmitResource(@PathVariable Long id) {
+    public Result<Void> resubmitResource(@PathVariable @Positive Long id) {
         Long userId = SecurityUtil.getCurrentUserId();
         if (userId == null) {
             return Result.fail(401, "未登录");
@@ -178,7 +185,7 @@ public class ResourceController {
     @Operation(summary = "删除资源")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('resource:delete')")
-    public Result<Void> deleteResource(@PathVariable Long id) {
+    public Result<Void> deleteResource(@PathVariable @Positive Long id) {
         Long userId = SecurityUtil.getCurrentUserId();
         if (userId == null) {
             return Result.fail(401, "未登录");
@@ -189,7 +196,7 @@ public class ResourceController {
 
     @Operation(summary = "下载资源")
     @PostMapping("/{id}/download")
-    public Result<FileDownloadVO> downloadResource(@PathVariable Long id) {
+    public Result<FileDownloadVO> downloadResource(@PathVariable @Positive Long id) {
         Long userId = SecurityUtil.getCurrentUserId();
         Resource resource = resourceService.getResourceById(id);
         if (resource == null || !canViewResource(resource)) {
@@ -219,7 +226,7 @@ public class ResourceController {
 
     @Operation(summary = "记录资源浏览次数（支持匿名访问，详情页加载后调用）")
     @PostMapping("/{id}/view")
-    public Result<Void> viewResource(@PathVariable Long id) {
+    public Result<Void> viewResource(@PathVariable @Positive Long id) {
         // 直接更新计数（与下载不同，不使用MQ），不要求登录；存在性由service校验
         resourceService.incrementViewCount(id);
         return Result.ok();
@@ -227,7 +234,7 @@ public class ResourceController {
 
     @Operation(summary = "收藏资源")
     @PostMapping("/{id}/favorite")
-    public Result<Void> addFavorite(@PathVariable Long id) {
+    public Result<Void> addFavorite(@PathVariable @Positive Long id) {
         Long userId = SecurityUtil.getCurrentUserId();
         if (userId == null) {
             return Result.fail(401, "未登录");
@@ -238,7 +245,7 @@ public class ResourceController {
 
     @Operation(summary = "取消收藏")
     @DeleteMapping("/{id}/favorite")
-    public Result<Void> removeFavorite(@PathVariable Long id) {
+    public Result<Void> removeFavorite(@PathVariable @Positive Long id) {
         Long userId = SecurityUtil.getCurrentUserId();
         if (userId == null) {
             return Result.fail(401, "未登录");
@@ -249,7 +256,7 @@ public class ResourceController {
 
     @Operation(summary = "查询是否已收藏")
     @GetMapping("/{id}/favorite")
-    public Result<Boolean> isFavorited(@PathVariable Long id) {
+    public Result<Boolean> isFavorited(@PathVariable @Positive Long id) {
         Long userId = SecurityUtil.getCurrentUserId();
         if (userId == null) {
             return Result.fail(401, "未登录");
@@ -260,9 +267,9 @@ public class ResourceController {
     @Operation(summary = "搜索资源")
     @GetMapping("/search")
     public Result<Page<Resource>> search(
-            @RequestParam String keyword,
-            @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam @NotBlank @Size(max = 100) String keyword,
+            @RequestParam(defaultValue = "1") @Min(1) Integer page,
+            @RequestParam(defaultValue = "10") @Min(1) @Max(100) Integer size,
             @RequestParam(required = false) String sort,
             @RequestParam(required = false) String scene) {
         org.springframework.data.domain.Page<ResourceDocument> searchResult =
@@ -279,7 +286,7 @@ public class ResourceController {
     @Operation(summary = "审核或调整资源状态")
     @PutMapping("/{id}/audit")
     @PreAuthorize("hasAuthority('resource:audit')")
-    public Result<Void> auditResource(@PathVariable Long id,
+    public Result<Void> auditResource(@PathVariable @Positive Long id,
                                       @RequestParam(required = false) Integer status,
                                       @RequestBody(required = false) @Valid ResourceReviewDTO reviewDTO) {
         Long operatorId = SecurityUtil.getCurrentUserId();

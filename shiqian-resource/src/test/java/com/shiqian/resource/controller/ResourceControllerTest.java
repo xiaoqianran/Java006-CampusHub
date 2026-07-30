@@ -139,8 +139,8 @@ public class ResourceControllerTest extends BaseResourceTest {
                         .header("Authorization", "Bearer " + userToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(500))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
                 .andExpect(jsonPath("$.message").value("分类不存在"));
     }
 
@@ -161,8 +161,8 @@ public class ResourceControllerTest extends BaseResourceTest {
                         .header("Authorization", "Bearer " + userToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(500))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
                 .andExpect(jsonPath("$.message").value("资源内容包含敏感词"));
     }
 
@@ -398,8 +398,8 @@ public class ResourceControllerTest extends BaseResourceTest {
     public void testDeleteResourceNotExist() throws Exception {
         mockMvc.perform(delete("/api/resource/{id}", 99999)
                         .header("Authorization", "Bearer " + userToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(500))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
                 .andExpect(jsonPath("$.message").value("资源不存在"));
     }
 
@@ -462,8 +462,8 @@ public class ResourceControllerTest extends BaseResourceTest {
 
         mockMvc.perform(post("/api/resource/{id}/favorite", resource.getId())
                         .header("Authorization", "Bearer " + userToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(500))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
                 .andExpect(jsonPath("$.message").value("已收藏该资源"));
     }
 
@@ -504,8 +504,8 @@ public class ResourceControllerTest extends BaseResourceTest {
         mockMvc.perform(put("/api/resource/{id}/audit", 99999)
                         .header("Authorization", "Bearer " + adminToken)
                         .param("status", "1"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(500))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
                 .andExpect(jsonPath("$.message").value("资源不存在"));
     }
 
@@ -517,8 +517,8 @@ public class ResourceControllerTest extends BaseResourceTest {
         mockMvc.perform(put("/api/resource/{id}/audit", resource.getId())
                         .header("Authorization", "Bearer " + adminToken)
                         .param("status", "99"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(500))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
                 .andExpect(jsonPath("$.message").value("审核状态不合法"));
     }
 
@@ -558,8 +558,8 @@ public class ResourceControllerTest extends BaseResourceTest {
 
         mockMvc.perform(put("/api/resource/{id}/resubmit", resource.getId())
                         .header("Authorization", "Bearer " + userToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(500))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
                 .andExpect(jsonPath("$.message").value("只有待修改资源可以重新提交"));
     }
 

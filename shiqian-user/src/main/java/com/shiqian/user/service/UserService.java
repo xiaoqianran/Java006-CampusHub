@@ -6,6 +6,7 @@ import com.shiqian.user.dto.LoginVO;
 import com.shiqian.user.dto.RegisterDTO;
 import com.shiqian.user.dto.UpdateUserDTO;
 import com.shiqian.user.dto.UserInfoVO;
+import com.shiqian.user.dto.ChangePasswordDTO;
 
 public interface UserService {
 
@@ -17,7 +18,11 @@ public interface UserService {
 
     LoginVO refresh(String refreshToken);
 
+    void logout(Long userId, String accessToken);
+
     void updateUserInfo(Long userId, UpdateUserDTO updateUserDTO);
+
+    void changePassword(Long userId, ChangePasswordDTO changePasswordDTO);
 
     UserInfoVO getUserInfo(Long userId);
 

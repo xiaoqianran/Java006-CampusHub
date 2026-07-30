@@ -10,7 +10,12 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.validation.annotation.Validated;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
@@ -21,6 +26,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
+@Validated
 public class AdminLogController {
 
     private final AdminLogService adminLogService;
@@ -41,10 +47,16 @@ public class AdminLogController {
     @GetMapping("/logs")
     @PreAuthorize("hasAuthority('resource:audit')")
     public Result<Page<AdminLog>> listLogs(
-            @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "20") Integer size,
-            @RequestParam(required = false) String action) {
-        Page<AdminLog> result = adminLogService.pageLogs(page, size, action);
+            @RequestParam(defaultValue = "1") @Min(1) Integer page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) Integer size,
+            @RequestParam(required = false) String action,
+            @RequestParam(required = false) Long operatorId,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startTime,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endTime) {
+        Page<AdminLog> result = adminLogService.pageLogs(
+                page, size, action, operatorId, startTime, endTime);
         return Result.ok(result);
     }
 }

@@ -4,6 +4,7 @@ import com.shiqian.common.security.JwtUtil;
 import com.shiqian.common.security.LoginUser;
 import com.shiqian.common.security.PermissionEnum;
 import com.shiqian.common.security.RolePermissionMapping;
+import com.shiqian.user.service.TokenSessionService;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -28,6 +29,7 @@ import java.util.stream.Collectors;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
+    private final TokenSessionService tokenSessionService;
 
     private static final String AUTHORIZATION_HEADER = "Authorization";
     private static final String BEARER_PREFIX = "Bearer ";
@@ -38,11 +40,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain) throws ServletException, IOException {
         String token = extractToken(request);
 
-        if (StringUtils.hasText(token) && jwtUtil.validateToken(token)) {
+        if (StringUtils.hasText(token)) {
             try {
                 Claims claims = jwtUtil.parseToken(token);
-                if (claims != null) {
-                    Long userId = claims.get("userId", Long.class);
+                if (claims != null && tokenSessionService.isCurrentAccessToken(claims)) {
+                    Long userId = jwtUtil.getLongClaim(claims, "userId");
                     String username = claims.get("username", String.class);
                     String role = claims.get("role", String.class);
 

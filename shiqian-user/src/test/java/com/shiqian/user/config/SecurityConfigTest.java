@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Security 配置测试
  */
 @SpringBootTest
-@ActiveProfiles("local")
+@ActiveProfiles("test")
 class SecurityConfigTest {
 
     @Autowired
