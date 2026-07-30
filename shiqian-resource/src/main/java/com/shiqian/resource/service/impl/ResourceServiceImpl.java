@@ -422,12 +422,7 @@ public class ResourceServiceImpl implements ResourceService {
                     .or().like("content_markdown", keyword));
         }
 
-        if ("hottest".equals(sort)) {
-            wrapper.orderByDesc("download_count");
-            wrapper.orderByDesc("view_count");
-        } else {
-            wrapper.orderByDesc("create_time");
-        }
+        applyListOrdering(wrapper, sort, contentScene);
         Page<Resource> result = resourceMapper.selectPage(pageParam, wrapper);
         authorEnrichmentService.enrich(result.getRecords());
         enrichAttachments(result.getRecords());
@@ -466,12 +461,7 @@ public class ResourceServiceImpl implements ResourceService {
                     .or().like("content_markdown", keyword));
         }
 
-        if ("hottest".equals(sort)) {
-            wrapper.orderByDesc("download_count");
-            wrapper.orderByDesc("view_count");
-        } else {
-            wrapper.orderByDesc("create_time");
-        }
+        applyListOrdering(wrapper, sort, contentScene);
         Page<Resource> result = resourceMapper.selectPage(pageParam, wrapper);
         authorEnrichmentService.enrich(result.getRecords());
         enrichAttachments(result.getRecords());
@@ -566,6 +556,29 @@ public class ResourceServiceImpl implements ResourceService {
         String scene = normalizeContentScene(contentScene, null);
         if (scene != null) {
             wrapper.eq("content_scene", scene);
+        }
+    }
+
+    /**
+     * 列表排序：图片频道优先有封面，避免“只有提示词”的条目霸占首页。
+     */
+    private void applyListOrdering(QueryWrapper<Resource> wrapper, String sort, String contentScene) {
+        String scene = normalizeContentScene(contentScene, null);
+        if ("GALLERY".equals(scene)) {
+            if ("hottest".equals(sort)) {
+                wrapper.last("ORDER BY (file_url IS NOT NULL AND TRIM(file_url) <> '') DESC, "
+                        + "download_count DESC, view_count DESC, id DESC");
+            } else {
+                wrapper.last("ORDER BY (file_url IS NOT NULL AND TRIM(file_url) <> '') DESC, "
+                        + "create_time DESC, id DESC");
+            }
+            return;
+        }
+        if ("hottest".equals(sort)) {
+            wrapper.orderByDesc("download_count");
+            wrapper.orderByDesc("view_count");
+        } else {
+            wrapper.orderByDesc("create_time");
         }
     }
 

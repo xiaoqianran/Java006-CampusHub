@@ -99,6 +99,9 @@ public class JwtGlobalAuthFilter implements GlobalFilter, Ordered {
         if (HttpMethod.POST.equals(method) && path.matches("/api/resource/\\d+/download")) {
             return true;
         }
+        if (path.startsWith("/api/jimeng")) {
+            return true;
+        }
         List<String> effective = (whitelist != null && !whitelist.isEmpty()) ? whitelist : DEFAULT_WHITELIST;
         return effective.stream().anyMatch(path::startsWith);
     }

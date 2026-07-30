@@ -9,8 +9,37 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
+import java.util.List;
+
 @Mapper
 public interface ResourceMapper extends BaseMapper<Resource> {
+
+    @Select("""
+            SELECT *
+            FROM t_resource
+            WHERE external_source = #{source}
+              AND external_id = #{externalId}
+            ORDER BY id DESC
+            LIMIT 1
+            """)
+    Resource selectByExternalIdIncludingDeleted(
+            @Param("source") String source,
+            @Param("externalId") String externalId);
+
+    @Select("""
+            <script>
+            SELECT external_id
+            FROM t_resource
+            WHERE external_source = #{source}
+              AND external_id IN
+              <foreach collection="externalIds" item="externalId" open="(" separator="," close=")">
+                #{externalId}
+              </foreach>
+            </script>
+            """)
+    List<String> selectExistingExternalIdsIncludingDeleted(
+            @Param("source") String source,
+            @Param("externalIds") List<String> externalIds);
 
     @Select("""
             <script>

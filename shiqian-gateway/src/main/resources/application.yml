@@ -25,7 +25,7 @@ spring:
         - id: shiqian-resource
           uri: lb://shiqian-resource
           predicates:
-            - Path=/api/resource/**,/api/category/**,/api/admin/**
+            - Path=/api/resource/**,/api/category/**,/api/admin/**,/api/jimeng/**
 
 jwt:
   secret: ${JWT_SECRET}
@@ -39,6 +39,7 @@ gateway:
       - /api/user/login
       - /api/user/refresh
       - /api/user/health
+      - /api/jimeng
       - /actuator
 
 management:

@@ -56,7 +56,18 @@ class JimengPromptImporterTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> JimengPromptImporter.Config.from(
-                        new String[]{"--limit=5001"},
+                        new String[]{"--limit=20001"},
                         env));
+    }
+
+    @Test
+    void buildsGalleryTitleAndSummaryWithoutRepeatingPrompt() {
+        String longPrompt = "a".repeat(80);
+        assertEquals("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa…",
+                JimengPromptImporter.buildDisplayTitle(longPrompt));
+        assertEquals("即梦 AI 作品",
+                JimengPromptImporter.buildDisplaySummary(null, null, null));
+        assertEquals("即梦 · 作者甲 · model-x · 1:1",
+                JimengPromptImporter.buildDisplaySummary("作者甲", "model-x", "1:1"));
     }
 }

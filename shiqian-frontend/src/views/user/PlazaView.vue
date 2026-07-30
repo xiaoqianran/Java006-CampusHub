@@ -146,7 +146,11 @@ onUnmounted(() => {
     </div>
 
     <div v-loading="store.searchLoading" class="resource-results">
-      <div v-if="store.filteredResources.length" class="resource-grid">
+      <div
+        v-if="store.filteredResources.length"
+        class="resource-grid"
+        :class="{ 'gallery-grid': currentScene === 'GALLERY' }"
+      >
         <ResourceCard v-for="item in store.filteredResources" :key="item.id" :item="item" />
       </div>
       <el-empty v-else-if="!store.searchLoading" description="暂无匹配内容" />
@@ -196,9 +200,26 @@ onUnmounted(() => {
   min-height: 160px;
 }
 
+.gallery-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
 .content-pagination {
   justify-content: center;
   margin-top: 26px;
+}
+
+@media (max-width: 1100px) {
+  .gallery-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .gallery-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 560px) {
@@ -206,6 +227,10 @@ onUnmounted(() => {
   .sort-select {
     width: 100%;
     max-width: none;
+  }
+
+  .gallery-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

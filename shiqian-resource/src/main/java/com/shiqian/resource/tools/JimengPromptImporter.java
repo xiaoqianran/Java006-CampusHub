@@ -277,10 +277,12 @@ public final class JimengPromptImporter {
             ImageResult image) throws SQLException {
         LocalDateTime sourceTime = resolveSourceTime(row);
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
-        String title = truncateCodePoints(normalizeWhitespace(row.prompt()), 100);
-        String summary = truncateCodePoints(normalizeWhitespace(row.prompt()), 240);
+        // 图片频道：标题短展示，摘要不重复正文提示词，正文只保留一次完整 prompt
+        String title = buildDisplayTitle(row.prompt());
+        String summary = buildDisplaySummary(row.author(), row.model(), row.aspectRatio());
         String tags = buildTags(row);
         String contentType = image.available() ? "MIXED" : "ARTICLE";
+        String contentMarkdown = normalizeWhitespace(row.prompt());
 
         try (PreparedStatement statement = target.prepareStatement(UPSERT_RESOURCE_SQL)) {
             int parameter = 1;
@@ -288,7 +290,7 @@ public final class JimengPromptImporter {
             statement.setString(parameter++, title);
             statement.setString(parameter++, summary);
             statement.setString(parameter++, summary);
-            statement.setString(parameter++, row.prompt());
+            statement.setString(parameter++, contentMarkdown);
             statement.setString(parameter++, contentType);
             statement.setString(parameter++, tags);
             statement.setString(parameter++, EXTERNAL_SOURCE);
@@ -491,7 +493,7 @@ public final class JimengPromptImporter {
         }
     }
 
-    static URI validateImageUri(String rawUrl, Set<String> allowedHosts) throws Exception {
+    public static URI validateImageUri(String rawUrl, Set<String> allowedHosts) throws Exception {
         URI uri = URI.create(rawUrl);
         if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getUserInfo() != null) {
             throw new IllegalArgumentException("图片地址必须使用 HTTPS 且不能包含用户信息");
@@ -577,11 +579,11 @@ public final class JimengPromptImporter {
         }
     }
 
-    static String normalizeWhitespace(String value) {
+    public static String normalizeWhitespace(String value) {
         return value == null ? "" : value.replaceAll("\\s+", " ").trim();
     }
 
-    static String truncateCodePoints(String value, int maxCodePoints) {
+    public static String truncateCodePoints(String value, int maxCodePoints) {
         if (value == null || value.isEmpty()) {
             return "";
         }
@@ -591,6 +593,37 @@ public final class JimengPromptImporter {
         }
         int end = value.offsetByCodePoints(0, Math.max(1, maxCodePoints - 1));
         return value.substring(0, end) + "…";
+    }
+
+    /**
+     * 画廊卡片标题：截断提示词，避免与正文/摘要三处重复堆满整页。
+     */
+    public static String buildDisplayTitle(String prompt) {
+        String normalized = normalizeWhitespace(prompt);
+        if (normalized.isEmpty()) {
+            return "即梦作品";
+        }
+        return truncateCodePoints(normalized, 42);
+    }
+
+    /**
+     * 画廊摘要：作者/模型等元信息，不再回填完整提示词。
+     */
+    public static String buildDisplaySummary(String author, String model, String aspectRatio) {
+        LinkedHashSet<String> parts = new LinkedHashSet<>();
+        if (hasText(author)) {
+            parts.add(normalizeWhitespace(author));
+        }
+        if (hasText(model)) {
+            parts.add(normalizeWhitespace(model));
+        }
+        if (hasText(aspectRatio)) {
+            parts.add(normalizeWhitespace(aspectRatio));
+        }
+        if (parts.isEmpty()) {
+            return "即梦 AI 作品";
+        }
+        return truncateCodePoints("即梦 · " + String.join(" · ", parts), 120);
     }
 
     private static String buildTags(SourceRow row) {
@@ -801,8 +834,8 @@ public final class JimengPromptImporter {
                     throw new IllegalArgumentException("不支持的参数：" + arg);
                 }
             }
-            if (limit < 1 || limit > 5000) {
-                throw new IllegalArgumentException("limit 必须在 1 到 5000 之间");
+            if (limit < 1 || limit > 20000) {
+                throw new IllegalArgumentException("limit 必须在 1 到 20000 之间");
             }
             if (afterId < 0) {
                 throw new IllegalArgumentException("after-id 不能小于 0");

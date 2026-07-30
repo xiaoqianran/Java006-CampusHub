@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, Star, StarFilled, Download, View, User } from '@element-plus/icons-vue'
+import { ArrowLeft, Star, StarFilled, Download, View, User, CopyDocument } from '@element-plus/icons-vue'
 import StatusTag from '@/components/StatusTag.vue'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
 import AttachmentPreviewDialog from '@/components/AttachmentPreviewDialog.vue'
@@ -30,13 +30,50 @@ const related = computed(() => {
   otherScene.sort((a, b) => score(b) - score(a))
   return [...sameScene.slice(0, 2), ...otherScene.slice(0, 2)].slice(0, 4)
 })
-const imageAttachments = computed(() => resource.value?.attachments?.filter(att =>
-  att.assetKind === 'IMAGE' || /\.(png|jpe?g|gif|webp)$/i.test(att.fileName)
+function isDisplayImage(att: { fileUrl?: string, fileName?: string, assetKind?: string }) {
+  if (!att?.fileUrl) return false
+  if (att.assetKind === 'IMAGE') return true
+  if (/^https?:\/\//i.test(att.fileUrl)) return true
+  return /\.(png|jpe?g|gif|webp|avif|bmp)(\?|$)/i.test(`${att.fileUrl} ${att.fileName || ''}`)
+}
+
+const imageAttachments = computed(() => (resource.value?.attachments || []).filter(isDisplayImage))
+/** 加载失败的图链 id/url，静默隐藏，不占位 */
+const brokenImageKeys = ref<Set<string>>(new Set())
+const visibleImageAttachments = computed(() =>
+  imageAttachments.value.filter(att => {
+    const key = String(att.id || att.fileUrl)
+    return !brokenImageKeys.value.has(key)
+  })
+)
+const isGallery = computed(() => resource.value?.scene === 'GALLERY')
+const promptText = computed(() =>
+  (resource.value?.contentMarkdown || resource.value?.desc || '').trim()
+)
+// 画廊：摘要若与提示词实质相同则不展示，避免标题/摘要/正文三连重复
+const showSummary = computed(() => {
+  if (!resource.value) return false
+  const summary = (resource.value.summary || resource.value.desc || '').trim()
+  if (!summary) return false
+  if (!isGallery.value) return true
+  const prompt = promptText.value
+  if (!prompt) return true
+  return summary !== prompt && !prompt.startsWith(summary) && !summary.startsWith(prompt.slice(0, 40))
+})
+const nonImageAttachments = computed(() => resource.value?.attachments?.filter(att =>
+  !(att.assetKind === 'IMAGE' || /\.(png|jpe?g|gif|webp)$/i.test(att.fileName || ''))
 ) || [])
 
 const detailLoading = ref(true)
 const previewVisible = ref(false)
 const previewAttachment = ref<ResourceAttachmentItem | null>(null)
+
+watch(
+  () => resource.value?.id,
+  () => {
+    brokenImageKeys.value = new Set()
+  }
+)
 
 onMounted(async () => {
   detailLoading.value = true
@@ -119,6 +156,27 @@ function goBack() {
     : resource.value?.scene === 'GALLERY' ? '/images' : '/share'
   router.push(path)
 }
+
+async function copyPrompt() {
+  if (!promptText.value) {
+    ElMessage.warning('暂无提示词')
+    return
+  }
+  try {
+    await navigator.clipboard.writeText(promptText.value)
+    ElMessage.success('提示词已复制')
+  } catch {
+    ElMessage.error('复制失败，请手动选择')
+  }
+}
+
+function hideBrokenDetailImage(att: ResourceAttachmentItem) {
+  const key = String(att.id || att.fileUrl)
+  if (!key || brokenImageKeys.value.has(key)) return
+  const next = new Set(brokenImageKeys.value)
+  next.add(key)
+  brokenImageKeys.value = next
+}
 </script>
 
 <template>
@@ -131,16 +189,19 @@ function goBack() {
       <el-tag v-if="(resource.downloads + resource.views) > 15" type="danger" size="small" effect="light" style="margin-left: 6px">受欢迎</el-tag>
       <h1 class="detail-title">{{ resource.title }}</h1>
 
-      <!-- 摘要：优先 summary -->
-      <p v-if="resource.summary || resource.desc" class="sub detail-summary">
+      <p v-if="showSummary" class="sub detail-summary">
         {{ resource.summary || resource.desc }}
       </p>
       <div v-if="resource.tags" class="detail-tags">
-        <el-tag v-for="tag in resource.tags.split(/[,，]/).filter(Boolean)" :key="tag" size="small" effect="plain"># {{ tag.trim() }}</el-tag>
+        <el-tag
+          v-for="tag in resource.tags.split(/[,，]/).map(t => t.trim()).filter(Boolean)"
+          :key="tag"
+          size="small"
+          effect="plain"
+        ># {{ tag }}</el-tag>
       </div>
 
       <div class="resource-meta">
-        <!-- 改进：badge 徽章形式突出显示作者，与 ResourceCard 保持视觉一致性 -->
         <el-tag size="small" type="info" effect="plain" style="font-size:13px; padding: 0 6px; height:20px; line-height:20px; vertical-align: middle;">
           <el-icon style="margin-right:3px; font-size:13px;"><User /></el-icon>作者：{{ resource.author }}
         </el-tag>
@@ -149,52 +210,84 @@ function goBack() {
         <span>收藏 {{ resource.favs }}</span>
       </div>
 
-      <div style="margin: 24px 0; display: flex; gap: 12px">
+      <div class="detail-actions">
         <el-button v-if="primaryDownloadUrl()" type="primary" :icon="Download" @click="download">
           下载{{ resource.attachments && resource.attachments.length ? '主文件' : '资源' }}
+        </el-button>
+        <el-button v-if="isGallery && promptText" type="primary" plain :icon="CopyDocument" @click="copyPrompt">
+          复制提示词
         </el-button>
         <el-button :icon="store.isFavorite(resource.id) ? StarFilled : Star" @click="toggleFavorite">
           {{ store.isFavorite(resource.id) ? '取消收藏' : '加入收藏' }}
         </el-button>
       </div>
 
-      <section v-if="resource.scene === 'GALLERY' && imageAttachments.length" class="image-gallery">
+      <!-- 图片频道：有可加载的图才显示；链失效静默不渲染 -->
+      <section v-if="isGallery && visibleImageAttachments.length" class="image-gallery">
         <img
-          v-for="image in imageAttachments"
+          v-for="image in visibleImageAttachments"
           :key="image.id || image.fileUrl"
           :src="buildApiUrl(image.fileUrl, { inline: true })"
           :alt="image.fileName"
+          @error="hideBrokenDetailImage(image)"
           @click="previewFile(image)"
         />
       </section>
 
-      <!-- 正文：优先 contentMarkdown 的 Markdown 渲染 -->
-      <h2>正文</h2>
-      <div v-if="resource.contentMarkdown" class="markdown-section">
-        <MarkdownPreview :model-value="resource.contentMarkdown" />
-      </div>
-      <div v-else-if="resource.desc" class="markdown-section fallback">
-        <!-- 兼容旧数据：没有 contentMarkdown 时回退显示 desc（纯文本） -->
-        <pre class="legacy-desc">{{ resource.desc }}</pre>
-      </div>
-      <div v-else class="empty-content">
-        暂无正文内容
-      </div>
-
-      <!-- 第二阶段：附件列表 -->
-      <div v-if="resource.attachments && resource.attachments.length > 0" class="attachment-section">
-        <h2>附件</h2>
-        <div v-for="att in resource.attachments" :key="att.id || att.fileUrl" class="attachment-item" @click="previewFile(att)">
-          <span class="file-name">{{ att.fileName }}</span>
-          <span class="file-meta">{{ att.fileType }} · {{ formatFileSize(att.fileSize) }}</span>
-          <el-button size="small" @click.stop="previewFile(att)">预览</el-button>
-          <el-button size="small" type="primary" @click.stop="downloadAttachment(att)">下载</el-button>
+      <template v-if="isGallery">
+        <div class="prompt-header">
+          <h2>提示词</h2>
+          <el-button v-if="promptText" size="small" text type="primary" :icon="CopyDocument" @click="copyPrompt">
+            一键复制
+          </el-button>
         </div>
-      </div>
-      <div v-else class="attachment-section">
-        <h2>附件</h2>
-        <p class="sub">该资源暂无附件</p>
-      </div>
+        <div v-if="promptText" class="prompt-box">
+          <pre>{{ promptText }}</pre>
+        </div>
+        <div v-else class="empty-content">暂无提示词</div>
+
+        <div v-if="nonImageAttachments.length" class="attachment-section">
+          <h2>其他附件</h2>
+          <div
+            v-for="att in nonImageAttachments"
+            :key="att.id || att.fileUrl"
+            class="attachment-item"
+            @click="previewFile(att)"
+          >
+            <span class="file-name">{{ att.fileName }}</span>
+            <span class="file-meta">{{ att.fileType }} · {{ formatFileSize(att.fileSize) }}</span>
+            <el-button size="small" @click.stop="previewFile(att)">预览</el-button>
+            <el-button size="small" type="primary" @click.stop="downloadAttachment(att)">下载</el-button>
+          </div>
+        </div>
+      </template>
+
+      <template v-else>
+        <h2>正文</h2>
+        <div v-if="resource.contentMarkdown" class="markdown-section">
+          <MarkdownPreview :model-value="resource.contentMarkdown" />
+        </div>
+        <div v-else-if="resource.desc" class="markdown-section fallback">
+          <pre class="legacy-desc">{{ resource.desc }}</pre>
+        </div>
+        <div v-else class="empty-content">
+          暂无正文内容
+        </div>
+
+        <div v-if="resource.attachments && resource.attachments.length > 0" class="attachment-section">
+          <h2>附件</h2>
+          <div v-for="att in resource.attachments" :key="att.id || att.fileUrl" class="attachment-item" @click="previewFile(att)">
+            <span class="file-name">{{ att.fileName }}</span>
+            <span class="file-meta">{{ att.fileType }} · {{ formatFileSize(att.fileSize) }}</span>
+            <el-button size="small" @click.stop="previewFile(att)">预览</el-button>
+            <el-button size="small" type="primary" @click.stop="downloadAttachment(att)">下载</el-button>
+          </div>
+        </div>
+        <div v-else class="attachment-section">
+          <h2>附件</h2>
+          <p class="sub">该资源暂无附件</p>
+        </div>
+      </template>
 
       <!-- 旧的占位说明已移除，真实内容由 Markdown 渲染 -->
 
@@ -248,25 +341,73 @@ function goBack() {
   margin-bottom: 14px;
 }
 
+.detail-actions {
+  margin: 20px 0 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 .image-gallery {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
-  margin: 22px 0;
+  margin: 18px 0 8px;
 }
 
 .image-gallery img {
   width: 100%;
-  max-height: 560px;
+  max-height: 640px;
   object-fit: cover;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 14px;
   cursor: zoom-in;
+  background: #0f172a;
 }
 
 .image-gallery img:first-child:last-child {
   grid-column: 1 / -1;
   object-fit: contain;
+  max-height: min(72vh, 760px);
+}
+
+.prompt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.prompt-header h2 {
+  margin: 0;
+}
+
+.prompt-box {
+  margin-top: 10px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--bg-card, #f8fafc);
+}
+
+.prompt-box pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-primary, #111827);
+}
+
+[data-theme="dark"] .prompt-box {
+  background: #111827;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .prompt-box pre {
+  color: #e2e8f0;
 }
 
 .markdown-section {

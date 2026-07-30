@@ -57,3 +57,8 @@ coverage/
 *.bak
 *.swp
 *~
+
+# Local import data and Python cache
+__pycache__/
+*.py[cod]
+jimeng_gallery*.jsonl
