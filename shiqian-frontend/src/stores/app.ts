@@ -180,9 +180,40 @@ export interface UserItem {
 export interface AdminLogItem {
   id: number
   operatorId: number
+  operatorName?: string
   action: string
+  targetType?: string
   targetId?: number
   detail?: string
+  requestMethod?: string
+  requestUri?: string
+  requestIp?: string
+  result?: string
+  errorMessage?: string
+  durationMs?: number
+  createTime?: string
+}
+
+export interface SensitiveWordItem {
+  id: number
+  word: string
+  level: number
+  status: number
+  createdBy?: number
+  createTime?: string
+  updateTime?: string
+}
+
+export interface ContentReviewRecordItem {
+  id: number
+  resourceId?: number
+  submitterId?: number
+  reviewerId?: number
+  reviewType: 'AUTO' | 'MANUAL'
+  decision: string
+  matchedWords?: string
+  reason?: string
+  contentTitle?: string
   createTime?: string
 }
 
@@ -1222,12 +1253,22 @@ export const useAppStore = defineStore('app', () => {
   }
 
   // === 轻量管理员操作日志 ===
-  async function loadAdminLogs(params: { page?: number, size?: number, action?: string } = {}) {
+  async function loadAdminLogs(params: {
+    page?: number
+    size?: number
+    action?: string
+    operatorId?: number
+    startTime?: string
+    endTime?: string
+  } = {}) {
     const data = await request<PageResult<AdminLogItem>>('/api/admin/logs', {
       query: {
         page: params.page ?? 1,
         size: params.size ?? 20,
-        action: params.action || undefined
+        action: params.action || undefined,
+        operatorId: params.operatorId,
+        startTime: params.startTime,
+        endTime: params.endTime
       }
     })
     adminLogs.value = data.records || []
@@ -1239,6 +1280,56 @@ export const useAppStore = defineStore('app', () => {
     await request<void>('/api/admin/logs', {
       method: 'POST',
       body: jsonBody({ action, targetId, detail })
+    })
+  }
+
+  async function loadSensitiveWords(keyword?: string) {
+    return request<SensitiveWordItem[]>('/api/admin/content-moderation/sensitive-words', {
+      query: { keyword: keyword || undefined }
+    })
+  }
+
+  async function createSensitiveWord(payload: { word: string, level: number, status: number }) {
+    return request<number>('/api/admin/content-moderation/sensitive-words', {
+      method: 'POST',
+      body: jsonBody(payload)
+    })
+  }
+
+  async function updateSensitiveWord(id: number, payload: { word: string, level: number, status: number }) {
+    await request<void>(`/api/admin/content-moderation/sensitive-words/${id}`, {
+      method: 'PUT',
+      body: jsonBody(payload)
+    })
+  }
+
+  async function deleteSensitiveWord(id: number) {
+    await request<void>(`/api/admin/content-moderation/sensitive-words/${id}`, {
+      method: 'DELETE'
+    })
+  }
+
+  async function reloadSensitiveWords() {
+    await request<void>('/api/admin/content-moderation/sensitive-words/reload', {
+      method: 'POST'
+    })
+  }
+
+  async function loadContentReviewRecords(params: {
+    page?: number
+    size?: number
+    reviewType?: string
+    decision?: string
+    resourceId?: number
+  } = {}) {
+    return request<PageResult<ContentReviewRecordItem>>('/api/admin/content-moderation/records', {
+      query: {
+        page: params.page ?? 1,
+        size: params.size ?? 20,
+        reviewType: params.reviewType || undefined,
+        decision: params.decision || undefined,
+        resourceId: params.resourceId
+      }
     })
   }
 
@@ -1333,6 +1424,12 @@ export const useAppStore = defineStore('app', () => {
     updateProfile,
     // 轻量审计日志
     loadAdminLogs,
-    recordAdminLog
+    recordAdminLog,
+    loadSensitiveWords,
+    createSensitiveWord,
+    updateSensitiveWord,
+    deleteSensitiveWord,
+    reloadSensitiveWords,
+    loadContentReviewRecords
   }
 })

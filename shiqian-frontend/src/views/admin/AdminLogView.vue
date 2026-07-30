@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import AdminLayout from '@/components/AdminLayout.vue'
 import { useAppStore, type AdminLogItem } from '@/stores/app'
@@ -11,6 +11,11 @@ const currentPage = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
 const filterAction = ref('')
+const filterOperatorId = ref<number>()
+const filterTime = ref<[Date, Date]>()
+
+const startTime = computed(() => filterTime.value?.[0]?.toISOString())
+const endTime = computed(() => filterTime.value?.[1]?.toISOString())
 
 const actionOptions = [
   { label: '全部', value: '' },
@@ -29,7 +34,10 @@ async function load(page = 1) {
     const data = await store.loadAdminLogs({
       page,
       size: pageSize.value,
-      action: filterAction.value || undefined
+      action: filterAction.value || undefined,
+      operatorId: filterOperatorId.value,
+      startTime: startTime.value,
+      endTime: endTime.value
     })
     total.value = data.total || 0
     currentPage.value = page
@@ -58,7 +66,7 @@ onMounted(() => {
     <div class="page-title">
       <div>
         <h1>操作审计日志</h1>
-        <p class="sub">轻量级记录关键管理员操作（内容审核、用户启禁用、回收站恢复/删除等）。</p>
+        <p class="sub">持久化记录关键管理员操作，服务重启后仍可追溯。</p>
       </div>
     </div>
 
@@ -67,16 +75,32 @@ onMounted(() => {
       <el-select v-model="filterAction" placeholder="全部" style="width:200px" @change="onFilterChange" clearable>
         <el-option v-for="opt in actionOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
       </el-select>
+      <el-input-number
+        v-model="filterOperatorId"
+        :min="1"
+        :controls="false"
+        placeholder="操作员ID"
+        style="width:140px"
+        @change="onFilterChange"
+      />
+      <el-date-picker
+        v-model="filterTime"
+        type="datetimerange"
+        range-separator="至"
+        start-placeholder="开始时间"
+        end-placeholder="结束时间"
+        @change="onFilterChange"
+      />
       <el-button @click="load(1)">刷新</el-button>
-      <span class="sub" style="margin-left:auto;">仅保留最近1000条（内存）</span>
+      <span class="sub" style="margin-left:auto;">数据库持久化 · 支持分页检索</span>
     </div>
 
     <el-table :data="store.adminLogs" v-loading="loading" class="panel" stripe>
       <el-table-column label="时间" width="180">
         <template #default="{ row }">{{ row.createTime || '-' }}</template>
       </el-table-column>
-      <el-table-column label="操作员ID" width="100">
-        <template #default="{ row }">{{ row.operatorId }}</template>
+      <el-table-column label="操作员" width="150">
+        <template #default="{ row }">{{ row.operatorName || `用户#${row.operatorId}` }}</template>
       </el-table-column>
       <el-table-column label="动作" width="220">
         <template #default="{ row }">
@@ -90,6 +114,16 @@ onMounted(() => {
       </el-table-column>
       <el-table-column label="详情" min-width="200">
         <template #default="{ row }">{{ row.detail || '-' }}</template>
+      </el-table-column>
+      <el-table-column label="结果" width="100">
+        <template #default="{ row }">
+          <el-tag :type="row.result === 'SUCCESS' ? 'success' : 'danger'" size="small">
+            {{ row.result || '-' }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="耗时" width="100">
+        <template #default="{ row }">{{ row.durationMs == null ? '-' : `${row.durationMs} ms` }}</template>
       </el-table-column>
     </el-table>
 

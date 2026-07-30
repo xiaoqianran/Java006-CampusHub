@@ -19,6 +19,7 @@ const CategoryAdminView = () => import('@/views/admin/CategoryAdminView.vue')
 const TagAdminView = () => import('@/views/admin/TagAdminView.vue')
 const UserAdminView = () => import('@/views/admin/UserAdminView.vue')
 const AdminLogView = () => import('@/views/admin/AdminLogView.vue')
+const ContentModerationView = () => import('@/views/admin/ContentModerationView.vue')
 
 const adminMeta = { requiresAuth: true, roles: ['admin'] }
 
@@ -47,6 +48,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/admin/categories', component: CategoryAdminView, meta: { ...adminMeta, title: '分类管理' } },
   { path: '/admin/tags', component: TagAdminView, meta: { ...adminMeta, title: '标签管理' } },
   { path: '/admin/users', component: UserAdminView, meta: { ...adminMeta, title: '用户管理' } },
+  { path: '/admin/content-moderation', component: ContentModerationView, meta: { ...adminMeta, title: '内容安全' } },
   { path: '/admin/logs', component: AdminLogView, meta: { ...adminMeta, title: '操作日志' } },
   { path: '/:pathMatch(.*)*', redirect: '/home' }
 ]

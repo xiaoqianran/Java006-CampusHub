@@ -22,6 +22,7 @@ const groups = [
       { path: '/admin/categories', label: '分类管理' },
       { path: '/admin/tags', label: '标签管理' },
       { path: '/admin/users', label: '用户管理' },
+      { path: '/admin/content-moderation', label: '内容安全' },
       { path: '/admin/logs', label: '操作日志' }
     ]
   }

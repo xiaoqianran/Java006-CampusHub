@@ -55,6 +55,7 @@ onMounted(() => {
         <el-button type="primary" @click="$router.push('/admin/audit')">进入审核工作台</el-button>
         <el-button @click="$router.push('/admin/resources')">管理已发布内容</el-button>
         <el-button @click="$router.push('/admin/users')">用户管理</el-button>
+        <el-button @click="$router.push('/admin/content-moderation')">内容安全</el-button>
         <el-button @click="$router.push('/admin/recycle-bin')">回收站</el-button>
         <el-button @click="$router.push('/admin/logs')">操作日志</el-button>
       </div>
