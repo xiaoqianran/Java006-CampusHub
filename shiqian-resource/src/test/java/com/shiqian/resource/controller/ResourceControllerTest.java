@@ -334,7 +334,13 @@ public class ResourceControllerTest extends BaseResourceTest {
 
         mockMvc.perform(put("/api/resource/{id}/audit", resource.getId())
                         .header("Authorization", "Bearer " + adminToken)
-                        .param("status", "2"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status": 4,
+                                  "reason": "附件已失效"
+                                }
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
 
@@ -346,7 +352,8 @@ public class ResourceControllerTest extends BaseResourceTest {
                         .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.status").value(2));
+                .andExpect(jsonPath("$.data.status").value(4))
+                .andExpect(jsonPath("$.data.offlineReason").value("附件已失效"));
 
         mockMvc.perform(get("/api/resource/{id}", resource.getId())
                         .header("Authorization", "Bearer " + adminToken))
@@ -502,7 +509,7 @@ public class ResourceControllerTest extends BaseResourceTest {
     }
 
     @Test
-    public void testResubmitRejectedResourceSuccess() throws Exception {
+    public void testResubmitNeedsChangesResourceSuccess() throws Exception {
         Category category = createCategory("测试分类");
         Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "重新提交测试"));
         resourceService.auditResource(resource.getId(), 2, 2L);
@@ -527,7 +534,7 @@ public class ResourceControllerTest extends BaseResourceTest {
                         .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(500))
-                .andExpect(jsonPath("$.message").value("只有已驳回资源可以重新提交"));
+                .andExpect(jsonPath("$.message").value("只有待修改资源可以重新提交"));
     }
 
     @Test

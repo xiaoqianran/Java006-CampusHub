@@ -5,6 +5,8 @@ import com.shiqian.resource.BaseResourceTest;
 import com.shiqian.resource.dto.CategoryDTO;
 import com.shiqian.resource.entity.Category;
 import com.shiqian.resource.service.CategoryService;
+import com.shiqian.common.security.JwtUtil;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -32,6 +34,16 @@ public class CategoryControllerTest extends BaseResourceTest {
     @Autowired
     private CategoryService categoryService;
 
+    @Autowired
+    private JwtUtil jwtUtil;
+
+    private String adminToken;
+
+    @BeforeEach
+    void setUpToken() {
+        adminToken = jwtUtil.generateAccessToken(1L, "admin", "ADMIN");
+    }
+
     /** 通用成功响应消息，对应 Result.ok() 返回的 message，避免魔法值 */
     private static final String SUCCESS_MESSAGE = "操作成功";
 
@@ -44,6 +56,7 @@ public class CategoryControllerTest extends BaseResourceTest {
         dto.setStatus(1);
 
         mockMvc.perform(post("/api/category")
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isOk())
@@ -60,6 +73,7 @@ public class CategoryControllerTest extends BaseResourceTest {
         dto.setStatus(2);
 
         mockMvc.perform(post("/api/category")
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isBadRequest());
@@ -81,6 +95,7 @@ public class CategoryControllerTest extends BaseResourceTest {
         dto.setStatus(1);
 
         mockMvc.perform(put("/api/category/{id}", category.getId())
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isOk())
@@ -97,7 +112,8 @@ public class CategoryControllerTest extends BaseResourceTest {
         category.setStatus(1);
         categoryService.addCategory(category);
 
-        mockMvc.perform(delete("/api/category/{id}", category.getId()))
+        mockMvc.perform(delete("/api/category/{id}", category.getId())
+                        .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.message").value(SUCCESS_MESSAGE));

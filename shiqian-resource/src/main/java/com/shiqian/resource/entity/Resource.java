@@ -25,7 +25,7 @@ public class Resource {
 
     private String contentMarkdown;
 
-    private String contentType;   // MARKDOWN / HTML 等，默认为 MARKDOWN
+    private String contentType;   // ARTICLE / FILE / MIXED
 
     private Long categoryId;
 
@@ -41,6 +41,16 @@ public class Resource {
     private Integer version;
 
     private Integer status;
+
+    private String reviewReason;
+
+    private Long reviewerId;
+
+    private LocalDateTime reviewTime;
+
+    private String offlineReason;
+
+    private LocalDateTime publishedTime;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;

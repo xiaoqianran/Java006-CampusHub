@@ -184,7 +184,7 @@ function handleCategoryCommand(command: string, category: CategoryApiItem) {
       <div class="page-title">
         <div>
           <h1>分类管理</h1>
-          <p class="sub">分类与用户端分类浏览共用同一套数据。点击文件夹可查看该分类下的资源。</p>
+          <p class="sub">分类与用户端资源中心共用同一套数据。点击文件夹可查看该分类下的资源。</p>
         </div>
         <el-button type="primary" @click="openAddCategory">新增分类</el-button>
       </div>
@@ -475,4 +475,3 @@ function handleCategoryCommand(command: string, category: CategoryApiItem) {
   color: #aaa;
 }
 </style>
-

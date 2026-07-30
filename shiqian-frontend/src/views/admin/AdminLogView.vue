@@ -14,7 +14,10 @@ const filterAction = ref('')
 
 const actionOptions = [
   { label: '全部', value: '' },
-  { label: '资源审核', value: 'RESOURCE_AUDIT' },
+  { label: '审核通过', value: 'RESOURCE_APPROVE' },
+  { label: '退回修改', value: 'RESOURCE_NEEDS_CHANGES' },
+  { label: '拒绝资源', value: 'RESOURCE_REJECT' },
+  { label: '下架资源', value: 'RESOURCE_TAKE_DOWN' },
   { label: '用户状态变更', value: 'USER_STATUS_CHANGE' },
   { label: '资源恢复', value: 'RESOURCE_RESTORE' },
   { label: '资源永久删除', value: 'RESOURCE_PERMANENT_DELETE' }

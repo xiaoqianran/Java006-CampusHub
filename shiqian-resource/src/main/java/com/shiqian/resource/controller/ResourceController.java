@@ -9,6 +9,7 @@ import com.shiqian.resource.dto.FileDownloadVO;
 import com.shiqian.resource.dto.ResourceCreateDTO;
 import com.shiqian.resource.dto.ResourceDownloadMessage;
 import com.shiqian.resource.dto.ResourceUpdateDTO;
+import com.shiqian.resource.dto.ResourceReviewDTO;
 import com.shiqian.resource.entity.Resource;
 import com.shiqian.resource.service.FavoriteService;
 import com.shiqian.resource.service.ResourceSearchService;
@@ -33,6 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Tag(name = "资源管理", description = "资源上传、查询、更新、删除、下载、收藏等接口")
 @Slf4j
@@ -160,7 +162,7 @@ public class ResourceController {
         return Result.ok();
     }
 
-    @Operation(summary = "重新提交已驳回资源")
+    @Operation(summary = "重新提交待修改资源")
     @PutMapping("/{id}/resubmit")
     @PreAuthorize("hasAuthority('resource:update')")
     public Result<Void> resubmitResource(@PathVariable Long id) {
@@ -256,27 +258,41 @@ public class ResourceController {
 
     @Operation(summary = "搜索资源")
     @GetMapping("/search")
-    public Result<Page<ResourceDocument>> search(
+    public Result<Page<Resource>> search(
             @RequestParam String keyword,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer size,
             @RequestParam(required = false) String sort) {
         org.springframework.data.domain.Page<ResourceDocument> searchResult = resourceSearchService.search(keyword, page, size, sort);
-        Page<ResourceDocument> result = new Page<>(page, size, searchResult.getTotalElements());
-        result.setRecords(searchResult.getContent());
+        List<Long> orderedIds = searchResult.getContent().stream()
+                .map(ResourceDocument::getId)
+                .toList();
+        List<Resource> resources = resourceService.getPublishedResourcesByIds(orderedIds);
+        Page<Resource> result = new Page<>(page, size, searchResult.getTotalElements());
+        result.setRecords(resources);
         return Result.ok(result);
     }
 
-    @Operation(summary = "审核资源")
+    @Operation(summary = "审核或调整资源状态")
     @PutMapping("/{id}/audit")
     @PreAuthorize("hasAuthority('resource:audit')")
     public Result<Void> auditResource(@PathVariable Long id,
-                                      @RequestParam Integer status) {
+                                      @RequestParam(required = false) Integer status,
+                                      @RequestBody(required = false) @Valid ResourceReviewDTO reviewDTO) {
         Long operatorId = SecurityUtil.getCurrentUserId();
         if (operatorId == null) {
             return Result.fail(401, "未登录");
         }
-        resourceService.auditResource(id, status, operatorId);
+        if (reviewDTO != null) {
+            resourceService.reviewResource(
+                    id,
+                    reviewDTO.getStatus() != null ? reviewDTO.getStatus() : status,
+                    reviewDTO.getReason(),
+                    operatorId);
+        } else {
+            // 兼容旧客户端的 ?status= 请求方式。
+            resourceService.auditResource(id, status, operatorId);
+        }
         return Result.ok();
     }
 }

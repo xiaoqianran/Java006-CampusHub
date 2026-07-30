@@ -8,12 +8,12 @@ import { useAppStore } from '@/stores/app'
 const store = useAppStore()
 
 const searchText = ref('')
-const statusFilter = ref<'全部' | '待审核' | '已发布' | '已驳回'>('全部')
+const statusFilter = ref<'全部' | '已发布' | '已下架'>('全部')
 const categoryFilter = ref('全部分类')
 const sortBy = ref<'default' | 'views' | 'downloads' | 'time'>('default')
 
 const filteredAdminResources = computed(() => {
-  let list = store.resources
+  let list = store.managedResources
   const text = searchText.value.trim().toLowerCase()
   if (text) {
     list = list.filter(r =>
@@ -51,17 +51,35 @@ onMounted(() => {
 
 async function takeDownResource(id: number, title: string) {
   try {
-    await ElMessageBox.confirm(`确认下架「${title}」？下架后其他用户将无法看到，发布者本人仍可在我的发布中查看。`, '下架资源', {
+    const { value } = await ElMessageBox.prompt(
+      `下架「${title}」后，其他用户将无法访问。请填写下架原因。`,
+      '下架资源',
+      {
       type: 'warning',
       confirmButtonText: '下架',
-      cancelButtonText: '取消'
-    })
-    await store.takeDownResource(id)
-    await store.recordAdminLog('RESOURCE_TAKE_DOWN', id, title)
+      cancelButtonText: '取消',
+      inputType: 'textarea',
+      inputPlaceholder: '例如：附件失效、内容违规或版权问题',
+      inputValidator: input => Boolean(input.trim()) || '必须填写下架原因'
+      }
+    )
+    await store.takeDownResource(id, value)
     ElMessage.success('已下架')
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
       ElMessage.error(error instanceof Error ? error.message : '下架失败')
+    }
+  }
+}
+
+async function restoreOnline(id: number, title: string) {
+  try {
+    await ElMessageBox.confirm(`确认重新发布「${title}」？`, '恢复发布', { type: 'info' })
+    await store.approveResource(id)
+    ElMessage.success('资源已恢复发布')
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(error instanceof Error ? error.message : '恢复失败')
     }
   }
 }
@@ -71,17 +89,16 @@ async function takeDownResource(id: number, title: string) {
   <AdminLayout>
     <div class="page-title">
       <div>
-        <h1>资源管理</h1>
-        <p class="sub">管理全部资源，不只是待审核资源。</p>
+        <h1>已发布资源</h1>
+        <p class="sub">负责资源发布后的运营管理。首次审核统一在“审核工作台”完成。</p>
       </div>
     </div>
     <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
       <el-input v-model="searchText" placeholder="搜索标题/描述/分类/作者..." clearable style="width:280px;" />
       <el-select v-model="statusFilter" placeholder="状态" style="width:140px">
         <el-option label="全部" value="全部" />
-        <el-option label="待审核" value="待审核" />
         <el-option label="已发布" value="已发布" />
-        <el-option label="已驳回" value="已驳回" />
+        <el-option label="已下架" value="已下架" />
       </el-select>
       <el-select v-model="categoryFilter" placeholder="分类" style="width:160px">
         <el-option label="全部分类" value="全部分类" />
@@ -93,7 +110,7 @@ async function takeDownResource(id: number, title: string) {
         <el-option label="下载量 ↓" value="downloads" />
         <el-option label="时间 ↓" value="time" />
       </el-select>
-      <span class="sub">共 {{ filteredAdminResources.length }} 条（使用 store.resources 丰富数据）</span>
+      <span class="sub">共 {{ filteredAdminResources.length }} 条</span>
     </div>
     <el-table :data="filteredAdminResources" class="panel">
       <el-table-column label="资源" min-width="280"><template #default="{ row }"><b>{{ row.title }}</b></template></el-table-column>
@@ -102,11 +119,15 @@ async function takeDownResource(id: number, title: string) {
       <el-table-column label="状态" width="120"><template #default="{ row }"><StatusTag :status="row.status" /></template></el-table-column>
       <el-table-column prop="downloads" label="下载" width="80" />
       <el-table-column label="浏览" width="80"><template #default="{ row }">{{ row.views || 0 }}</template></el-table-column>
-      <el-table-column label="操作" width="240">
+      <el-table-column label="下架原因" min-width="180">
+        <template #default="{ row }"><span class="sub">{{ row.offlineReason || '—' }}</span></template>
+      </el-table-column>
+      <el-table-column label="操作" width="250">
         <template #default="{ row }">
           <el-button size="small" @click="$router.push(`/detail/${row.id}`)">预览</el-button>
           <el-button size="small" type="primary" plain @click="$router.push(`/resource/${row.id}/edit`)">编辑</el-button>
-          <el-button size="small" type="danger" plain :disabled="row.status === '已驳回'" @click="takeDownResource(row.id, row.title)">下架</el-button>
+          <el-button v-if="row.status === '已发布'" size="small" type="danger" plain @click="takeDownResource(row.id, row.title)">下架</el-button>
+          <el-button v-else size="small" type="success" plain @click="restoreOnline(row.id, row.title)">恢复发布</el-button>
         </template>
       </el-table-column>
     </el-table>

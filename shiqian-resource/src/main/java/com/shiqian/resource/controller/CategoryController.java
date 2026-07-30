@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
 
@@ -34,6 +35,7 @@ public class CategoryController {
 
     @Operation(summary = "新增分类")
     @PostMapping
+    @PreAuthorize("hasAuthority('resource:audit')")
     public Result<Void> addCategory(@RequestBody @Valid CategoryDTO categoryDTO) {
         Category category = new Category();
         BeanUtils.copyProperties(categoryDTO, category);
@@ -43,6 +45,7 @@ public class CategoryController {
 
     @Operation(summary = "更新分类")
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('resource:audit')")
     public Result<Void> updateCategory(@PathVariable Long id,
                                        @RequestBody @Valid CategoryDTO categoryDTO) {
         Category category = new Category();
@@ -54,6 +57,7 @@ public class CategoryController {
 
     @Operation(summary = "删除分类")
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('resource:audit')")
     public Result<Void> deleteCategory(@PathVariable Long id) {
         categoryService.deleteCategory(id);
         return Result.ok();

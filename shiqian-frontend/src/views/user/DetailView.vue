@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
-import { Star, StarFilled, Download, View, User } from '@element-plus/icons-vue'
+import { ArrowLeft, Star, StarFilled, Download, View, User } from '@element-plus/icons-vue'
 import StatusTag from '@/components/StatusTag.vue'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
 import { useAppStore } from '@/stores/app'
@@ -98,10 +98,19 @@ function formatFileSize(size: number) {
   }
   return `${s.toFixed(1)} ${units[i]}`
 }
+
+function goBack() {
+  if (window.history.state?.back) {
+    router.back()
+    return
+  }
+  router.push('/resources')
+}
 </script>
 
 <template>
   <div v-loading="detailLoading" style="min-height: 480px;">
+    <el-button text :icon="ArrowLeft" class="detail-back" @click="goBack">返回上一页</el-button>
     <section v-if="resource" class="detail-layout">
     <el-card class="detail-card" shadow="never">
       <el-tag>{{ resource.cat }}</el-tag>
@@ -189,6 +198,10 @@ function formatFileSize(size: number) {
 </template>
 
 <style scoped>
+.detail-back {
+  margin-bottom: 14px;
+}
+
 .detail-summary {
   font-size: 15px;
   color: var(--text-secondary, #4b5563);

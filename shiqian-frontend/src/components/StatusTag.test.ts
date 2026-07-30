@@ -17,9 +17,9 @@ describe('StatusTag', () => {
     expect(wrapper.text()).toContain('待审核')
   })
 
-  it('renders danger tag for other statuses (已驳回, 禁用, etc)', () => {
-    const w1 = shallowMount(StatusTag, { props: { status: '已驳回' } })
-    expect(w1.text()).toContain('已驳回')
+  it('renders danger tag for rejected and disabled statuses', () => {
+    const w1 = shallowMount(StatusTag, { props: { status: '已拒绝' } })
+    expect(w1.text()).toContain('已拒绝')
 
     const w2 = shallowMount(StatusTag, { props: { status: '禁用' } })
     expect(w2.text()).toContain('禁用')

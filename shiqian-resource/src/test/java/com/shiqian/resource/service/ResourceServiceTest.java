@@ -95,6 +95,41 @@ public class ResourceServiceTest extends BaseResourceTest {
     }
 
     @Test
+    public void testCreateFileOnlyResourceWithoutMarkdown() {
+        Category category = createCategory("附件分类");
+        ResourceCreateDTO dto = new ResourceCreateDTO();
+        dto.setTitle("附件型资源");
+        dto.setCategoryId(category.getId());
+
+        AttachmentCreateDTO attachment = new AttachmentCreateDTO();
+        attachment.setFileName("课程讲义.pdf");
+        attachment.setFileUrl("http://example.com/lecture.pdf");
+        attachment.setFileSize(2048L);
+        attachment.setFileType("application/pdf");
+        dto.setAttachments(List.of(attachment));
+
+        Resource created = resourceService.createResource(1L, dto);
+        Resource found = resourceService.getResourceById(created.getId());
+
+        assertEquals("FILE", found.getContentType());
+        assertNull(found.getContentMarkdown());
+        assertEquals(1, found.getAttachments().size());
+    }
+
+    @Test
+    public void testCreateResourceRequiresTextOrAttachment() {
+        Category category = createCategory("空内容分类");
+        ResourceCreateDTO dto = new ResourceCreateDTO();
+        dto.setTitle("缺少内容的资源");
+        dto.setCategoryId(category.getId());
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> resourceService.createResource(1L, dto));
+
+        assertEquals("请至少填写正文或上传一个附件", exception.getMessage());
+    }
+
+    @Test
     public void testCreateResourceCategoryNotExist() {
         ResourceCreateDTO dto = new ResourceCreateDTO();
         dto.setTitle("测试资源");
@@ -210,7 +245,7 @@ public class ResourceServiceTest extends BaseResourceTest {
         assertEquals("纯文本 Markdown 资源测试", created.getTitle());
         assertEquals("这是一个包含 markdown-summary-keyword 的摘要，用于搜索测试", created.getSummary());
         assertTrue(created.getContentMarkdown().contains("markdown-content-keyword"));
-        assertEquals("MARKDOWN", created.getContentType());
+        assertEquals("ARTICLE", created.getContentType());
         // file 兜底
         assertEquals("", created.getFileUrl());
         assertEquals(0L, created.getFileSize());
@@ -456,6 +491,41 @@ public class ResourceServiceTest extends BaseResourceTest {
 
         Resource updated = resourceService.getResourceById(resource.getId());
         assertEquals(1, updated.getStatus());
+        assertEquals(1, esDocs.get(resource.getId()).getStatus());
+    }
+
+    @Test
+    public void testGetPublishedResourcesByIdsUsesOneOrderedBatch() {
+        Category category = createCategory("搜索批量查询分类");
+        Resource first = createResource("第一条", category.getId());
+        Resource second = createResource("第二条", category.getId());
+        Resource pending = createResource("仍在审核", category.getId());
+        resourceService.auditResource(first.getId(), 1, 2L);
+        resourceService.auditResource(second.getId(), 1, 2L);
+
+        List<Resource> result = resourceService.getPublishedResourcesByIds(
+                List.of(second.getId(), pending.getId(), first.getId(), 99999L));
+
+        assertEquals(2, result.size());
+        assertEquals(second.getId(), result.get(0).getId());
+        assertEquals(first.getId(), result.get(1).getId());
+    }
+
+    @Test
+    public void testReviewResourceRequiresReasonAndPersistsFeedback() {
+        Category category = createCategory("审核分类");
+        Resource resource = createResource("需要修改的资源", category.getId());
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> resourceService.reviewResource(resource.getId(), 2, " ", 2L));
+        assertEquals("退回、拒绝或下架时必须填写原因", exception.getMessage());
+
+        resourceService.reviewResource(resource.getId(), 2, "请补充课程来源和版本说明", 2L);
+
+        Resource updated = resourceService.getResourceById(resource.getId());
+        assertEquals(2, updated.getStatus());
+        assertEquals("请补充课程来源和版本说明", updated.getReviewReason());
+        assertEquals(2L, updated.getReviewerId());
     }
 
     @Test
@@ -507,7 +577,7 @@ public class ResourceServiceTest extends BaseResourceTest {
 
         BusinessException exception = assertThrows(BusinessException.class,
                 () -> resourceService.resubmitResource(1L, resource.getId()));
-        assertEquals("只有已驳回资源可以重新提交", exception.getMessage());
+        assertEquals("只有待修改资源可以重新提交", exception.getMessage());
     }
 
     @Test

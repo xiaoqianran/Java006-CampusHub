@@ -7,7 +7,7 @@ import { useAppStore } from '@/stores/app'
 const store = useAppStore()
 
 // 状态过滤（本地，复用 store.myResources 计算属性）
-const statusFilter = ref<'全部' | '待审核' | '已发布' | '已驳回'>('全部')
+const statusFilter = ref<'全部' | '待审核' | '已发布' | '待修改' | '已拒绝' | '已下架'>('全部')
 const filteredMyResources = computed(() =>
   statusFilter.value === '全部'
     ? store.myResources
@@ -64,7 +64,7 @@ async function saveProfile() {
     <div class="page-title">
       <div>
         <h1>我的发布</h1>
-        <p class="sub">显示待审核、已发布、已驳回三种状态，已驳回资源可重新提交审核。</p>
+        <p class="sub">查看发布进度和审核意见。待修改资源编辑完成后可以重新提交。</p>
       </div>
       <el-select v-model="store.sortMode" style="width: 140px" size="small">
         <el-option label="最新" value="newest" />
@@ -97,10 +97,12 @@ async function saveProfile() {
     <!-- 状态过滤器：简单 tabs 风格，基于本地 ref + 复用 store.myResources -->
     <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
       <el-radio-group v-model="statusFilter">
-        <el-radio-button label="全部">全部</el-radio-button>
-        <el-radio-button label="待审核">待审核</el-radio-button>
-        <el-radio-button label="已发布">已发布</el-radio-button>
-        <el-radio-button label="已驳回">已驳回</el-radio-button>
+        <el-radio-button label="全部" value="全部">全部</el-radio-button>
+        <el-radio-button label="待审核" value="待审核">待审核</el-radio-button>
+        <el-radio-button label="已发布" value="已发布">已发布</el-radio-button>
+        <el-radio-button label="待修改" value="待修改">待修改</el-radio-button>
+        <el-radio-button label="已拒绝" value="已拒绝">已拒绝</el-radio-button>
+        <el-radio-button label="已下架" value="已下架">已下架</el-radio-button>
       </el-radio-group>
       <span class="sub">共 {{ filteredMyResources.length }} 条（含附件数、浏览/下载统计）</span>
     </div>
@@ -115,14 +117,18 @@ async function saveProfile() {
       </el-table-column>
       <el-table-column prop="cat" label="分类" width="130" />
       <el-table-column label="状态" width="120"><template #default="{ row }"><StatusTag :status="row.status" /></template></el-table-column>
+      <el-table-column label="审核反馈" min-width="180">
+        <template #default="{ row }"><span class="sub">{{ row.reviewReason || row.offlineReason || '—' }}</span></template>
+      </el-table-column>
       <el-table-column label="附件" width="80" align="center">
         <template #default="{ row }">📎 {{ (row.attachments && row.attachments.length) || 0 }}</template>
       </el-table-column>
       <el-table-column label="数据" width="170"><template #default="{ row }">{{ row.views }} 浏览 / {{ row.downloads }} 下载</template></el-table-column>
-      <el-table-column label="操作" width="260">
+      <el-table-column label="操作" width="300">
         <template #default="{ row }">
           <el-button size="small" @click="$router.push(`/detail/${row.id}`)">查看</el-button>
-          <el-button v-if="row.status === '已驳回'" size="small" type="primary" plain @click="resubmit(row.id)">重新提交</el-button>
+          <el-button size="small" type="primary" plain @click="$router.push(`/resource/${row.id}/edit`)">编辑</el-button>
+          <el-button v-if="row.status === '待修改'" size="small" type="success" plain @click="resubmit(row.id)">重新提交</el-button>
           <el-button size="small" type="danger" plain @click="remove(row.id)">删除</el-button>
         </template>
       </el-table-column>

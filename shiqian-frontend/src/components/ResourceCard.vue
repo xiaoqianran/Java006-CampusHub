@@ -12,8 +12,6 @@ const router = useRouter()
 const favorite = computed(() => store.isFavorite(props.item.id))
 
 function openDetail() {
-  // Record view on card click for better popularity tracking (optimistic + backend)
-  store.incrementView(props.item.id)
   router.push(`/detail/${props.item.id}`)
 }
 

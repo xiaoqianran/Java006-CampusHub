@@ -23,6 +23,9 @@ public class ResourceUpdateDTO {
 
     private String contentMarkdown;
 
+    @Size(max = 30, message = "内容类型最多30个字符")
+    private String contentType;
+
     @NotNull(message = "分类ID不能为空")
     @Min(value = 1, message = "分类ID必须大于0")
     private Long categoryId;

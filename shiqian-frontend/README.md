@@ -29,26 +29,29 @@ npm run build
 ### 学生端
 
 - 首页：`/home`
-- 资源广场：`/plaza`
-- 分类浏览：`/categories`
+- 资源中心（搜索、分类、排序统一入口）：`/resources`
 - 发布资源：`/publish`
 - 我的收藏：`/favorites`
 - 我的发布：`/mine`
+- 个人资料：`/profile`
 - 资源详情：`/detail/:id`
+- 编辑资源：`/resource/:id/edit`
 - 登录：`/login`
 - 注册：`/register`
 
 ### 管理端
 
 - 后台首页：`/admin`
-- 资源审核：`/audit`
-- 资源管理：`/resource-admin`
-- 分类管理：`/category-admin`
-- 用户管理：`/user-admin`
+- 资源审核：`/admin/audit`
+- 资源管理：`/admin/resources`
+- 回收站：`/admin/recycle-bin`
+- 分类管理：`/admin/categories`
+- 用户管理：`/admin/users`
+- 操作日志：`/admin/logs`
 
 ## 逻辑说明
 
-- 分类浏览点击分类后进入资源广场，并自动设置筛选条件。
+- 首页搜索与分类快捷入口统一进入资源中心，筛选条件保存在 URL 中。
 - 发布资源后进入待审核状态，并出现在“我的发布”和后台“资源审核”。
-- 后台审核通过后，资源进入资源广场。
-- 收藏状态由 Pinia 统一维护，广场、详情页、我的收藏状态一致。
+- 后台审核通过后，资源进入资源中心。
+- 收藏状态由 Pinia 统一维护，资源中心、详情页、我的收藏状态一致。

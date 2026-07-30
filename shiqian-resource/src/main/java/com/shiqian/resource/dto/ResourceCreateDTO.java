@@ -18,8 +18,10 @@ public class ResourceCreateDTO {
     @Size(max = 500, message = "资源摘要最多500个字符")
     private String summary;
 
-    @NotBlank(message = "Markdown 正文不能为空")
     private String contentMarkdown;
+
+    @Size(max = 30, message = "内容类型最多30个字符")
+    private String contentType;
 
     @NotNull(message = "分类ID不能为空")
     @Min(value = 1, message = "分类ID必须大于0")

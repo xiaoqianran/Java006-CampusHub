@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { clearTokens, jsonBody, refreshAccessToken, request, setTokens, type PageResult } from '@/api/client'
 
 export type Role = 'student' | 'admin'
-export type ResourceStatus = '已发布' | '待审核' | '已驳回'
+export type ResourceStatus = '已发布' | '待审核' | '待修改' | '已拒绝' | '已下架'
 
 export interface ResourceApiItem {
   id: number
@@ -22,22 +22,15 @@ export interface ResourceApiItem {
   downloadCount?: number
   viewCount?: number
   status: number
+  reviewReason?: string
+  reviewerId?: number
+  reviewTime?: string
+  offlineReason?: string
+  publishedTime?: string
   createTime?: string
   updateTime?: string
   attachments?: ResourceAttachmentItem[]
   authorNickname?: string   // 后端富化提供
-}
-
-export interface ResourceSearchItem {
-  id: number
-  userId: number
-  title: string
-  description?: string
-  summary?: string
-  contentMarkdown?: string
-  categoryId?: number
-  fileType?: string
-  status: number
 }
 
 export interface UploadedFileItem {
@@ -107,6 +100,11 @@ export interface ResourceItem {
   fileSize?: number
   // 第二阶段：附件列表
   attachments?: ResourceAttachmentItem[]
+  reviewReason?: string
+  reviewerId?: number
+  reviewTime?: string
+  offlineReason?: string
+  publishedTime?: string
 }
 
 export interface UserItem {
@@ -164,11 +162,27 @@ interface ResourceUpdatePayload {
   attachments?: (UploadedFileItem | ResourceAttachmentItem)[]
 }
 
+interface LoadOptions {
+  force?: boolean
+}
+
+interface HomeLoadOptions extends LoadOptions {
+  includePersonal?: boolean
+}
+
+interface ResourceDetailLoadOptions extends LoadOptions {
+  includeFavorite?: boolean
+}
+
+const DATA_CACHE_TTL_MS = 30_000
+
 const fallbackCategories = ['计算机科学', '高等数学', '大学英语', '考研资料', '课程笔记', '实验报告', '竞赛资料', '校园生活']
 
 function mapStatus(status: number): ResourceStatus {
   if (status === 1) return '已发布'
-  if (status === 2) return '已驳回'
+  if (status === 2) return '待修改'
+  if (status === 3) return '已拒绝'
+  if (status === 4) return '已下架'
   return '待审核'
 }
 
@@ -228,13 +242,35 @@ export const useAppStore = defineStore('app', () => {
   const myResourceIds = ref<number[]>([])
   const searchResultIds = ref<number[] | null>(null)
 
+  let categoriesLoadedAt = 0
+  let categoriesInFlight: Promise<void> | null = null
+  const resourcesLoadedAt = new Map<string, number>()
+  const resourcesInFlight = new Map<string, Promise<void>>()
+  const detailLoadedAt = new Map<number, number>()
+  const detailInFlight = new Map<number, Promise<void>>()
+  const favoriteStateLoadedAt = new Map<number, number>()
+  const favoriteStateInFlight = new Map<number, Promise<void>>()
+  const favoritesLoadedAt = new Map<string, number>()
+  const favoritesInFlight = new Map<string, Promise<void>>()
+  const myResourcesLoadedAt = new Map<string, number>()
+  const myResourcesInFlight = new Map<string, Promise<void>>()
+  let currentUserLoadedAt = 0
+  let currentUserInFlight: Promise<void> | null = null
+  let homeDataInFlight: Promise<void> | null = null
+  let coreDataLoaded = false
+  let searchAbortController: AbortController | null = null
+  let searchSequence = 0
+
   const flatCategories = computed(() => flattenCategories(categoryTree.value))
   const categories = computed(() => flatCategories.value.length ? flatCategories.value.map(item => item.name) : fallbackCategories)
   const publishedResources = computed(() => resources.value.filter(item => item.status === '已发布'))
   const pendingResources = computed(() => resources.value.filter(item => item.status === '待审核'))
   const hotResources = computed(() => [...publishedResources.value].sort((a, b) => (b.downloads || 0) - (a.downloads || 0)).slice(0, 6))
-  const rejectedResources = computed(() => resources.value.filter(item => item.status === '已驳回'))
-  const reviewableResources = computed(() => resources.value.filter(item => item.status === '待审核' || item.status === '已驳回'))
+  const needsChangesResources = computed(() => resources.value.filter(item => item.status === '待修改'))
+  const rejectedResources = computed(() => resources.value.filter(item => item.status === '已拒绝'))
+  const offlineResources = computed(() => resources.value.filter(item => item.status === '已下架'))
+  const reviewableResources = computed(() => resources.value.filter(item => item.status === '待审核'))
+  const managedResources = computed(() => resources.value.filter(item => item.status === '已发布' || item.status === '已下架'))
   const favoriteResources = computed(() => {
     const list = resources.value.filter(item => favoriteIds.value.includes(item.id))
     return sortMode.value === 'hottest'
@@ -305,22 +341,12 @@ export const useAppStore = defineStore('app', () => {
       contentType: item.contentType,
       fileUrl: item.fileUrl,
       fileSize: item.fileSize,
-      attachments: item.attachments || []
-    }
-  }
-
-  function mapSearchItem(item: ResourceSearchItem): ResourceApiItem {
-    return {
-      id: item.id,
-      title: item.title,
-      userId: item.userId,
-      description: item.description,
-      summary: item.summary,
-      contentMarkdown: item.contentMarkdown,
-      categoryId: item.categoryId,
-      fileType: item.fileType,
-      status: item.status,
-      downloadCount: 0
+      attachments: item.attachments || [],
+      reviewReason: item.reviewReason,
+      reviewerId: item.reviewerId,
+      reviewTime: item.reviewTime,
+      offlineReason: item.offlineReason,
+      publishedTime: item.publishedTime
     }
   }
 
@@ -340,19 +366,94 @@ export const useAppStore = defineStore('app', () => {
   function mergeResources(items: ResourceApiItem[]) {
     const mapped = items.map(mapResource)
     const map = new Map(resources.value.map(item => [item.id, item]))
-    mapped.forEach(item => map.set(item.id, item))
+    mapped.forEach(item => {
+      const existing = map.get(item.id)
+      if (!existing) {
+        map.set(item.id, item)
+        return
+      }
+      const definedFields = Object.fromEntries(
+        Object.entries(item).filter(([, value]) => value !== undefined)
+      ) as Partial<ResourceItem>
+      map.set(item.id, {
+        ...existing,
+        ...definedFields,
+        attachments: item.attachments ?? existing.attachments
+      })
+    })
     resources.value = [...map.values()].sort((a, b) => b.id - a.id)
   }
 
-  async function loadCategories() {
-    categoryTree.value = await request<CategoryApiItem[]>('/api/category/tree')
+  function isFresh(loadedAt?: number) {
+    return Boolean(loadedAt && Date.now() - loadedAt < DATA_CACHE_TTL_MS)
   }
 
-  async function loadResources(params: { page?: number, size?: number, categoryId?: number, keyword?: string, sort?: string } = {}) {
-    const data = await request<PageResult<ResourceApiItem>>('/api/resource', {
-      query: { page: params.page || 1, size: params.size || 100, categoryId: params.categoryId, keyword: params.keyword, sort: params.sort ?? sortMode.value }
+  function resourceRequestKey(params: { page?: number, size?: number, categoryId?: number, keyword?: string, sort?: string }) {
+    return JSON.stringify({
+      scope: `${logged.value}:${role.value}`,
+      page: params.page ?? 1,
+      size: params.size ?? 100,
+      categoryId: params.categoryId ?? null,
+      keyword: params.keyword?.trim() || '',
+      sort: params.sort ?? sortMode.value
     })
-    mergeResources(data.records)
+  }
+
+  function invalidateResourceCache(id?: number) {
+    resourcesLoadedAt.clear()
+    if (id !== undefined) {
+      detailLoadedAt.delete(id)
+      favoriteStateLoadedAt.delete(id)
+    }
+  }
+
+  function invalidateCategoryCache() {
+    categoriesLoadedAt = 0
+  }
+
+  async function loadCategories(options: LoadOptions = {}) {
+    if (!options.force && isFresh(categoriesLoadedAt)) return
+    if (categoriesInFlight) return categoriesInFlight
+
+    const task = request<CategoryApiItem[]>('/api/category/tree')
+      .then(data => {
+        categoryTree.value = data
+        categoriesLoadedAt = Date.now()
+      })
+      .finally(() => {
+        if (categoriesInFlight === task) categoriesInFlight = null
+      })
+    categoriesInFlight = task
+    return task
+  }
+
+  async function loadResources(
+    params: { page?: number, size?: number, categoryId?: number, keyword?: string, sort?: string } = {},
+    options: LoadOptions = {}
+  ) {
+    const key = resourceRequestKey(params)
+    if (!options.force && isFresh(resourcesLoadedAt.get(key))) return
+    const existingRequest = resourcesInFlight.get(key)
+    if (existingRequest) return existingRequest
+
+    const task = request<PageResult<ResourceApiItem>>('/api/resource', {
+      query: {
+        page: params.page ?? 1,
+        size: params.size ?? 100,
+        categoryId: params.categoryId,
+        keyword: params.keyword,
+        sort: params.sort ?? sortMode.value
+      }
+    })
+      .then(data => {
+        mergeResources(data.records)
+        resourcesLoadedAt.set(key, Date.now())
+      })
+      .finally(() => {
+        if (resourcesInFlight.get(key) === task) resourcesInFlight.delete(key)
+      })
+    resourcesInFlight.set(key, task)
+    return task
   }
 
   async function loadRecycleResources(params: { page?: number, size?: number, keyword?: string } = {}) {
@@ -362,20 +463,40 @@ export const useAppStore = defineStore('app', () => {
     recycleResources.value = data.records.map(mapResource)
   }
 
-  async function loadHomeData() {
-    loading.value = true
+  async function loadHomeData(options: HomeLoadOptions = {}) {
+    if (options.includePersonal && logged.value) {
+      void Promise.allSettled([
+        loadFavorites(),
+        loadMyResources(),
+        loadCurrentUser()
+      ])
+    } else if (logged.value && !currentUser.value) {
+      void loadCurrentUser().catch(() => undefined)
+    }
+
+    if (!options.force && homeDataInFlight) return homeDataInFlight
+    const hasUsableData = coreDataLoaded
+    const task = (async () => {
+      if (!hasUsableData) loading.value = true
+      await Promise.all([
+        loadCategories({ force: options.force }),
+        loadResources({}, { force: options.force })
+      ])
+      coreDataLoaded = true
+    })()
+    homeDataInFlight = task
+
     try {
-      await loadCategories()
-      await loadResources()
-      if (logged.value) {
-        await Promise.allSettled([loadFavorites(), loadMyResources(), loadCurrentUser()])
-      }
+      await task
     } finally {
-      loading.value = false
+      if (!hasUsableData) loading.value = false
+      if (homeDataInFlight === task) homeDataInFlight = null
     }
   }
 
   async function searchResources(params: { sort?: string } = {}) {
+    searchAbortController?.abort()
+    const sequence = ++searchSequence
     const text = keyword.value.trim()
     const sort = params.sort ?? sortMode.value
     if (!text) {
@@ -384,36 +505,94 @@ export const useAppStore = defineStore('app', () => {
       return
     }
 
-    const data = await request<PageResult<ResourceSearchItem>>('/api/resource/search', {
-      query: { keyword: text, page: 1, size: 100, sort }
-    })
-    searchResultIds.value = data.records.map(item => item.id)
-    mergeResources(data.records.map(mapSearchItem))
-
-    await Promise.allSettled(data.records.map(item => loadResourceDetail(item.id)))
+    const controller = new AbortController()
+    searchAbortController = controller
+    try {
+      const data = await request<PageResult<ResourceApiItem>>('/api/resource/search', {
+        query: { keyword: text, page: 1, size: 100, sort },
+        signal: controller.signal
+      })
+      if (sequence !== searchSequence) return
+      searchResultIds.value = data.records.map(item => item.id)
+      mergeResources(data.records)
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+      throw error
+    } finally {
+      if (searchAbortController === controller) searchAbortController = null
+    }
   }
 
-  async function loadResourceDetail(id: number) {
-    const data = await request<ResourceApiItem>(`/api/resource/${id}`)
-    mergeResources([data])
-    if (logged.value) {
-      await refreshFavoriteState(id)
+  function cancelResourceSearch() {
+    searchSequence += 1
+    searchAbortController?.abort()
+    searchAbortController = null
+  }
+
+  async function loadResourceDetail(id: number, options: ResourceDetailLoadOptions = {}) {
+    if (options.force || !isFresh(detailLoadedAt.get(id))) {
+      let task = detailInFlight.get(id)
+      if (!task) {
+        task = request<ResourceApiItem>(`/api/resource/${id}`)
+          .then(data => {
+            mergeResources([data])
+            detailLoadedAt.set(id, Date.now())
+          })
+          .finally(() => {
+            if (detailInFlight.get(id) === task) detailInFlight.delete(id)
+          })
+        detailInFlight.set(id, task)
+      }
+      await task
+    }
+    if (logged.value && options.includeFavorite !== false) {
+      void refreshFavoriteState(id).catch(() => undefined)
     }
     return getResource(id)
   }
 
-  async function loadFavorites(params: { sort?: string } = {}) {
+  async function loadFavorites(params: { sort?: string } = {}, options: LoadOptions = {}) {
     const sort = params.sort ?? sortMode.value
-    const data = await request<PageResult<ResourceApiItem>>('/api/resource/favorites', { query: { page: 1, size: 100, sort } })
-    mergeResources(data.records)
-    favoriteIds.value = data.records.map(item => item.id)
+    const key = sort
+    if (!options.force && isFresh(favoritesLoadedAt.get(key))) return
+    const existingRequest = favoritesInFlight.get(key)
+    if (existingRequest) return existingRequest
+
+    const task = request<PageResult<ResourceApiItem>>('/api/resource/favorites', {
+      query: { page: 1, size: 100, sort }
+    })
+      .then(data => {
+        mergeResources(data.records)
+        favoriteIds.value = data.records.map(item => item.id)
+        favoritesLoadedAt.set(key, Date.now())
+      })
+      .finally(() => {
+        if (favoritesInFlight.get(key) === task) favoritesInFlight.delete(key)
+      })
+    favoritesInFlight.set(key, task)
+    return task
   }
 
-  async function loadMyResources(params: { sort?: string } = {}) {
+  async function loadMyResources(params: { sort?: string } = {}, options: LoadOptions = {}) {
     const sort = params.sort ?? sortMode.value
-    const data = await request<PageResult<ResourceApiItem>>('/api/resource/mine', { query: { page: 1, size: 100, sort } })
-    mergeResources(data.records)
-    myResourceIds.value = data.records.map(item => item.id)
+    const key = sort
+    if (!options.force && isFresh(myResourcesLoadedAt.get(key))) return
+    const existingRequest = myResourcesInFlight.get(key)
+    if (existingRequest) return existingRequest
+
+    const task = request<PageResult<ResourceApiItem>>('/api/resource/mine', {
+      query: { page: 1, size: 100, sort }
+    })
+      .then(data => {
+        mergeResources(data.records)
+        myResourceIds.value = data.records.map(item => item.id)
+        myResourcesLoadedAt.set(key, Date.now())
+      })
+      .finally(() => {
+        if (myResourcesInFlight.get(key) === task) myResourcesInFlight.delete(key)
+      })
+    myResourcesInFlight.set(key, task)
+    return task
   }
 
   async function loadUsers(params: { page?: number, size?: number, keyword?: string } = {}) {
@@ -423,11 +602,22 @@ export const useAppStore = defineStore('app', () => {
     users.value = data.records.map(mapUser)
   }
 
-  async function loadCurrentUser() {
-    const user = await request<LoginUser>('/api/user/me')
-    currentUser.value = user
-    users.value = [mapUser(user), ...users.value.filter(item => item.id !== user.userId)]
-    setRole(user.role === 'ADMIN' ? 'admin' : 'student')
+  async function loadCurrentUser(options: LoadOptions = {}) {
+    if (!options.force && currentUser.value && isFresh(currentUserLoadedAt)) return
+    if (currentUserInFlight) return currentUserInFlight
+
+    const task = request<LoginUser>('/api/user/me')
+      .then(user => {
+        currentUser.value = user
+        users.value = [mapUser(user), ...users.value.filter(item => item.id !== user.userId)]
+        setRole(user.role === 'ADMIN' ? 'admin' : 'student')
+        currentUserLoadedAt = Date.now()
+      })
+      .finally(() => {
+        if (currentUserInFlight === task) currentUserInFlight = null
+      })
+    currentUserInFlight = task
+    return task
   }
 
   function setRole(nextRole: Role) {
@@ -444,7 +634,14 @@ export const useAppStore = defineStore('app', () => {
     logged.value = true
     currentUser.value = data
     setRole(data.role === 'ADMIN' ? 'admin' : 'student')
-    await Promise.allSettled([loadFavorites(), loadMyResources()])
+    currentUserLoadedAt = Date.now()
+    resourcesLoadedAt.clear()
+    favoritesLoadedAt.clear()
+    myResourcesLoadedAt.clear()
+    await Promise.allSettled([
+      loadFavorites({}, { force: true }),
+      loadMyResources({}, { force: true })
+    ])
   }
 
   async function refresh() {
@@ -466,6 +663,11 @@ export const useAppStore = defineStore('app', () => {
     currentUser.value = null
     favoriteIds.value = []
     myResourceIds.value = []
+    currentUserLoadedAt = 0
+    resourcesLoadedAt.clear()
+    favoritesLoadedAt.clear()
+    myResourcesLoadedAt.clear()
+    favoriteStateLoadedAt.clear()
     setRole('student')
   }
 
@@ -488,11 +690,23 @@ export const useAppStore = defineStore('app', () => {
     return favoriteIds.value.includes(id)
   }
 
-  async function refreshFavoriteState(id: number) {
-    const favored = await request<boolean>(`/api/resource/${id}/favorite`)
-    favoriteIds.value = favored
-      ? Array.from(new Set([...favoriteIds.value, id]))
-      : favoriteIds.value.filter(item => item !== id)
+  async function refreshFavoriteState(id: number, options: LoadOptions = {}) {
+    if (!options.force && isFresh(favoriteStateLoadedAt.get(id))) return
+    const existingRequest = favoriteStateInFlight.get(id)
+    if (existingRequest) return existingRequest
+
+    const task = request<boolean>(`/api/resource/${id}/favorite`)
+      .then(favored => {
+        favoriteIds.value = favored
+          ? Array.from(new Set([...favoriteIds.value, id]))
+          : favoriteIds.value.filter(item => item !== id)
+        favoriteStateLoadedAt.set(id, Date.now())
+      })
+      .finally(() => {
+        if (favoriteStateInFlight.get(id) === task) favoriteStateInFlight.delete(id)
+      })
+    favoriteStateInFlight.set(id, task)
+    return task
   }
 
   async function toggleFavorite(id: number) {
@@ -503,6 +717,8 @@ export const useAppStore = defineStore('app', () => {
       await request<void>(`/api/resource/${id}/favorite`, { method: 'POST' })
       favoriteIds.value = [...favoriteIds.value, id]
     }
+    favoriteStateLoadedAt.set(id, Date.now())
+    favoritesLoadedAt.clear()
   }
 
   async function downloadResource(id: number) {
@@ -527,6 +743,8 @@ export const useAppStore = defineStore('app', () => {
     await request<void>(`/api/resource/${id}`, { method: 'DELETE' })
     myResourceIds.value = myResourceIds.value.filter(item => item !== id)
     resources.value = resources.value.filter(item => item.id !== id)
+    invalidateResourceCache(id)
+    myResourcesLoadedAt.clear()
   }
 
   async function removeResource(id: number) {
@@ -534,31 +752,49 @@ export const useAppStore = defineStore('app', () => {
     resources.value = resources.value.filter(item => item.id !== id)
     myResourceIds.value = myResourceIds.value.filter(item => item !== id)
     favoriteIds.value = favoriteIds.value.filter(item => item !== id)
+    invalidateResourceCache(id)
+    myResourcesLoadedAt.clear()
+    favoritesLoadedAt.clear()
     await loadRecycleResources()
   }
 
-  async function takeDownResource(id: number) {
-    await request<void>(`/api/resource/${id}/audit`, { method: 'PUT', query: { status: 2 } })
+  async function reviewResource(id: number, status: 1 | 2 | 3 | 4, reason?: string) {
+    await request<void>(`/api/resource/${id}/audit`, {
+      method: 'PUT',
+      body: jsonBody({ status, reason: reason?.trim() || undefined })
+    })
     const item = getResource(id)
-    if (item) item.status = '已驳回'
+    if (item) {
+      item.status = mapStatus(status)
+      item.reviewReason = status === 2 || status === 3 ? reason?.trim() : undefined
+      item.offlineReason = status === 4 ? reason?.trim() : undefined
+      item.reviewTime = new Date().toISOString()
+    }
+    invalidateResourceCache(id)
+  }
+
+  async function takeDownResource(id: number, reason: string) {
+    await reviewResource(id, 4, reason)
   }
 
   async function approveResource(id: number) {
-    await request<void>(`/api/resource/${id}/audit`, { method: 'PUT', query: { status: 1 } })
-    const item = getResource(id)
-    if (item) item.status = '已发布'
+    await reviewResource(id, 1)
   }
 
-  async function rejectResource(id: number) {
-    await request<void>(`/api/resource/${id}/audit`, { method: 'PUT', query: { status: 2 } })
-    const item = getResource(id)
-    if (item) item.status = '已驳回'
+  async function requestResourceChanges(id: number, reason: string) {
+    await reviewResource(id, 2, reason)
+  }
+
+  async function rejectResource(id: number, reason: string) {
+    await reviewResource(id, 3, reason)
   }
 
   async function resubmitResource(id: number) {
     await request<void>(`/api/resource/${id}/resubmit`, { method: 'PUT' })
     const item = getResource(id)
     if (item) item.status = '待审核'
+    invalidateResourceCache(id)
+    myResourcesLoadedAt.clear()
   }
 
   async function uploadFiles(files: File[]) {
@@ -587,7 +823,11 @@ export const useAppStore = defineStore('app', () => {
       sortOrder: (file as any).sortOrder ?? index
     }))
 
-    const contentType = 'MARKDOWN'
+    const contentType = attachments.length && payload.contentMarkdown.trim()
+      ? 'MIXED'
+      : attachments.length
+        ? 'FILE'
+        : 'ARTICLE'
 
     // 第二阶段：一个资源 + attachments 数组
     await request<void>('/api/resource', {
@@ -602,7 +842,9 @@ export const useAppStore = defineStore('app', () => {
       })
     })
 
-    await loadMyResources()
+    invalidateResourceCache()
+    myResourcesLoadedAt.clear()
+    await loadMyResources({}, { force: true })
   }
 
   async function updateResource(id: number, payload: ResourceUpdatePayload) {
@@ -611,12 +853,19 @@ export const useAppStore = defineStore('app', () => {
       throw new Error('请选择有效分类')
     }
 
+    const existing = getResource(id)
+    const hasFiles = payload.attachments !== undefined
+      ? payload.attachments.length > 0
+      : Boolean(payload.file || existing?.attachments?.length || existing?.fileUrl)
+    const hasText = Boolean(payload.contentMarkdown.trim())
+
     const body: any = {
       title: payload.title,
       categoryId: categoryIdValue,
       summary: payload.summary,
       description: payload.summary,
-      contentMarkdown: payload.contentMarkdown
+      contentMarkdown: payload.contentMarkdown,
+      contentType: hasFiles && hasText ? 'MIXED' : hasFiles ? 'FILE' : 'ARTICLE'
     }
 
     // 如果提供 attachments 数组（编辑多附件场景），则发送之（后端将替换）；否则兼容 legacy file
@@ -672,6 +921,9 @@ export const useAppStore = defineStore('app', () => {
         item.type = payload.file.fileType || item.type
       }
     }
+    invalidateResourceCache(id)
+    detailLoadedAt.set(id, Date.now())
+    myResourcesLoadedAt.clear()
   }
 
   async function createCategory(name: string, icon?: string, sortOrder?: number) {
@@ -683,7 +935,8 @@ export const useAppStore = defineStore('app', () => {
       method: 'POST',
       body: jsonBody(payload)
     })
-    await loadCategories()
+    invalidateCategoryCache()
+    await loadCategories({ force: true })
   }
 
   async function updateCategory(id: number, name: string, icon?: string, sortOrder?: number) {
@@ -696,12 +949,14 @@ export const useAppStore = defineStore('app', () => {
       method: 'PUT',
       body: jsonBody(payload)
     })
-    await loadCategories()
+    invalidateCategoryCache()
+    await loadCategories({ force: true })
   }
 
   async function deleteCategory(id: number) {
     await request<void>(`/api/category/${id}`, { method: 'DELETE' })
-    await loadCategories()
+    invalidateCategoryCache()
+    await loadCategories({ force: true })
   }
 
   async function updateProfile(payload: Partial<{ nickname: string; email: string; phone: string; avatar: string }>) {
@@ -739,7 +994,12 @@ export const useAppStore = defineStore('app', () => {
     await request<void>(`/api/resource/${id}/restore`, { method: 'PUT' })
     // 从回收站列表移除，刷新其他列表
     recycleResources.value = recycleResources.value.filter(item => item.id !== id)
-    await Promise.allSettled([loadResources(), loadMyResources()])
+    invalidateResourceCache(id)
+    myResourcesLoadedAt.clear()
+    await Promise.allSettled([
+      loadResources({}, { force: true }),
+      loadMyResources({}, { force: true })
+    ])
   }
 
   async function permanentDeleteResource(id: number) {
@@ -795,6 +1055,9 @@ export const useAppStore = defineStore('app', () => {
     publishedResources,
     pendingResources,
     rejectedResources,
+    needsChangesResources,
+    offlineResources,
+    managedResources,
     hotResources,
     reviewableResources,
     favoriteResources,
@@ -812,6 +1075,7 @@ export const useAppStore = defineStore('app', () => {
     loadResources,
     loadRecycleResources,
     searchResources,
+    cancelResourceSearch,
     loadResourceDetail,
     loadFavorites,
     loadMyResources,
@@ -827,7 +1091,9 @@ export const useAppStore = defineStore('app', () => {
     removeResource,
     takeDownResource,
     approveResource,
+    requestResourceChanges,
     rejectResource,
+    reviewResource,
     resubmitResource,
     uploadFiles,
     submitResource,

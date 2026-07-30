@@ -204,6 +204,14 @@ start_backend() {
   # 自动检测并修复 MySQL 数据库（解决 volume 存在时初始化脚本不执行的问题）
   ensure_mysql_databases
 
+  # 对已有数据卷执行幂等结构升级，补齐审核工作流字段。
+  if [[ -f "docker/mysql/init/upgrade-resource-workflow.sql" ]]; then
+    echo "→ 检查资源审核工作流字段..."
+    docker exec -i shiqian-mysql \
+      mysql -uroot -p"${MYSQL_ROOT_PASSWORD:-root}" \
+      < docker/mysql/init/upgrade-resource-workflow.sql
+  fi
+
   wait_container_healthy redis "Redis"
   wait_container_running nacos "Nacos"
   wait_http "Nacos" "http://127.0.0.1:8848/nacos/"

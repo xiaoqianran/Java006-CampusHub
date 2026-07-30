@@ -101,6 +101,12 @@ a { color: inherit; text-decoration: none; }
   min-height: 36px;
 }
 
+.nav-actions .el-button.is-context-active {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
 /* 稳定主内容区高度，避免内容少/多导致 footer 跳动 */
 .main-content {
   max-width: 1240px;
@@ -179,89 +185,6 @@ a { color: inherit; text-decoration: none; }
 
 .stat-card {
   min-height: 104px; /* 稳定统计卡片高度 */
-}
-
-/* ===== 分类浏览页专用布局（与首页热门分类区分） ===== */
-.category-browse-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  align-items: stretch;
-}
-
-.category-browse-card {
-  min-height: 148px;
-  padding: 22px 18px;
-  display: block;
-}
-
-.category-browse-card .el-card__body {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  text-align: center;
-  padding: 0;
-}
-
-.category-browse-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 18px;
-  display: grid;
-  place-items: center;
-  flex: none;
-  font-size: 24px;
-  background: var(--primary-soft);
-  color: #2563eb;
-}
-
-.category-name {
-  width: 100%;
-  max-width: 100%;
-  min-height: 44px;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  line-height: 1.35;
-  word-break: break-all;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.category-count {
-  line-height: 1.3;
-  font-size: 13px;
-}
-
-/* 深色模式下分类浏览卡片 */
-html[data-theme='dark'] .category-browse-icon {
-  background-color: rgba(252, 213, 53, 0.12);
-  color: #fcd535;
-}
-
-html[data-theme='dark'] .category-browse-card {
-  background-color: #1e2329;
-  border-color: #2b3139;
-}
-
-html[data-theme='dark'] .category-browse-card:hover {
-  border-color: rgba(252, 213, 53, 0.42);
-  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.28);
-}
-
-/* 响应式 - 分类浏览页 */
-@media (max-width: 980px) {
-  .category-browse-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 560px) {
-  .category-browse-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 .resource-card {

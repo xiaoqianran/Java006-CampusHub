@@ -89,4 +89,3 @@ const theme = computed(() => (store.isDark ? 'dark' : 'light'))
   border-color: #374151;
 }
 </style>
-```

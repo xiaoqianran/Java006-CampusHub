@@ -24,7 +24,10 @@ import com.shiqian.resource.service.CategoryService;
 import com.shiqian.resource.service.ResourceService;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +43,12 @@ import org.springframework.util.StringUtils;
 @RequiredArgsConstructor
 public class ResourceServiceImpl implements ResourceService {
 
+    private static final int STATUS_PENDING = 0;
+    private static final int STATUS_PUBLISHED = 1;
+    private static final int STATUS_NEEDS_CHANGES = 2;
+    private static final int STATUS_REJECTED = 3;
+    private static final int STATUS_OFFLINE = 4;
+
     private final ResourceMapper resourceMapper;
     private final ResourceAttachmentMapper resourceAttachmentMapper;
     private final CategoryService categoryService;
@@ -51,6 +60,11 @@ public class ResourceServiceImpl implements ResourceService {
     @Override
     public Resource createResource(Long userId, ResourceCreateDTO dto) {
         validateContent(dto.getTitle(), dto.getSummary(), dto.getContentMarkdown());
+        validateContentSource(
+                dto.getContentMarkdown(),
+                dto.getFileUrl(),
+                dto.getAttachments(),
+                false);
         Category category = categoryService.getCategoryById(dto.getCategoryId());
         if (category == null || category.getDeleted() == 1) {
             throw new BusinessException("分类不存在");
@@ -62,11 +76,14 @@ public class ResourceServiceImpl implements ResourceService {
         resource.setDownloadCount(0);
         resource.setViewCount(0);
         resource.setVersion(1);
-        resource.setStatus(0);
+        resource.setStatus(STATUS_PENDING);
 
-        // 默认 contentType
+        // 内容类型由实际内容推断，也允许新客户端显式传入。
         if (!StringUtils.hasText(resource.getContentType())) {
-            resource.setContentType("MARKDOWN");
+            resource.setContentType(inferContentType(
+                    resource.getContentMarkdown(),
+                    dto.getAttachments(),
+                    resource.getFileUrl()));
         }
 
         // 兼容旧字段（未来逐步移除）
@@ -111,6 +128,26 @@ public class ResourceServiceImpl implements ResourceService {
     }
 
     @Override
+    public List<Resource> getPublishedResourcesByIds(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Map<Long, Resource> resourcesById = new LinkedHashMap<>();
+        resourceMapper.selectBatchIds(ids).stream()
+                .filter(resource -> resource.getDeleted() == null || resource.getDeleted() == 0)
+                .filter(resource -> resource.getStatus() != null && resource.getStatus() == STATUS_PUBLISHED)
+                .forEach(resource -> resourcesById.put(resource.getId(), resource));
+
+        List<Resource> ordered = ids.stream()
+                .map(resourcesById::get)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        Resource.enrichAuthors(ordered);
+        return ordered;
+    }
+
+    @Override
     @CacheEvict(value = "resource:detail", key = "#id")
     public void updateResource(Long userId, Long id, ResourceUpdateDTO dto) {
         Resource existing = resourceMapper.selectById(id);
@@ -121,6 +158,20 @@ public class ResourceServiceImpl implements ResourceService {
             throw new BusinessException("无权更新该资源");
         }
         validateContent(dto.getTitle(), dto.getSummary(), dto.getContentMarkdown());
+        boolean keepExistingAttachments = dto.getAttachments() == null
+                && resourceAttachmentMapper.selectCount(
+                    new QueryWrapper<ResourceAttachment>().eq("resource_id", id)) > 0;
+        String effectiveContentMarkdown = dto.getContentMarkdown() != null
+                ? dto.getContentMarkdown()
+                : existing.getContentMarkdown();
+        String effectiveFileUrl = StringUtils.hasText(dto.getFileUrl())
+                ? dto.getFileUrl()
+                : existing.getFileUrl();
+        validateContentSource(
+                effectiveContentMarkdown,
+                effectiveFileUrl,
+                dto.getAttachments(),
+                keepExistingAttachments);
 
         Category category = categoryService.getCategoryById(dto.getCategoryId());
         if (category == null || category.getDeleted() == 1) {
@@ -139,6 +190,12 @@ public class ResourceServiceImpl implements ResourceService {
         // 兼容旧客户端/partial update：若DTO未显式提供字段则保留原值（避免清空 contentType/file* 等）
         if (!StringUtils.hasText(resource.getContentType()) && StringUtils.hasText(existing.getContentType())) {
             resource.setContentType(existing.getContentType());
+        }
+        if (!StringUtils.hasText(resource.getContentType())) {
+            resource.setContentType(inferContentType(
+                    effectiveContentMarkdown,
+                    dto.getAttachments(),
+                    effectiveFileUrl));
         }
         if (!StringUtils.hasText(resource.getFileUrl()) && StringUtils.hasText(existing.getFileUrl())) {
             resource.setFileUrl(existing.getFileUrl());
@@ -207,30 +264,69 @@ public class ResourceServiceImpl implements ResourceService {
     @Override
     @CacheEvict(value = "resource:detail", key = "#resourceId")
     public void auditResource(Long resourceId, Integer status, Long operatorId) {
+        String legacyReason = status != null && status >= STATUS_NEEDS_CHANGES
+                ? "管理员审核未通过"
+                : null;
+        applyReview(resourceId, status, legacyReason, operatorId);
+    }
+
+    @Override
+    @CacheEvict(value = "resource:detail", key = "#resourceId")
+    public void reviewResource(Long resourceId, Integer status, String reason, Long operatorId) {
+        applyReview(resourceId, status, reason, operatorId);
+    }
+
+    private void applyReview(Long resourceId, Integer status, String reason, Long operatorId) {
         Resource existing = resourceMapper.selectById(resourceId);
         if (existing == null || existing.getDeleted() == 1) {
             throw new BusinessException("资源不存在");
         }
-        if (status == null || (status != 0 && status != 1 && status != 2)) {
+        if (status == null || status < STATUS_PUBLISHED || status > STATUS_OFFLINE) {
             throw new BusinessException("审核状态不合法");
         }
+        String normalizedReason = StringUtils.hasText(reason) ? reason.trim() : null;
+        if ((status == STATUS_NEEDS_CHANGES || status == STATUS_REJECTED || status == STATUS_OFFLINE)
+                && !StringUtils.hasText(normalizedReason)) {
+            throw new BusinessException("退回、拒绝或下架时必须填写原因");
+        }
 
-        Resource update = new Resource();
-        update.setId(resourceId);
-        update.setStatus(status);
-        resourceMapper.updateById(update);
+        LocalDateTime now = LocalDateTime.now();
+        UpdateWrapper<Resource> update = new UpdateWrapper<>();
+        update.eq("id", resourceId)
+                .set("status", status)
+                .set("reviewer_id", operatorId)
+                .set("review_time", now)
+                .set("review_reason",
+                        status == STATUS_NEEDS_CHANGES || status == STATUS_REJECTED
+                                ? normalizedReason
+                                : null)
+                .set("offline_reason", status == STATUS_OFFLINE ? normalizedReason : null);
+        if (status == STATUS_PUBLISHED) {
+            update.set("published_time", now);
+        }
+        resourceMapper.update(null, update);
 
-        String detail = (status != null && status == 1) ? "APPROVE" : "REJECT";
-        adminLogService.recordLog(operatorId, "RESOURCE_AUDIT", resourceId, detail);
+        String action = switch (status) {
+            case STATUS_PUBLISHED -> "RESOURCE_APPROVE";
+            case STATUS_NEEDS_CHANGES -> "RESOURCE_NEEDS_CHANGES";
+            case STATUS_REJECTED -> "RESOURCE_REJECT";
+            case STATUS_OFFLINE -> "RESOURCE_TAKE_DOWN";
+            default -> "RESOURCE_REVIEW";
+        };
+        adminLogService.recordLog(operatorId, action, resourceId, normalizedReason);
+
+        // 审核状态必须同步到搜索索引，否则新通过的资源无法被 status=1 搜索命中。
+        Resource reviewed = resourceMapper.selectById(resourceId);
+        resourceDocumentRepository.save(buildResourceDocument(reviewed));
 
         ResourceAuditMessage message = new ResourceAuditMessage(
-                resourceId, status, operatorId, LocalDateTime.now());
+                resourceId, status, operatorId, now);
         rabbitTemplate.convertAndSend(
                 RabbitMQConfig.RESOURCE_TOPIC_EXCHANGE,
                 RabbitMQConfig.RESOURCE_AUDIT_ROUTING_KEY,
                 message);
-        log.info("资源审核消息已发送: resourceId={}, status={}, operatorId={}",
-                resourceId, status, operatorId);
+        log.info("资源审核完成: resourceId={}, status={}, operatorId={}, reason={}",
+                resourceId, status, operatorId, normalizedReason);
     }
 
     @Override
@@ -243,14 +339,17 @@ public class ResourceServiceImpl implements ResourceService {
         if (!canModify(existing, userId)) {
             throw new BusinessException(403, "无权重新提交该资源");
         }
-        if (existing.getStatus() == null || existing.getStatus() != 2) {
-            throw new BusinessException("只有已驳回资源可以重新提交");
+        if (existing.getStatus() == null || existing.getStatus() != STATUS_NEEDS_CHANGES) {
+            throw new BusinessException("只有待修改资源可以重新提交");
         }
 
-        Resource update = new Resource();
-        update.setId(resourceId);
-        update.setStatus(0);
-        resourceMapper.updateById(update);
+        UpdateWrapper<Resource> update = new UpdateWrapper<>();
+        update.eq("id", resourceId)
+                .set("status", STATUS_PENDING)
+                .set("review_reason", null)
+                .set("reviewer_id", null)
+                .set("review_time", null);
+        resourceMapper.update(null, update);
 
         Resource updated = resourceMapper.selectById(resourceId);
         resourceDocumentRepository.save(buildResourceDocument(updated));
@@ -348,6 +447,36 @@ public class ResourceServiceImpl implements ResourceService {
             (contentMarkdown != null && sensitiveWordFilter.contains(contentMarkdown))) {
             throw new BusinessException("资源内容包含敏感词");
         }
+    }
+
+    private void validateContentSource(
+            String contentMarkdown,
+            String fileUrl,
+            List<AttachmentCreateDTO> attachments,
+            boolean hasExistingAttachments) {
+        boolean hasText = StringUtils.hasText(contentMarkdown);
+        boolean hasLegacyFile = StringUtils.hasText(fileUrl);
+        boolean hasAttachments = hasExistingAttachments || (attachments != null && attachments.stream()
+                .filter(java.util.Objects::nonNull)
+                .anyMatch(item -> StringUtils.hasText(item.getFileUrl())));
+        if (!hasText && !hasLegacyFile && !hasAttachments) {
+            throw new BusinessException("请至少填写正文或上传一个附件");
+        }
+    }
+
+    private String inferContentType(
+            String contentMarkdown,
+            List<AttachmentCreateDTO> attachments,
+            String fileUrl) {
+        boolean hasText = StringUtils.hasText(contentMarkdown);
+        boolean hasFiles = StringUtils.hasText(fileUrl)
+                || (attachments != null && attachments.stream()
+                    .filter(java.util.Objects::nonNull)
+                    .anyMatch(item -> StringUtils.hasText(item.getFileUrl())));
+        if (hasText && hasFiles) {
+            return "MIXED";
+        }
+        return hasText ? "ARTICLE" : "FILE";
     }
 
     private boolean canModify(Resource resource, Long userId) {

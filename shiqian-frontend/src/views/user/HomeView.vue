@@ -1,34 +1,56 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Search, Upload, Star } from '@element-plus/icons-vue'
+import { Search, ArrowRight } from '@element-plus/icons-vue'
 import ResourceCard from '@/components/ResourceCard.vue'
 import { useAppStore } from '@/stores/app'
 
 const router = useRouter()
 const store = useAppStore()
-const icons = ['💻', '∑', 'A', '🎓']
+const homeKeyword = ref('')
+const resourceMode = ref<'newest' | 'hottest'>('newest')
+
+const featuredResources = computed(() => {
+  const resources = resourceMode.value === 'hottest'
+    ? [...store.publishedResources].sort((a, b) =>
+        ((b.downloads || 0) + (b.views || 0)) - ((a.downloads || 0) + (a.views || 0)) || b.id - a.id
+      )
+    : [...store.publishedResources].sort((a, b) => b.id - a.id)
+  return resources.slice(0, 6)
+})
 
 onMounted(() => {
   store.loadHomeData().catch(() => undefined)
 })
 
 function search() {
-  store.searchResources().catch(() => undefined)
-  router.push('/plaza')
+  const keyword = homeKeyword.value.trim()
+  router.push({
+    path: '/resources',
+    query: keyword ? { keyword } : {}
+  })
 }
 
 function openCategory(category: string) {
-  store.setCategory(category)
-  router.push('/plaza')
+  router.push({
+    path: '/resources',
+    query: { category }
+  })
+}
+
+function viewAllResources() {
+  router.push({
+    path: '/resources',
+    query: resourceMode.value === 'hottest' ? { sort: 'hottest' } : {}
+  })
 }
 </script>
 
 <template>
   <section class="hero">
     <h1>让校园资料流动起来</h1>
-    <p>把课程笔记、实验报告、复习资料和项目模板集中到一个统一入口。前台浏览、发布、收藏，后台审核、分类、用户管理共用同一套逻辑。</p>
-    <el-input v-model="store.keyword" class="hero-search" size="large" placeholder="搜索课程、资料、真题、项目模板" :prefix-icon="Search" @keyup.enter="search">
+    <p>搜索课程笔记、实验报告、复习资料和项目模板，一个入口找到你需要的校园资源。</p>
+    <el-input v-model="homeKeyword" class="hero-search" size="large" placeholder="搜索课程、资料、真题、项目模板" :prefix-icon="Search" @keyup.enter="search">
       <template #append>
         <el-button type="primary" @click="search">搜索资源</el-button>
       </template>
@@ -38,50 +60,101 @@ function openCategory(category: string) {
   <section class="section">
     <div class="page-title">
       <div>
-        <h1>热门分类</h1>
-        <p class="sub">分类点击后进入资源广场并自动筛选。</p>
+        <h1>按分类查找</h1>
+        <p class="sub">分类是资源中心的快捷筛选，不再跳转到独立页面。</p>
       </div>
-      <el-button text type="primary" @click="router.push('/categories')">查看全部</el-button>
+      <el-button text type="primary" :icon="ArrowRight" @click="router.push('/resources')">全部资源</el-button>
     </div>
-    <div v-loading="store.loading" class="category-grid" style="min-height: 120px;">
-      <el-card v-for="(category, index) in store.categories.slice(0, 4)" :key="category" class="category-card" shadow="never" @click="openCategory(category)">
-        <span class="category-icon">{{ icons[index] }}</span>
-        <span><b>{{ category }}</b><br><span class="sub">{{ store.resources.filter(item => item.cat === category).length }} 个资源</span></span>
-      </el-card>
+    <div v-loading="store.loading" class="category-shortcuts">
+      <button
+        v-for="category in store.categories.slice(0, 8)"
+        :key="category"
+        type="button"
+        class="category-shortcut"
+        @click="openCategory(category)"
+      >
+        <span>{{ category }}</span>
+        <small>{{ store.publishedResources.filter(item => item.cat === category).length }} 个</small>
+      </button>
     </div>
   </section>
 
   <section class="section">
-    <div class="page-title">
+    <div class="page-title resource-section-title">
       <div>
-        <h1>最新资源</h1>
-        <p class="sub">只展示审核通过的资源。</p>
+        <h1>资源推荐</h1>
+        <p class="sub">在同一位置切换最新发布和热门内容。</p>
       </div>
-      <el-button type="primary" :icon="Upload" @click="router.push('/publish')">发布资源</el-button>
+      <el-radio-group v-model="resourceMode">
+        <el-radio-button value="newest">最新发布</el-radio-button>
+        <el-radio-button value="hottest">热门内容</el-radio-button>
+      </el-radio-group>
     </div>
     <div v-loading="store.loading" class="resource-grid" style="min-height: 120px;">
-      <!-- ResourceCard 依赖 store.author（后端富化真实 authorNickname） -->
-      <ResourceCard v-for="item in store.publishedResources.slice(0, 3)" :key="item.id" :item="item" />
+      <ResourceCard v-for="item in featuredResources" :key="`${resourceMode}-${item.id}`" :item="item" />
     </div>
-  </section>
-
-  <section class="section">
-    <div class="page-title">
-      <div>
-        <h1>热门资源</h1>
-        <p class="sub">按下载量排序，助你发现高价值资料。</p>
-      </div>
-      <el-button text type="primary" @click="router.push('/plaza')">查看更多</el-button>
+    <div class="section-more">
+      <el-button type="primary" plain :icon="ArrowRight" @click="viewAllResources">查看全部资源</el-button>
     </div>
-    <div v-loading="store.loading" class="resource-grid" style="min-height: 120px;">
-      <ResourceCard v-for="item in store.hotResources.slice(0, 4)" :key="'hot-'+item.id" :item="item" />
-    </div>
-  </section>
-
-  <section class="section stat-grid">
-    <div class="stat-card"><b>{{ store.resources.length }}</b><span class="sub">演示资源</span></div>
-    <div class="stat-card"><b>{{ store.favoriteIds.length }}</b><span class="sub"><el-icon><Star /></el-icon> 我的收藏</span></div>
-    <div class="stat-card"><b>{{ store.categories.length }}</b><span class="sub">核心分类</span></div>
-    <div class="stat-card"><b>5</b><span class="sub">后台管理模块</span></div>
   </section>
 </template>
+
+<style scoped>
+.category-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  min-height: 70px;
+}
+
+.category-shortcut {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 58px;
+  padding: 0 16px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color .18s, background-color .18s, transform .18s;
+}
+
+.category-shortcut:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  transform: translateY(-1px);
+}
+
+.category-shortcut small {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.section-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 22px;
+}
+
+@media (max-width: 980px) {
+  .category-shortcuts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .category-shortcuts {
+    grid-template-columns: 1fr;
+  }
+
+  .resource-section-title {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+</style>

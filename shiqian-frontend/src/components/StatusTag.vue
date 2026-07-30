@@ -7,5 +7,7 @@ defineProps<{ status: ResourceStatus | '正常' | '禁用' }>()
 <template>
   <el-tag v-if="status === '已发布' || status === '正常'" type="success">{{ status }}</el-tag>
   <el-tag v-else-if="status === '待审核'" type="warning">{{ status }}</el-tag>
+  <el-tag v-else-if="status === '待修改'" type="warning" effect="dark">{{ status }}</el-tag>
+  <el-tag v-else-if="status === '已下架'" type="info">{{ status }}</el-tag>
   <el-tag v-else type="danger">{{ status }}</el-tag>
 </template>

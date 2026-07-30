@@ -5,7 +5,7 @@ import { ElMessage } from 'element-plus'
 import type { UploadRawFile, UploadUserFile } from 'element-plus'
 import { Close, UploadFilled } from '@element-plus/icons-vue'
 import { useAppStore, type UploadedFileItem, type ResourceAttachmentItem } from '@/stores/app'
-import MarkdownEditor from '@/components/MarkdownEditor.vue'
+import MarkdownPreview from '@/components/MarkdownPreview.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -20,6 +20,7 @@ const existingAttachments = ref<ResourceAttachmentItem[]>([])
 const uploadedFiles = ref<UploadedFileItem[]>([])  // 新增/替换的附件（编辑时支持多）
 const uploadProgress = ref(0)
 const uploadErrors = ref<string[]>([])
+const showPreview = ref(false)
 
 const form = reactive({
   title: '',
@@ -29,7 +30,10 @@ const form = reactive({
 })
 
 const canSubmit = computed(() => {
-  return Boolean(resourceId.value && form.title && form.cat && form.summary && form.contentMarkdown)
+  const hasFiles = selectedFiles.value.length > 0
+    || existingAttachments.value.length > 0
+    || uploadedFiles.value.length > 0
+  return Boolean(resourceId.value && form.title.trim() && form.cat && (form.contentMarkdown.trim() || hasFiles))
 })
 
 function fillForm() {
@@ -178,7 +182,7 @@ function removeUploadedFile(index: number) {
 
 async function submit() {
   if (!canSubmit.value) {
-    ElMessage.warning('请补充标题、分类、摘要和 Markdown 正文')
+    ElMessage.warning('请填写标题、分类，并至少保留正文或一个附件')
     return
   }
 
@@ -218,7 +222,7 @@ async function submit() {
     <div class="page-title">
       <div>
         <h1>编辑资源</h1>
-        <p class="sub">修改标题、分类、摘要和正文后保存。资源状态保持不变，已驳回资源可在我的发布中重新提交审核。</p>
+        <p class="sub">正文和附件满足其一即可。待修改资源保存后，可回到“我的发布”重新提交审核。</p>
       </div>
     </div>
 
@@ -311,7 +315,7 @@ async function submit() {
             </div>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="资源摘要">
+            <el-form-item label="简短说明（选填）">
               <el-input
                 v-model="form.summary"
                 type="textarea"
@@ -321,8 +325,23 @@ async function submit() {
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="Markdown 正文">
-              <MarkdownEditor v-model="form.contentMarkdown" />
+            <el-form-item>
+              <template #label>
+                <div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
+                  <span>正文内容（有附件时选填）</span>
+                  <el-button text type="primary" @click="showPreview = !showPreview">
+                    {{ showPreview ? '返回编辑' : '预览' }}
+                  </el-button>
+                </div>
+              </template>
+              <MarkdownPreview v-if="showPreview" :model-value="form.contentMarkdown" class="simple-preview" />
+              <el-input
+                v-else
+                v-model="form.contentMarkdown"
+                type="textarea"
+                :rows="12"
+                placeholder="直接输入普通文字即可，也兼容简单 Markdown。"
+              />
             </el-form-item>
           </el-col>
         </el-row>
@@ -333,3 +352,13 @@ async function submit() {
     </el-card>
   </section>
 </template>
+
+<style scoped>
+.simple-preview {
+  width: 100%;
+  min-height: 220px;
+  padding: 16px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 8px;
+}
+</style>

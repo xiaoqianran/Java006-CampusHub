@@ -50,7 +50,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.GET, "/api/resource/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/resource/*/download").permitAll()
-                .requestMatchers("/api/category/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/category/**").permitAll()
                 .requestMatchers("/actuator/**").permitAll()
                 .requestMatchers("/doc.html", "/webjars/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/favicon.ico").permitAll()
                 .requestMatchers("/api/resource/**").authenticated()

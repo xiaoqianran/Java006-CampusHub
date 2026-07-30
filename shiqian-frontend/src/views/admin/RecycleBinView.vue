@@ -22,7 +22,6 @@ async function restore(id: number, title: string) {
   try {
     await ElMessageBox.confirm(`确认恢复「${title}」到资源列表？`, '恢复资源', { type: 'warning' })
     await store.restoreResource(id)
-    await store.recordAdminLog('RESOURCE_RESTORE', id, title)
     ElMessage.success('已恢复')
     await load()
   } catch (error) {
@@ -36,7 +35,6 @@ async function permanentDelete(id: number, title: string) {
   try {
     await ElMessageBox.confirm(`永久删除「${title}」？此操作不可恢复！`, '永久删除', { type: 'error' })
     await store.permanentDeleteResource(id)
-    await store.recordAdminLog('RESOURCE_PERMANENT_DELETE', id, title)
     ElMessage.success('已永久删除')
     await load()
   } catch (error) {

@@ -1,87 +1,126 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { useRouter } from 'vue-router'
 import AdminLayout from '@/components/AdminLayout.vue'
 import StatusTag from '@/components/StatusTag.vue'
-import MarkdownPreview from '@/components/MarkdownPreview.vue'
-import { useAppStore, type ResourceItem } from '@/stores/app'
 import { buildApiUrl } from '@/api/client'
+import { useAppStore, type ResourceItem, type ResourceStatus } from '@/stores/app'
 
-const router = useRouter()
+const MarkdownPreview = defineAsyncComponent(() => import('@/components/MarkdownPreview.vue'))
 const store = useAppStore()
-
+const searchText = ref('')
+const statusFilter = ref<'全部' | ResourceStatus>('待审核')
+const current = ref<ResourceItem | null>(null)
 const detailVisible = ref(false)
 const detailLoading = ref(false)
-const openingId = ref<number | null>(null)
-const current = ref<ResourceItem | null>(null)
+const decisionLoading = ref(false)
+const reviewReason = ref('')
+const selectedRows = ref<ResourceItem[]>([])
+
+const auditResources = computed(() => {
+  const text = searchText.value.trim().toLowerCase()
+  return store.resources
+    .filter(item => ['待审核', '待修改', '已拒绝'].includes(item.status))
+    .filter(item => statusFilter.value === '全部' || item.status === statusFilter.value)
+    .filter(item => !text || `${item.title}${item.author}${item.cat}${item.desc}`.toLowerCase().includes(text))
+    .sort((a, b) => b.id - a.id)
+})
+
+const pendingCount = computed(() => store.pendingResources.length)
 
 onMounted(() => {
-  store.loadHomeData().catch(() => undefined)
+  store.loadHomeData().catch(error => {
+    ElMessage.error(error instanceof Error ? error.message : '审核队列加载失败')
+  })
 })
 
 async function openDetail(row: ResourceItem) {
   current.value = row
+  reviewReason.value = row.reviewReason || ''
   detailVisible.value = true
   detailLoading.value = true
-  openingId.value = row.id
-
   try {
-    await store.loadResourceDetail(row.id)
+    await store.loadResourceDetail(row.id, { includeFavorite: false })
     current.value = store.getResource(row.id) || row
+    reviewReason.value = current.value.reviewReason || ''
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '资源详情加载失败')
   } finally {
     detailLoading.value = false
-    openingId.value = null
   }
 }
 
-function openFile(row?: ResourceItem | null) {
-  if (!row?.fileUrl) {
-    ElMessage.warning('该资源没有可查看的文件地址')
+function openAttachment(url?: string) {
+  if (!url) return
+  window.open(buildApiUrl(url), '_blank')
+}
+
+function nextPendingId(excludeId: number) {
+  return store.pendingResources.find(item => item.id !== excludeId)?.id
+}
+
+async function decide(status: 1 | 2 | 3) {
+  if (!current.value) return
+  const reason = reviewReason.value.trim()
+  if ((status === 2 || status === 3) && !reason) {
+    ElMessage.warning('退回修改或拒绝时必须填写审核意见')
     return
   }
-  window.open(buildApiUrl(row.fileUrl), '_blank')
-}
 
-function openAttachment(att: any) {
-  if (att?.fileUrl) {
-    window.open(buildApiUrl(att.fileUrl), '_blank')
-  }
-}
-
-function goDetail(row?: ResourceItem | null) {
-  if (!row) return
-  router.push(`/detail/${row.id}`)
-}
-
-async function approve(id: number) {
+  const currentId = current.value.id
+  const nextId = nextPendingId(currentId)
+  decisionLoading.value = true
   try {
-    const row = store.resources.find(r => r.id === id)
-    await ElMessageBox.confirm('确认通过该资源审核吗？', '审核确认', { type: 'success' })
-    await store.approveResource(id)
-    await store.recordAdminLog('RESOURCE_APPROVE', id, row?.title || String(id))
-    ElMessage.success('已通过')
-    detailVisible.value = false
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(error instanceof Error ? error.message : '审核失败')
+    if (status === 1) {
+      await store.approveResource(currentId)
+      ElMessage.success('审核通过，资源已发布')
+    } else if (status === 2) {
+      await store.requestResourceChanges(currentId, reason)
+      ElMessage.warning('已退回作者修改')
+    } else {
+      await store.rejectResource(currentId, reason)
+      ElMessage.warning('资源已拒绝')
     }
+
+    if (nextId) {
+      const next = store.getResource(nextId)
+      if (next) await openDetail(next)
+    } else {
+      detailVisible.value = false
+      current.value = null
+    }
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '审核操作失败')
+  } finally {
+    decisionLoading.value = false
   }
 }
 
-async function reject(id: number) {
+function onSelectionChange(rows: ResourceItem[]) {
+  selectedRows.value = rows.filter(item => item.status === '待审核')
+}
+
+async function batchApprove() {
+  if (!selectedRows.value.length) return
   try {
-    const row = store.resources.find(r => r.id === id)
-    await ElMessageBox.confirm('确认驳回该资源吗？', '驳回确认', { type: 'warning' })
-    await store.rejectResource(id)
-    await store.recordAdminLog('RESOURCE_REJECT', id, row?.title || String(id))
-    ElMessage.warning('已驳回')
-    detailVisible.value = false
+    await ElMessageBox.confirm(
+      `确认批量通过选中的 ${selectedRows.value.length} 条待审核资源？`,
+      '批量审核',
+      { type: 'warning' }
+    )
+    const results = await Promise.allSettled(
+      selectedRows.value.map(item => store.approveResource(item.id))
+    )
+    const failed = results.filter(item => item.status === 'rejected').length
+    if (failed) {
+      ElMessage.warning(`已通过 ${results.length - failed} 条，${failed} 条处理失败`)
+    } else {
+      ElMessage.success(`已通过 ${results.length} 条资源`)
+    }
+    selectedRows.value = []
   } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(error instanceof Error ? error.message : '审核失败')
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(error instanceof Error ? error.message : '批量审核失败')
     }
   }
 }
@@ -91,242 +130,246 @@ async function reject(id: number) {
   <AdminLayout>
     <div class="page-title">
       <div>
-        <h1>资源审核</h1>
-        <p class="sub">审核待发布和已驳回资源，误驳回的资源可以重新通过。</p>
+        <h1>审核工作台</h1>
+        <p class="sub">集中完成资源预览、附件检查、审核意见和发布决策。</p>
       </div>
+      <el-tag type="warning" size="large">待审核 {{ pendingCount }}</el-tag>
     </div>
 
-    <el-table :data="store.reviewableResources" class="panel audit-table" style="width: 100%">
-      <el-table-column label="资源信息" min-width="320">
+    <div class="audit-toolbar panel">
+      <el-input
+        v-model="searchText"
+        clearable
+        placeholder="搜索标题、作者、分类或摘要"
+        style="width: 320px"
+      />
+      <el-radio-group v-model="statusFilter">
+        <el-radio-button label="待审核" value="待审核" />
+        <el-radio-button label="待修改" value="待修改" />
+        <el-radio-button label="已拒绝" value="已拒绝" />
+        <el-radio-button label="全部" value="全部" />
+      </el-radio-group>
+      <el-button
+        type="primary"
+        plain
+        :disabled="!selectedRows.length"
+        @click="batchApprove"
+      >
+        批量通过（{{ selectedRows.length }}）
+      </el-button>
+    </div>
+
+    <el-table
+      :data="auditResources"
+      class="panel audit-table"
+      row-key="id"
+      @selection-change="onSelectionChange"
+      @row-dblclick="openDetail"
+    >
+      <el-table-column type="selection" width="46" :selectable="(row: ResourceItem) => row.status === '待审核'" />
+      <el-table-column label="资源" min-width="320">
         <template #default="{ row }">
-          <b>{{ row.title }}</b>
-          <div class="sub audit-desc">{{ row.desc || '暂无简介' }}</div>
+          <button class="title-button" @click="openDetail(row)">{{ row.title }}</button>
+          <div class="sub one-line">{{ row.desc || '暂无摘要' }}</div>
         </template>
       </el-table-column>
-
       <el-table-column prop="cat" label="分类" width="130" />
-      <el-table-column prop="type" label="类型" width="140" />
-      <el-table-column prop="author" label="发布者" width="130" /><!-- 后端 ResourceService 页查询富化真实昵称 -->
-
-      <el-table-column label="文件" width="120">
+      <el-table-column prop="author" label="发布者" width="130" />
+      <el-table-column label="内容" width="120">
         <template #default="{ row }">
-          <el-button v-if="row.fileUrl" size="small" text type="primary" @click="openFile(row)">
-            查看文件
-          </el-button>
-          <span v-else class="sub">暂无文件</span>
+          {{ row.contentMarkdown ? '正文' : '' }}
+          {{ row.attachments?.length ? `附件 ${row.attachments.length}` : '' }}
         </template>
       </el-table-column>
-
-      <el-table-column label="状态" width="120">
+      <el-table-column label="状态" width="110">
+        <template #default="{ row }"><StatusTag :status="row.status" /></template>
+      </el-table-column>
+      <el-table-column label="审核意见" min-width="180">
         <template #default="{ row }">
-          <StatusTag :status="row.status" />
+          <span class="sub">{{ row.reviewReason || '—' }}</span>
         </template>
       </el-table-column>
-
-      <el-table-column label="操作" width="380" fixed="right">
+      <el-table-column label="操作" width="110" fixed="right">
         <template #default="{ row }">
-          <div class="audit-actions">
-            <!-- 第一层：审阅动作（最显眼） -->
-            <el-button
-              size="small"
-              type="primary"
-              class="audit-action-review"
-              :loading="openingId === row.id"
-              @click="openDetail(row)"
-            >
-              查看详情
-            </el-button>
-
-            <el-button
-              size="small"
-              class="audit-action-file"
-              :disabled="!row.fileUrl"
-              @click="openFile(row)"
-            >
-              打开文件
-            </el-button>
-
-            <span class="audit-action-divider"></span>
-
-            <!-- 第二层：审核决策 -->
-            <el-button
-              size="small"
-              class="audit-action-approve"
-              @click="approve(row.id)"
-            >
-              {{ row.status === '已驳回' ? '重新通过' : '通过' }}
-            </el-button>
-
-            <el-button
-              size="small"
-              class="audit-action-reject"
-              :disabled="row.status === '已驳回'"
-              @click="reject(row.id)"
-            >
-              驳回
-            </el-button>
-          </div>
+          <el-button type="primary" size="small" @click="openDetail(row)">审阅</el-button>
         </template>
       </el-table-column>
     </el-table>
+    <el-empty v-if="!auditResources.length" description="当前筛选下没有资源" />
 
-    <el-empty v-if="!store.reviewableResources.length" description="暂无待审核或已驳回资源" />
-
-    <el-dialog
+    <el-drawer
       v-model="detailVisible"
-      title="资源审核详情"
-      width="720px"
-      class="audit-detail-dialog"
-      modal-class="audit-detail-modal"
-      :destroy-on-close="false"
-      :lock-scroll="false"
+      title="资源审阅"
+      size="min(780px, 92vw)"
       :close-on-click-modal="false"
-      @closed="current = null"
+      destroy-on-close
     >
-      <div v-loading="detailLoading" class="audit-detail no-white-flash">
-        <h2>{{ current?.title || '资源审核详情' }}</h2>
-
-        <div class="audit-meta">
-          <span>分类：{{ current?.cat || '-' }}</span>
-          <span>类型：{{ current?.type || '-' }}</span>
-          <span>发布者：{{ current?.author || '-' }}</span>
-          <span>文件大小：{{ current?.fileSize || 0 }} 字节</span>
-        </div>
-
-        <!-- 摘要 -->
-        <div class="audit-section">
-          <h3>资源摘要</h3>
-          <p class="audit-summary">{{ current?.summary || current?.desc || '暂无摘要' }}</p>
-        </div>
-
-        <!-- Markdown 正文 -->
-        <div class="audit-section">
-          <h3>资源正文</h3>
-          <div v-if="current?.contentMarkdown" class="audit-markdown">
-            <MarkdownPreview :model-value="current.contentMarkdown" />
-          </div>
-          <div v-else class="audit-fallback">
-            <p class="sub">（兼容旧数据）{{ current?.desc || '暂无正文内容' }}</p>
-          </div>
-        </div>
-
-        <!-- 第二阶段：附件列表 -->
-        <div class="audit-section">
-          <h3>附件</h3>
-          <div v-if="current?.attachments && current.attachments.length > 0">
-            <div v-for="att in current.attachments" :key="att.id || att.fileUrl" class="audit-attachment-item">
-              <span>{{ att.fileName }}</span>
-              <el-button size="small" type="primary" @click="openAttachment(att)">下载</el-button>
+      <div v-loading="detailLoading" class="review-drawer">
+        <div class="review-heading">
+          <div>
+            <h2>{{ current?.title }}</h2>
+            <div class="review-meta">
+              <span>{{ current?.cat }}</span>
+              <span>{{ current?.author }}</span>
+              <StatusTag v-if="current" :status="current.status" />
             </div>
           </div>
-          <div v-else>
-            <p class="sub">该资源暂无附件</p>
-          </div>
         </div>
+
+        <section class="review-section">
+          <h3>资源摘要</h3>
+          <p>{{ current?.summary || current?.desc || '未填写摘要' }}</p>
+        </section>
+
+        <section class="review-section">
+          <h3>正文内容</h3>
+          <MarkdownPreview
+            v-if="current?.contentMarkdown"
+            :model-value="current.contentMarkdown"
+            class="review-content"
+          />
+          <el-empty v-else description="该资源以附件为主，没有正文" :image-size="60" />
+        </section>
+
+        <section class="review-section">
+          <h3>附件（{{ current?.attachments?.length || 0 }}）</h3>
+          <div v-if="current?.attachments?.length" class="attachment-list">
+            <button
+              v-for="attachment in current.attachments"
+              :key="attachment.id || attachment.fileUrl"
+              class="attachment-row"
+              @click="openAttachment(attachment.fileUrl)"
+            >
+              <span>{{ attachment.fileName }}</span>
+              <span class="sub">{{ attachment.fileType || '文件' }} · 打开</span>
+            </button>
+          </div>
+          <el-empty v-else description="没有附件" :image-size="60" />
+        </section>
+
+        <section v-if="current?.reviewTime || current?.reviewReason" class="review-section">
+          <h3>最近审核记录</h3>
+          <p class="sub">{{ current.reviewTime || '—' }} · {{ current.reviewReason || '无意见' }}</p>
+        </section>
       </div>
 
       <template #footer>
-        <div class="audit-actions" style="width: 100%; justify-content: space-between;">
-          <div>
-            <el-button @click="detailVisible = false">关闭</el-button>
-            <el-button :disabled="!current?.fileUrl" class="audit-action-file" @click="openFile(current)">打开原文件</el-button>
-            <el-button v-if="current" class="audit-action-review" @click="goDetail(current)">跳转详情页</el-button>
-          </div>
-
-          <div>
-            <el-button v-if="current" class="audit-action-reject" :disabled="current.status === '已驳回'" @click="reject(current.id)">驳回</el-button>
-            <el-button v-if="current" class="audit-action-approve" @click="approve(current.id)">{{ current.status === '已驳回' ? '重新通过' : '通过' }}</el-button>
+        <div class="decision-panel">
+          <el-input
+            v-model="reviewReason"
+            type="textarea"
+            :rows="3"
+            maxlength="500"
+            show-word-limit
+            placeholder="退回修改或拒绝时必须填写具体原因，例如：附件无法打开、内容不完整。"
+          />
+          <div class="decision-actions">
+            <span class="sub">通过后将直接公开；退回修改后作者可以再次提交。</span>
+            <div>
+              <el-button :loading="decisionLoading" @click="decide(3)">拒绝</el-button>
+              <el-button type="warning" plain :loading="decisionLoading" @click="decide(2)">退回修改</el-button>
+              <el-button type="success" :loading="decisionLoading" @click="decide(1)">通过并发布</el-button>
+            </div>
           </div>
         </div>
       </template>
-    </el-dialog>
+    </el-drawer>
   </AdminLayout>
 </template>
 
 <style scoped>
-/* 审核详情弹窗深色模式适配 - 防止闪白 */
-.audit-detail-dialog :deep(.el-dialog) {
-  background: var(--bg-card, #ffffff);
+.audit-toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 14px;
+  margin-bottom: 14px;
 }
 
-[data-theme="dark"] .audit-detail-dialog :deep(.el-dialog) {
-  background: var(--bg-card-dark, #1f2937);
-  color: var(--text-primary-dark, #f3f4f6);
+.title-button,
+.attachment-row {
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
 }
 
-.audit-detail {
-  padding: 8px 4px;
+.title-button {
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
 }
 
-.audit-summary {
+.title-button:hover {
+  color: var(--el-color-primary);
+}
+
+.one-line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-drawer {
+  padding: 0 4px 120px;
+}
+
+.review-heading h2 {
+  margin: 0 0 10px;
+}
+
+.review-meta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  color: var(--el-text-color-secondary);
+}
+
+.review-section {
+  margin-top: 24px;
+}
+
+.review-section h3 {
+  margin: 0 0 10px;
   font-size: 15px;
-  color: var(--text-secondary, #4b5563);
-  line-height: 1.6;
 }
 
-[data-theme="dark"] .audit-summary {
-  color: var(--text-secondary-dark, #9ca3af);
+.review-content {
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 8px;
+  padding: 14px;
 }
 
-.audit-markdown {
-  margin-top: 8px;
+.attachment-list {
+  display: grid;
+  gap: 8px;
 }
 
-.audit-fallback {
-  padding: 12px;
-  background: var(--bg-subtle, #f8f9fa);
-  border-radius: 6px;
-  color: var(--text-secondary, #4b5563);
-}
-
-[data-theme="dark"] .audit-fallback {
-  background: #111827;
-  color: #9ca3af;
-}
-
-.audit-file-url {
-  font-family: ui-monospace, monospace;
-  font-size: 13px;
-  word-break: break-all;
-  color: #6366f1;
-  margin-bottom: 8px;
-}
-
-.audit-section {
-  margin-bottom: 20px;
-}
-
-.audit-section h3 {
-  font-size: 14px;
-  color: var(--text-secondary, #6b7280);
-  margin-bottom: 8px;
-}
-
-[data-theme="dark"] .audit-section h3 {
-  color: #9ca3af;
-}
-
-/* 弹窗 loading mask 深色适配 */
-.audit-detail-dialog :deep(.el-loading-mask) {
-  background-color: rgba(255, 255, 255, 0.7);
-}
-
-[data-theme="dark"] .audit-detail-dialog :deep(.el-loading-mask) {
-  background-color: rgba(31, 41, 55, 0.85);
-}
-
-.audit-attachment-item {
+.attachment-row {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding: 6px 10px;
-  background: var(--bg-subtle, #f8f9fa);
-  border-radius: 4px;
-  margin-bottom: 6px;
-  font-size: 14px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 8px;
 }
 
-[data-theme="dark"] .audit-attachment-item {
-  background: #111827;
+.attachment-row:hover {
+  border-color: var(--el-color-primary);
+}
+
+.decision-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.decision-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 </style>
