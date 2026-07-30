@@ -10,6 +10,7 @@ import com.shiqian.resource.dto.FileUploadVO;
 import com.shiqian.resource.dto.SignedFileUrlVO;
 import com.shiqian.resource.dto.TextFilePreviewVO;
 import com.shiqian.resource.entity.StoredObject;
+import com.shiqian.resource.monitoring.ResourceBusinessMetrics;
 import com.shiqian.resource.service.StoredObjectService;
 import com.shiqian.resource.storage.StoredObjectAccess;
 import io.swagger.v3.oas.annotations.Operation;
@@ -65,6 +66,7 @@ public class ResourceFileController {
 
     private final StoredObjectService storedObjectService;
     private final ResourceStorageProperties storageProperties;
+    private final ResourceBusinessMetrics businessMetrics;
 
     @Value("${resource.upload-dir:uploads/resources}")
     private String legacyUploadDir;
@@ -104,7 +106,12 @@ public class ResourceFileController {
         if (userId == null) {
             return Result.fail(401, "未登录");
         }
-        return Result.ok(storedObjectService.storeFiles(userId, nonEmptyFiles));
+        try {
+            return Result.ok(storedObjectService.storeFiles(userId, nonEmptyFiles));
+        } catch (RuntimeException error) {
+            businessMetrics.uploadFailed();
+            throw error;
+        }
     }
 
     @Operation(summary = "获取 MinIO 私有文件临时签名地址")

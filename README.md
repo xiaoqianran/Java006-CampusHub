@@ -25,7 +25,8 @@ chmod +x 01_Environment.sh
 
 这个脚本会自动完成：
 
-- 启动基础设施容器：MySQL、Redis、Nacos、Elasticsearch、RabbitMQ
+- 启动基础设施容器：MySQL、Redis、Nacos、Elasticsearch、RabbitMQ、MinIO
+- 默认启动 Prometheus、Grafana，以及 Redis/Elasticsearch 指标采集器
 - 等待容器就绪
 - 使用 Maven 打包后端
 - 启动 `shiqian-user`、`shiqian-resource`、`shiqian-gateway`
@@ -36,6 +37,12 @@ chmod +x 01_Environment.sh
 - Gateway: `http://localhost:8080`
 - User: `http://localhost:8081`
 - Resource: `http://localhost:8082`
+- MinIO Console: `http://localhost:9001`
+- Prometheus: `http://localhost:19090`
+- Grafana: `http://localhost:3000`
+
+`.env` 中必须填写 Redis、RabbitMQ、MySQL、MinIO、Grafana 密码。Redis
+容器启用了认证，后端服务与 exporter 共用 `REDIS_PASSWORD`，不要使用空密码。
 
 ### 3. 停止后端
 
@@ -209,6 +216,24 @@ docker logs shiqian-rabbitmq --tail 200
 docker compose down
 ```
 
+低内存机器可使用精简覆盖配置，并仅启动核心依赖：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.low-memory.yml \
+  up -d mysql redis nacos elasticsearch rabbitmq minio
+```
+
+需要完整监控时再启动：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.low-memory.yml \
+  up -d redis-exporter elasticsearch-exporter prometheus grafana
+```
+
+Prometheus 会采集三个 Java 服务、Redis、RabbitMQ 和 Elasticsearch；
+Grafana 自动加载 JVM/HTTP 与业务/基础设施两个 Dashboard，告警规则位于
+`docker/prometheus/alerts.yml`。
+
 ### 手动 Maven 打包
 
 脚本 `02_StartBackend.sh` 已经会自动打包。手动打包主要用于定位编译错误：
@@ -257,6 +282,18 @@ npm run dev
 cd shiqian-frontend
 VITE_API_PROXY_TARGET=http://localhost:8080 npm run dev
 ```
+
+生产静态部署可直接构建 Nginx 镜像：
+
+```bash
+docker build -t campushub-frontend ./shiqian-frontend
+docker run --rm -p 8088:80 \
+  --add-host host.docker.internal:host-gateway \
+  campushub-frontend
+```
+
+此时前端地址为 `http://localhost:8088`，`/api` 会反向代理到宿主机网关
+`8080` 端口。
 
 ## 常见问题
 

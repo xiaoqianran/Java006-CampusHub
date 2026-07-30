@@ -1,5 +1,3 @@
-USE shiqian_resource;
-
 CREATE TABLE IF NOT EXISTS t_outbox_event (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     message_id VARCHAR(64) NOT NULL,

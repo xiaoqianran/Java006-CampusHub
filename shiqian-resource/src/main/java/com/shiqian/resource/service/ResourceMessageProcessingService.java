@@ -4,6 +4,7 @@ import com.shiqian.resource.dto.ResourceAuditMessage;
 import com.shiqian.resource.dto.ResourceDownloadMessage;
 import com.shiqian.resource.entity.UserNotification;
 import com.shiqian.resource.mapper.UserNotificationMapper;
+import com.shiqian.resource.monitoring.ResourceBusinessMetrics;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,8 +20,9 @@ public class ResourceMessageProcessingService {
     public static final String AUDIT_CONSUMER = "resource-audit-notification";
 
     private final MessageIdempotencyService idempotencyService;
-    private final ResourceService resourceService;
+    private final ResourceCounterService resourceCounterService;
     private final UserNotificationMapper userNotificationMapper;
+    private final ResourceBusinessMetrics businessMetrics;
 
     @Transactional(rollbackFor = Exception.class)
     public boolean processDownload(ResourceDownloadMessage message) {
@@ -29,7 +31,8 @@ public class ResourceMessageProcessingService {
                 message.getMessageId(), DOWNLOAD_CONSUMER)) {
             return false;
         }
-        resourceService.incrementDownloadCount(message.getResourceId());
+        resourceCounterService.recordDownload(message.getResourceId());
+        businessMetrics.downloaded();
         return true;
     }
 

@@ -1,0 +1,64 @@
+groups:
+  - name: campushub-platform
+    rules:
+      - alert: CampusHubServiceDown
+        expr: up{job=~"shiqian-.+"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CampusHub 服务不可用"
+          description: "{{ $labels.job }} 已连续 2 分钟无法采集。"
+
+      - alert: CampusHubHighHttpErrorRate
+        expr: |
+          (
+            sum by (application) (rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+            /
+            clamp_min(sum by (application) (rate(http_server_requests_seconds_count[5m])), 0.001)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "HTTP 5xx 错误率过高"
+          description: "{{ $labels.application }} 的 5xx 错误率连续 5 分钟超过 5%。"
+
+      - alert: CampusHubRabbitQueueBacklog
+        expr: rabbitmq_queue_messages_ready > 1000 or rabbitmq_queue_messages > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RabbitMQ 队列积压"
+          description: "队列 {{ $labels.queue }} 的待处理消息超过 1000。"
+
+      - alert: CampusHubRedisDown
+        expr: up{job="redis"} == 0 or redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis 不可用"
+          description: "Redis exporter 或 Redis 实例不可用。"
+
+      - alert: CampusHubElasticsearchDown
+        expr: up{job="elasticsearch"} == 0 or elasticsearch_cluster_health_up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Elasticsearch 不可用"
+          description: "Elasticsearch 集群健康检查失败。"
+
+      - alert: CampusHubDatabasePoolNearExhaustion
+        expr: |
+          hikaricp_connections_active
+          /
+          clamp_min(hikaricp_connections_max, 1) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "数据库连接池接近耗尽"
+          description: "{{ $labels.application }} HikariCP 活跃连接超过上限的 85%。"

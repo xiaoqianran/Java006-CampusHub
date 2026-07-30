@@ -1,0 +1,46 @@
+services:
+  mysql:
+    mem_limit: 512m
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-time-zone=+08:00
+      --performance-schema=OFF
+      --innodb-buffer-pool-size=128M
+
+  redis:
+    mem_limit: 160m
+    command:
+      - sh
+      - -c
+      - exec redis-server --appendonly yes --maxmemory 96mb --maxmemory-policy allkeys-lru --requirepass "$$REDIS_PASSWORD"
+
+  nacos:
+    mem_limit: 512m
+    environment:
+      JVM_XMS: 128m
+      JVM_XMX: 320m
+      JVM_XMN: 128m
+
+  elasticsearch:
+    mem_limit: 640m
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms320m -Xmx384m"
+
+  rabbitmq:
+    mem_limit: 384m
+
+  minio:
+    mem_limit: 320m
+
+  prometheus:
+    mem_limit: 320m
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=3d"
+
+  grafana:
+    mem_limit: 256m

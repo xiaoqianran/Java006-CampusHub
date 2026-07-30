@@ -5,6 +5,7 @@ import com.shiqian.resource.document.ResourceDocumentMapper;
 import com.shiqian.resource.dto.ResourceIndexMessage;
 import com.shiqian.resource.entity.Resource;
 import com.shiqian.resource.mapper.ResourceMapper;
+import com.shiqian.resource.monitoring.ResourceBusinessMetrics;
 import com.shiqian.resource.repository.ResourceDocumentRepository;
 import com.shiqian.resource.service.MessageIdempotencyService;
 import com.shiqian.resource.service.AuthorEnrichmentService;
@@ -29,6 +30,7 @@ public class ResourceIndexListener {
     private final MessageIdempotencyService idempotencyService;
     private final ResourceTaxonomyService taxonomyService;
     private final AuthorEnrichmentService authorEnrichmentService;
+    private final ResourceBusinessMetrics businessMetrics;
 
     @RabbitListener(queues = RabbitMQConfig.RESOURCE_INDEX_QUEUE)
     public void onIndexMessage(ResourceIndexMessage message) {
@@ -44,6 +46,8 @@ public class ResourceIndexListener {
             log.debug("资源索引同步完成: messageId={}, resourceId={}",
                     message.getMessageId(), message.getResourceId());
         } catch (Exception exception) {
+            businessMetrics.rabbitConsumeFailed();
+            businessMetrics.elasticsearchSyncFailed();
             log.error("资源索引消费失败，将进入有限重试: messageId={}, resourceId={}",
                     message.getMessageId(), message.getResourceId(), exception);
             if (exception instanceof RuntimeException runtimeException) {

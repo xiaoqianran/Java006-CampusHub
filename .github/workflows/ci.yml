@@ -47,6 +47,18 @@ jobs:
       - name: Package
         run: mvn -B package -DskipTests
 
+      - name: Validate Docker Compose
+        env:
+          MYSQL_ROOT_PASSWORD: ci-only-password
+          REDIS_PASSWORD: ci-only-password
+          RABBITMQ_USER: ci-user
+          RABBITMQ_PASSWORD: ci-only-password
+          MINIO_ACCESS_KEY: ci-minio
+          MINIO_SECRET_KEY: ci-only-password
+          GRAFANA_ADMIN_USER: ci-admin
+          GRAFANA_ADMIN_PASSWORD: ci-only-password
+        run: docker compose config --quiet
+
       - name: Upload backend jars
         uses: actions/upload-artifact@v5
         with:
@@ -80,6 +92,9 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Test
+        run: npm test
 
       - name: Upload frontend dist
         uses: actions/upload-artifact@v5

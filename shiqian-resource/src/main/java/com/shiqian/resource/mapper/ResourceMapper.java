@@ -73,4 +73,16 @@ public interface ResourceMapper extends BaseMapper<Resource> {
 
     @Delete("DELETE FROM t_resource WHERE id=#{id}")
     int physicalDeleteById(@Param("id") Long id);
+
+    @Update("""
+            UPDATE t_resource
+            SET view_count = view_count + #{viewDelta},
+                download_count = download_count + #{downloadDelta},
+                update_time = CURRENT_TIMESTAMP
+            WHERE id = #{id} AND deleted = 0
+            """)
+    int incrementCounters(
+            @Param("id") Long id,
+            @Param("viewDelta") long viewDelta,
+            @Param("downloadDelta") long downloadDelta);
 }

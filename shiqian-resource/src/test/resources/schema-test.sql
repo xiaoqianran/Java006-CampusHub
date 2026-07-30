@@ -248,3 +248,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_notification_message
     ON t_user_notification(message_id);
 CREATE INDEX IF NOT EXISTS idx_notification_user
     ON t_user_notification(user_id, read_flag, create_time);
+
+CREATE TABLE IF NOT EXISTS t_counter_flush_batch (
+    batch_id VARCHAR(36) PRIMARY KEY,
+    counter_type VARCHAR(20) NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_counter_batch_status_time
+    ON t_counter_flush_batch(status, update_time);

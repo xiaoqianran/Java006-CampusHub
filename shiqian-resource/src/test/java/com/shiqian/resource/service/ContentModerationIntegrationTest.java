@@ -9,6 +9,7 @@ import com.shiqian.resource.entity.SensitiveWord;
 import com.shiqian.resource.mapper.ContentReviewRecordMapper;
 import com.shiqian.resource.mapper.SensitiveWordMapper;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -38,6 +39,13 @@ class ContentModerationIntegrationTest extends BaseResourceTest {
         reviewRecordMapper.delete(new QueryWrapper<>());
         sensitiveWordMapper.delete(new QueryWrapper<>());
         sensitiveWordService.reload();
+    }
+
+    @AfterEach
+    void restoreDefaultWords() {
+        sensitiveWordService.create(word("违规", 2, 1), 0L);
+        sensitiveWordService.create(word("敏感词", 2, 1), 0L);
+        sensitiveWordService.create(word("广告", 2, 1), 0L);
     }
 
     @Test

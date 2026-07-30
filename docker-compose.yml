@@ -27,13 +27,18 @@ services:
     image: redis:7-alpine
     container_name: shiqian-redis
     mem_limit: 256m
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?请在.env中设置REDIS_PASSWORD}
     ports:
       - "127.0.0.1:6379:6379"
     volumes:
       - redis-data:/data
-    command: redis-server --appendonly yes --maxmemory 192mb --maxmemory-policy allkeys-lru
+    command:
+      - sh
+      - -c
+      - exec redis-server --appendonly yes --maxmemory 192mb --maxmemory-policy allkeys-lru --requirepass "$$REDIS_PASSWORD"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep PONG"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -55,6 +60,12 @@ services:
     volumes:
       - nacos-logs:/home/nacos/logs
       - nacos-data:/home/nacos/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8848/nacos/v1/console/health/readiness || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
 
   elasticsearch:
     image: elasticsearch:8.10.4
@@ -89,6 +100,7 @@ services:
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
       - ./docker/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./docker/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 10s
@@ -117,10 +129,12 @@ services:
   prometheus:
     image: prom/prometheus:v2.52.0
     container_name: shiqian-prometheus
+    mem_limit: 512m
     ports:
       - "127.0.0.1:19090:9090"
     volumes:
       - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./docker/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus-data:/prometheus
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -128,6 +142,14 @@ services:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
       - "--web.enable-lifecycle"
+      - "--storage.tsdb.retention.time=15d"
+    depends_on:
+      redis-exporter:
+        condition: service_healthy
+      elasticsearch-exporter:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/ready"]
       interval: 10s
@@ -137,6 +159,7 @@ services:
   grafana:
     image: grafana/grafana:10.4.2
     container_name: shiqian-grafana
+    mem_limit: 384m
     ports:
       - "127.0.0.1:3000:3000"
     environment:
@@ -151,6 +174,44 @@ services:
     depends_on:
       prometheus:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.62.0
+    container_name: shiqian-redis-exporter
+    mem_limit: 96m
+    environment:
+      REDIS_ADDR: redis://redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?请在.env中设置REDIS_PASSWORD}
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/redis_exporter", "--version"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  elasticsearch-exporter:
+    image: prometheuscommunity/elasticsearch-exporter:v1.8.0
+    container_name: shiqian-elasticsearch-exporter
+    mem_limit: 128m
+    command:
+      - "--es.uri=http://elasticsearch:9200"
+      - "--es.all"
+      - "--es.indices"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/bin/elasticsearch_exporter", "--version"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
 volumes:
   mysql-data:

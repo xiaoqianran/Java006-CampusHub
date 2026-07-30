@@ -32,6 +32,8 @@ class MonitoringConfigTest {
 
         assertTrue(services.containsKey("prometheus"));
         assertTrue(services.containsKey("grafana"));
+        assertTrue(services.containsKey("redis-exporter"));
+        assertTrue(services.containsKey("elasticsearch-exporter"));
         assertTrue(volumes.containsKey("prometheus-data"));
         assertTrue(volumes.containsKey("grafana-data"));
     }
@@ -55,9 +57,15 @@ class MonitoringConfigTest {
         assertTrue(jobNames.contains("shiqian-gateway"));
         assertTrue(jobNames.contains("shiqian-user"));
         assertTrue(jobNames.contains("shiqian-resource"));
+        assertTrue(jobNames.contains("redis"));
+        assertTrue(jobNames.contains("rabbitmq"));
+        assertTrue(jobNames.contains("elasticsearch"));
         assertTrue(targets.contains("host.docker.internal:8080"));
         assertTrue(targets.contains("host.docker.internal:8081"));
         assertTrue(targets.contains("host.docker.internal:8082"));
+        assertTrue(targets.contains("redis-exporter:9121"));
+        assertTrue(targets.contains("rabbitmq:15692"));
+        assertTrue(targets.contains("elasticsearch-exporter:9114"));
     }
 
     @Test
@@ -95,6 +103,34 @@ class MonitoringConfigTest {
         assertMetricCovered(expressions, "http_server_requests_seconds_bucket");
         assertMetricCovered(expressions, "http_server_requests_seconds_count");
         assertEquals(6, dashboard.get("panels").size());
+    }
+
+    @Test
+    void shouldCoverBusinessMetricsAndAlertRules() throws IOException {
+        JsonNode dashboard = OBJECT_MAPPER.readTree(ROOT.resolve(
+                "docker/grafana/dashboards/shiqian-business.json").toFile());
+        List<String> expressions = StreamSupport.stream(
+                        dashboard.get("panels").spliterator(), false)
+                .flatMap(panel -> StreamSupport.stream(
+                        panel.get("targets").spliterator(), false))
+                .map(target -> target.get("expr").asText())
+                .toList();
+        for (String metric : List.of(
+                "resource_publish_total",
+                "resource_audit_total",
+                "resource_audit_reject_total",
+                "resource_search_total",
+                "resource_search_empty_total",
+                "resource_download_total",
+                "resource_upload_failure_total",
+                "rabbitmq_consume_failure_total",
+                "elasticsearch_sync_failure_total")) {
+            assertMetricCovered(expressions, metric);
+        }
+
+        Map<String, Object> alerts = loadYaml(
+                ROOT.resolve("docker/prometheus/alerts.yml"));
+        assertTrue(asObjectList(alerts.get("groups")).size() > 0);
     }
 
     private static Map<String, Object> loadYaml(Path path) throws IOException {

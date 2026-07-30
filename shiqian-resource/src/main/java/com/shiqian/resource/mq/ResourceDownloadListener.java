@@ -2,6 +2,7 @@ package com.shiqian.resource.mq;
 
 import com.shiqian.resource.config.RabbitMQConfig;
 import com.shiqian.resource.dto.ResourceDownloadMessage;
+import com.shiqian.resource.monitoring.ResourceBusinessMetrics;
 import com.shiqian.resource.service.ResourceMessageProcessingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Component;
 public class ResourceDownloadListener {
 
     private final ResourceMessageProcessingService processingService;
+    private final ResourceBusinessMetrics businessMetrics;
 
     @RabbitListener(queues = RabbitMQConfig.RESOURCE_DOWNLOAD_QUEUE)
     public void onDownloadMessage(ResourceDownloadMessage message) {
@@ -30,8 +32,10 @@ public class ResourceDownloadListener {
                     message != null ? message.getResourceId() : null,
                     exception);
             if (exception instanceof RuntimeException runtimeException) {
+                businessMetrics.rabbitConsumeFailed();
                 throw runtimeException;
             }
+            businessMetrics.rabbitConsumeFailed();
             throw new IllegalStateException("资源下载消息消费失败", exception);
         }
     }

@@ -21,6 +21,12 @@ spring:
     username: ${RESOURCE_DB_USER:root}
     password: ${RESOURCE_DB_PASSWORD:${MYSQL_ROOT_PASSWORD}}
     driver-class-name: com.mysql.cj.jdbc.Driver
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 4
+    validate-migration-naming: true
   elasticsearch:
     uris: http://localhost:9200
     connection-timeout: 5s
@@ -67,6 +73,13 @@ spring:
       max-request-size: 500MB
 
 resource:
+  counter:
+    enabled: ${RESOURCE_COUNTER_ENABLED:true}
+    flush-interval-ms: ${RESOURCE_COUNTER_FLUSH_INTERVAL_MS:10000}
+    flush-initial-delay-ms: ${RESOURCE_COUNTER_FLUSH_INITIAL_DELAY_MS:10000}
+    view-dedup-ttl: ${RESOURCE_VIEW_DEDUP_TTL:30m}
+    scan-batch-size: ${RESOURCE_COUNTER_SCAN_BATCH_SIZE:100}
+    batch-retention: ${RESOURCE_COUNTER_BATCH_RETENTION:7d}
   user-client:
     url: ${USER_SERVICE_URL:}
     service-key: ${INTERNAL_SERVICE_KEY:}

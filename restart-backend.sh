@@ -10,6 +10,7 @@ fi
 
 : "${MYSQL_ROOT_PASSWORD:?请先复制 .env.example 为 .env 并设置 MYSQL_ROOT_PASSWORD}"
 : "${JWT_SECRET:?请在 .env 中设置 JWT_SECRET}"
+: "${REDIS_PASSWORD:?请在 .env 中设置 REDIS_PASSWORD}"
 : "${RABBITMQ_USER:?请在 .env 中设置 RABBITMQ_USER}"
 : "${RABBITMQ_PASSWORD:?请在 .env 中设置 RABBITMQ_PASSWORD}"
 

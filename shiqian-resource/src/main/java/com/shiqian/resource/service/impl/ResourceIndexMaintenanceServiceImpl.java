@@ -7,6 +7,7 @@ import com.shiqian.resource.document.ResourceDocumentMapper;
 import com.shiqian.resource.dto.IndexConsistencyVO;
 import com.shiqian.resource.entity.Resource;
 import com.shiqian.resource.mapper.ResourceMapper;
+import com.shiqian.resource.monitoring.ResourceBusinessMetrics;
 import com.shiqian.resource.repository.ResourceDocumentRepository;
 import com.shiqian.resource.service.AuthorEnrichmentService;
 import com.shiqian.resource.service.ResourceIndexMaintenanceService;
@@ -33,6 +34,7 @@ public class ResourceIndexMaintenanceServiceImpl
     private final ResourceDocumentMapper documentMapper;
     private final ResourceTaxonomyService taxonomyService;
     private final AuthorEnrichmentService authorEnrichmentService;
+    private final ResourceBusinessMetrics businessMetrics;
 
     @Override
     public long rebuildIndex() {
@@ -101,6 +103,7 @@ public class ResourceIndexMaintenanceServiceImpl
                         result.getOrphanDocumentIds().size());
             }
         } catch (Exception exception) {
+            businessMetrics.elasticsearchSyncFailed();
             log.error("资源索引一致性检查失败", exception);
         }
     }

@@ -14,6 +14,8 @@ spring:
     init:
       mode: always
       schema-locations: classpath:schema-test.sql
+  flyway:
+    enabled: false
 
   data:
     redis:
@@ -42,6 +44,8 @@ jwt:
   refresh-token-expiration: 604800000
 
 resource:
+  counter:
+    enabled: false
   messaging:
     outbox:
       enabled: false

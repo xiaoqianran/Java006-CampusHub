@@ -14,12 +14,15 @@ import com.shiqian.resource.dto.ResourceUpdateDTO;
 import com.shiqian.resource.dto.ResourceVersionVO;
 import com.shiqian.resource.dto.ResourceReviewDTO;
 import com.shiqian.resource.entity.Resource;
+import com.shiqian.resource.monitoring.ResourceBusinessMetrics;
 import com.shiqian.resource.service.FavoriteService;
 import com.shiqian.resource.service.ResourceSearchService;
 import com.shiqian.resource.service.ResourceService;
 import com.shiqian.resource.service.ResourceVersionService;
 import com.shiqian.resource.service.ResourceMessagePublisher;
 import com.shiqian.resource.service.ResourceIndexMaintenanceService;
+import com.shiqian.resource.service.ResourceCounterService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -60,6 +63,8 @@ public class ResourceController {
     private final ResourceMessagePublisher messagePublisher;
     private final ResourceVersionService resourceVersionService;
     private final ResourceIndexMaintenanceService indexMaintenanceService;
+    private final ResourceBusinessMetrics businessMetrics;
+    private final ResourceCounterService counterService;
 
     @Operation(summary = "创建资源")
     @PostMapping
@@ -71,6 +76,7 @@ public class ResourceController {
             return Result.fail(401, "未登录");
         }
         Resource resource = resourceService.createResource(userId, dto);
+        businessMetrics.published();
         return Result.ok(resource.getId());
     }
 
@@ -270,9 +276,13 @@ public class ResourceController {
     @Operation(summary = "记录资源浏览次数（支持匿名访问，详情页加载后调用）")
     @PostMapping("/{id}/view")
     @DistributedRateLimit(name = "resource:view", limit = 120, windowSeconds = 60)
-    public Result<Void> viewResource(@PathVariable @Positive Long id) {
-        // 直接更新计数（与下载不同，不使用MQ），不要求登录；存在性由service校验
-        resourceService.incrementViewCount(id);
+    public Result<Void> viewResource(
+            @PathVariable @Positive Long id,
+            HttpServletRequest request) {
+        counterService.recordView(
+                id,
+                SecurityUtil.getCurrentUserId(),
+                clientIp(request));
         return Result.ok();
     }
 
@@ -341,6 +351,7 @@ public class ResourceController {
                         resource.getId(), java.util.Map.of())));
         Page<Resource> result = new Page<>(page, size, searchResult.getTotalElements());
         result.setRecords(resources);
+        businessMetrics.searched(searchResult.isEmpty());
         return Result.ok(result);
     }
 
@@ -379,6 +390,19 @@ public class ResourceController {
             // 兼容旧客户端的 ?status= 请求方式。
             resourceService.auditResource(id, status, operatorId);
         }
+        Integer reviewedStatus = reviewDTO != null && reviewDTO.getStatus() != null
+                ? reviewDTO.getStatus()
+                : status;
+        businessMetrics.audited(
+                reviewedStatus != null && reviewedStatus >= 2);
         return Result.ok();
+    }
+
+    private String clientIp(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (org.springframework.util.StringUtils.hasText(forwarded)) {
+            return forwarded.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 }

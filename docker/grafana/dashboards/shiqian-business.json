@@ -1,0 +1,126 @@
+{
+  "uid": "shiqian-business",
+  "title": "CampusHub Business and Infrastructure",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "timezone": "browser",
+  "tags": ["campushub", "business", "infrastructure"],
+  "time": {"from": "now-6h", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Published Resources (1h)",
+      "gridPos": {"h": 5, "w": 4, "x": 0, "y": 0},
+      "targets": [{"expr": "increase(resource_publish_total[1h])", "legendFormat": "published"}]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Audits / Rejects (1h)",
+      "gridPos": {"h": 5, "w": 5, "x": 4, "y": 0},
+      "targets": [
+        {"expr": "increase(resource_audit_total[1h])", "legendFormat": "audits"},
+        {"expr": "increase(resource_audit_reject_total[1h])", "legendFormat": "rejected"}
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Search / Empty (1h)",
+      "gridPos": {"h": 5, "w": 5, "x": 9, "y": 0},
+      "targets": [
+        {"expr": "increase(resource_search_total[1h])", "legendFormat": "searches"},
+        {"expr": "increase(resource_search_empty_total[1h])", "legendFormat": "empty"}
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Downloads (1h)",
+      "gridPos": {"h": 5, "w": 4, "x": 14, "y": 0},
+      "targets": [{"expr": "increase(resource_download_total[1h])", "legendFormat": "downloads"}]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Failure Counters (1h)",
+      "gridPos": {"h": 5, "w": 6, "x": 18, "y": 0},
+      "targets": [
+        {"expr": "increase(resource_upload_failure_total[1h])", "legendFormat": "upload"},
+        {"expr": "increase(rabbitmq_consume_failure_total[1h])", "legendFormat": "rabbit"},
+        {"expr": "increase(elasticsearch_sync_failure_total[1h])", "legendFormat": "es"}
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Business Throughput",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
+      "targets": [
+        {"expr": "rate(resource_publish_total[5m])", "legendFormat": "publish/s"},
+        {"expr": "rate(resource_search_total[5m])", "legendFormat": "search/s"},
+        {"expr": "rate(resource_download_total[5m])", "legendFormat": "download/s"}
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "RabbitMQ Queue Backlog",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 5},
+      "targets": [
+        {"expr": "rabbitmq_queue_messages_ready", "legendFormat": "{{queue}} ready"},
+        {"expr": "rabbitmq_queue_messages", "legendFormat": "{{queue}} app gauge"}
+      ]
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Infrastructure Up",
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 13},
+      "targets": [{"expr": "up{job=~\"redis|rabbitmq|elasticsearch\"}", "legendFormat": "{{job}}"}]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Redis Memory",
+      "gridPos": {"h": 6, "w": 8, "x": 8, "y": 13},
+      "targets": [{"expr": "redis_memory_used_bytes", "legendFormat": "used"}],
+      "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []}
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Elasticsearch Documents",
+      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 13},
+      "targets": [{"expr": "elasticsearch_indices_docs", "legendFormat": "{{name}}"}]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Database Pool Usage",
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 19},
+      "targets": [
+        {"expr": "hikaricp_connections_active", "legendFormat": "{{application}} active"},
+        {"expr": "hikaricp_connections_max", "legendFormat": "{{application}} max"}
+      ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "HTTP P95 and 5xx Rate",
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 19},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (application, le) (rate(http_server_requests_seconds_bucket[5m])))",
+          "legendFormat": "{{application}} p95"
+        },
+        {
+          "expr": "sum by (application) (rate(http_server_requests_seconds_count{status=~\"5..\"}[5m]))",
+          "legendFormat": "{{application}} 5xx/s"
+        }
+      ]
+    }
+  ]
+}
