@@ -8,6 +8,7 @@ import com.shiqian.resource.entity.Resource;
 import com.shiqian.resource.mapper.FavoriteMapper;
 import com.shiqian.resource.mapper.ResourceMapper;
 import com.shiqian.resource.service.FavoriteService;
+import com.shiqian.resource.service.AuthorEnrichmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,6 +27,7 @@ public class FavoriteServiceImpl implements FavoriteService {
 
     private final FavoriteMapper favoriteMapper;
     private final ResourceMapper resourceMapper;
+    private final AuthorEnrichmentService authorEnrichmentService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -90,7 +92,7 @@ public class FavoriteServiceImpl implements FavoriteService {
                 .map(resourceMap::get)
                 .filter(resource -> resource != null)
                 .collect(Collectors.toList());
-        Resource.enrichAuthors(recs);
+        authorEnrichmentService.enrich(recs);
 
         if ("hottest".equals(sort)) {
             recs.sort((a, b) -> {

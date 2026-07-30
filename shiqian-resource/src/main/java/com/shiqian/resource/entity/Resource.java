@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 
 import java.time.LocalDateTime;
-import java.util.Collection;
 import java.util.List;
 
 @Data
@@ -77,15 +76,9 @@ public class Resource {
     @TableField(exist = false)
     private String authorNickname;
 
-    /**
-     * 跨服务用户查询接入前的安全占位；不再维护任何用户ID到昵称的硬编码映射。
-     */
-    public static void enrichAuthors(Collection<Resource> resources) {
-        if (resources == null) return;
-        for (Resource r : resources) {
-            if (r.getAuthorNickname() == null && r.getUserId() != null) {
-                r.setAuthorNickname("用户#" + r.getUserId());
-            }
-        }
-    }
+    @TableField(exist = false)
+    private String authorUsername;
+
+    @TableField(exist = false)
+    private String authorAvatar;
 }

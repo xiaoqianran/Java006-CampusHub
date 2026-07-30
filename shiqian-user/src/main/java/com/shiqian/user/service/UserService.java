@@ -7,6 +7,9 @@ import com.shiqian.user.dto.RegisterDTO;
 import com.shiqian.user.dto.UpdateUserDTO;
 import com.shiqian.user.dto.UserInfoVO;
 import com.shiqian.user.dto.ChangePasswordDTO;
+import com.shiqian.common.user.PublicUserProfile;
+
+import java.util.List;
 
 public interface UserService {
 
@@ -25,6 +28,8 @@ public interface UserService {
     void changePassword(Long userId, ChangePasswordDTO changePasswordDTO);
 
     UserInfoVO getUserInfo(Long userId);
+
+    List<PublicUserProfile> getPublicProfiles(List<Long> userIds);
 
     Page<UserInfoVO> pageUsers(Integer page, Integer size, String keyword);
 

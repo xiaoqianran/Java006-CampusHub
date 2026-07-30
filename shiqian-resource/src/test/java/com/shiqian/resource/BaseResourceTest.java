@@ -1,6 +1,7 @@
 package com.shiqian.resource;
 
 import com.shiqian.resource.repository.ResourceDocumentRepository;
+import com.shiqian.resource.client.UserPublicProfileClient;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -35,6 +36,9 @@ public abstract class BaseResourceTest {
 
     @MockBean
     protected AccessTokenVersionVerifier accessTokenVersionVerifier;
+
+    @MockBean
+    protected UserPublicProfileClient userPublicProfileClient;
 
     @Autowired(required = false)
     protected CacheManager cacheManager;

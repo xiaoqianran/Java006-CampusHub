@@ -21,6 +21,7 @@ import com.shiqian.resource.mapper.ResourceMapper;
 import com.shiqian.resource.event.ResourceAuditCommittedEvent;
 import com.shiqian.resource.event.ResourceIndexEvent;
 import com.shiqian.resource.service.AdminLogService;
+import com.shiqian.resource.service.AuthorEnrichmentService;
 import com.shiqian.resource.service.CategoryService;
 import com.shiqian.resource.service.ResourceService;
 
@@ -60,6 +61,7 @@ public class ResourceServiceImpl implements ResourceService {
     private final ApplicationEventPublisher eventPublisher;
     private final SensitiveWordFilter sensitiveWordFilter;
     private final AdminLogService adminLogService;
+    private final AuthorEnrichmentService authorEnrichmentService;
 
     @Override
     @CacheEvict(
@@ -129,7 +131,7 @@ public class ResourceServiceImpl implements ResourceService {
             new QueryWrapper<ResourceAttachment>().eq("resource_id", id).orderByAsc("sort_order")
         );
         resource.setAttachments(attachments);
-        Resource.enrichAuthors(java.util.List.of(resource));
+        authorEnrichmentService.enrich(java.util.List.of(resource));
         return resource;
     }
 
@@ -156,7 +158,7 @@ public class ResourceServiceImpl implements ResourceService {
                 .map(resourcesById::get)
                 .filter(java.util.Objects::nonNull)
                 .toList();
-        Resource.enrichAuthors(ordered);
+        authorEnrichmentService.enrich(ordered);
         enrichAttachments(ordered);
         return ordered;
     }
@@ -406,7 +408,7 @@ public class ResourceServiceImpl implements ResourceService {
             wrapper.orderByDesc("create_time");
         }
         Page<Resource> result = resourceMapper.selectPage(pageParam, wrapper);
-        Resource.enrichAuthors(result.getRecords());
+        authorEnrichmentService.enrich(result.getRecords());
         enrichAttachments(result.getRecords());
         return result;
     }
@@ -450,7 +452,7 @@ public class ResourceServiceImpl implements ResourceService {
             wrapper.orderByDesc("create_time");
         }
         Page<Resource> result = resourceMapper.selectPage(pageParam, wrapper);
-        Resource.enrichAuthors(result.getRecords());
+        authorEnrichmentService.enrich(result.getRecords());
         enrichAttachments(result.getRecords());
         return result;
     }
@@ -459,7 +461,7 @@ public class ResourceServiceImpl implements ResourceService {
     public Page<Resource> pageRecycleResources(Integer page, Integer size, String keyword) {
         Page<Resource> pageParam = new Page<>(page, size);
         Page<Resource> result = resourceMapper.selectRecyclePage(pageParam, keyword);
-        Resource.enrichAuthors(result.getRecords());
+        authorEnrichmentService.enrich(result.getRecords());
         return result;
     }
 
@@ -477,7 +479,7 @@ public class ResourceServiceImpl implements ResourceService {
             wrapper.orderByDesc("create_time");
         }
         Page<Resource> result = resourceMapper.selectPage(pageParam, wrapper);
-        Resource.enrichAuthors(result.getRecords());
+        authorEnrichmentService.enrich(result.getRecords());
         enrichAttachments(result.getRecords());
         return result;
     }

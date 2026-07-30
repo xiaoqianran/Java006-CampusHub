@@ -6,6 +6,16 @@ spring:
     name: shiqian-resource
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:local}
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
+      client:
+        config:
+          shiqian-user:
+            connect-timeout: ${USER_CLIENT_CONNECT_TIMEOUT_MS:1000}
+            read-timeout: ${USER_CLIENT_READ_TIMEOUT_MS:2000}
+            logger-level: basic
   datasource:
     url: ${RESOURCE_DB_URL:jdbc:mysql://127.0.0.1:3306/shiqian_resource?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
     username: ${RESOURCE_DB_USER:root}
@@ -47,6 +57,9 @@ spring:
       max-request-size: 500MB
 
 resource:
+  user-client:
+    url: ${USER_SERVICE_URL:}
+    service-key: ${INTERNAL_SERVICE_KEY:}
   cache:
     default-ttl: ${CACHE_DEFAULT_TTL:15m}
     resource-detail-ttl: ${CACHE_RESOURCE_DETAIL_TTL:20m}

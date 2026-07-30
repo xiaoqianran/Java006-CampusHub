@@ -16,6 +16,10 @@ spring:
       password: ${REDIS_PASSWORD:}
       database: ${REDIS_DATABASE:0}
 
+campushub:
+  internal:
+    service-key: ${INTERNAL_SERVICE_KEY:}
+
 mybatis-plus:
   mapper-locations: classpath*:mapper/**/*.xml
   configuration:

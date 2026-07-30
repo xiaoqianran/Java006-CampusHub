@@ -15,6 +15,7 @@ import com.shiqian.user.service.UserService;
 import com.shiqian.user.service.TokenSessionService;
 import com.shiqian.common.security.JwtUtil;
 import com.shiqian.common.security.RoleEnum;
+import com.shiqian.common.user.PublicUserProfile;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -22,6 +23,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.transaction.annotation.Transactional;
 import io.jsonwebtoken.Claims;
+
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -225,6 +232,37 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(404, "用户不存在");
         }
         return toUserInfoVO(user);
+    }
+
+    @Override
+    public List<PublicUserProfile> getPublicProfiles(List<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return List.of();
+        }
+        List<Long> uniqueIds = new LinkedHashSet<>(userIds).stream()
+                .filter(id -> id != null && id > 0)
+                .limit(200)
+                .toList();
+        if (uniqueIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, User> usersById = userMapper.selectBatchIds(uniqueIds).stream()
+                .filter(user -> user.getDeleted() == null || user.getDeleted() == 0)
+                .collect(Collectors.toMap(User::getId, Function.identity()));
+        return uniqueIds.stream()
+                .map(usersById::get)
+                .filter(java.util.Objects::nonNull)
+                .map(this::toPublicUserProfile)
+                .toList();
+    }
+
+    private PublicUserProfile toPublicUserProfile(User user) {
+        return new PublicUserProfile(
+                user.getId(),
+                user.getUsername(),
+                user.getNickname(),
+                user.getAvatar());
     }
 
     @Override

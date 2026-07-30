@@ -29,6 +29,10 @@ jwt:
   access-token-expiration: 7200000
   refresh-token-expiration: 604800000
 
+campushub:
+  internal:
+    service-key: test-only-internal-service-key
+
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
