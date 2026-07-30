@@ -91,9 +91,18 @@ describe('app store - critical recent methods', () => {
     const store = useAppStore()
     store.keyword = 'Java'
 
-    await store.searchResources()
+    await store.searchResources({ page: 2, size: 24, scene: 'GALLERY' })
 
     expect(vi.mocked(request)).toHaveBeenCalledTimes(1)
     expect(vi.mocked(request).mock.calls[0][0]).toBe('/api/resource')
+    expect(vi.mocked(request).mock.calls[0][1]).toMatchObject({
+      query: {
+        keyword: 'Java',
+        page: 2,
+        size: 24,
+        scene: 'GALLERY'
+      }
+    })
+    expect(store.searchResultTotal).toBe(2)
   })
 })

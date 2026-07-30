@@ -266,6 +266,8 @@ export const useAppStore = defineStore('app', () => {
   const favoriteIds = ref<number[]>([])
   const myResourceIds = ref<number[]>([])
   const searchResultIds = ref<number[] | null>(null)
+  const searchResultTotal = ref(0)
+  const searchLoading = ref(false)
 
   let categoriesLoadedAt = 0
   let categoriesInFlight: Promise<void> | null = null
@@ -532,34 +534,41 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  async function searchResources(params: { sort?: string, scene?: ContentSceneFilter } = {}) {
+  async function searchResources(params: {
+    sort?: string
+    scene?: ContentSceneFilter
+    page?: number
+    size?: number
+  } = {}) {
     searchAbortController?.abort()
     const sequence = ++searchSequence
     const text = keyword.value.trim()
     const sort = params.sort ?? sortMode.value
     const scene = params.scene ?? activeScene.value
     const requestedScene = scene === 'ALL' ? undefined : scene
-    if (!text) {
-      searchResultIds.value = null
-      await loadResources({ sort, scene: requestedScene })
-      return
-    }
+    const page = params.page ?? 1
+    const size = params.size ?? 24
 
     const controller = new AbortController()
     searchAbortController = controller
+    searchLoading.value = true
     try {
       const data = await request<PageResult<ResourceApiItem>>('/api/resource', {
-        query: { keyword: text, page: 1, size: 100, sort, scene: requestedScene },
+        query: { keyword: text, page, size, sort, scene: requestedScene },
         signal: controller.signal
       })
       if (sequence !== searchSequence) return
       searchResultIds.value = data.records.map(item => item.id)
+      searchResultTotal.value = data.total
       mergeResources(data.records)
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return
       throw error
     } finally {
-      if (searchAbortController === controller) searchAbortController = null
+      if (searchAbortController === controller) {
+        searchAbortController = null
+        searchLoading.value = false
+      }
     }
   }
 
@@ -567,6 +576,7 @@ export const useAppStore = defineStore('app', () => {
     searchSequence += 1
     searchAbortController?.abort()
     searchAbortController = null
+    searchLoading.value = false
   }
 
   async function loadResourceDetail(id: number, options: ResourceDetailLoadOptions = {}) {
@@ -1087,6 +1097,8 @@ export const useAppStore = defineStore('app', () => {
     keyword,
     sortMode,
     loading,
+    searchLoading,
+    searchResultTotal,
     categoryTree,
     flatCategories,
     categories,

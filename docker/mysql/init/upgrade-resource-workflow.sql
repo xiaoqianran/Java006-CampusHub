@@ -41,6 +41,38 @@ BEGIN
     END IF;
 
     IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = 'shiqian_resource'
+          AND TABLE_NAME = 't_resource'
+          AND COLUMN_NAME = 'external_source'
+    ) THEN
+        ALTER TABLE `t_resource`
+            ADD COLUMN `external_source` VARCHAR(50) DEFAULT NULL
+                COMMENT '外部内容来源' AFTER `tags`;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = 'shiqian_resource'
+          AND TABLE_NAME = 't_resource'
+          AND COLUMN_NAME = 'external_id'
+    ) THEN
+        ALTER TABLE `t_resource`
+            ADD COLUMN `external_id` VARCHAR(128) DEFAULT NULL
+                COMMENT '外部来源唯一标识' AFTER `external_source`;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = 'shiqian_resource'
+          AND TABLE_NAME = 't_resource'
+          AND INDEX_NAME = 'uk_external_content'
+    ) THEN
+        ALTER TABLE `t_resource`
+            ADD UNIQUE INDEX `uk_external_content` (`external_source`, `external_id`);
+    END IF;
+
+    IF NOT EXISTS (
         SELECT 1 FROM information_schema.STATISTICS
         WHERE TABLE_SCHEMA = 'shiqian_resource'
           AND TABLE_NAME = 't_resource'

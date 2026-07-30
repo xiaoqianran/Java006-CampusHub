@@ -31,6 +31,10 @@ public class Resource {
 
     private String tags;          // 可选，自由标签，逗号分隔
 
+    private String externalSource; // 外部导入来源，例如 JIMENG
+
+    private String externalId;     // 外部来源内的唯一标识
+
     @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private Long categoryId;
 

@@ -9,6 +9,8 @@ const store = useAppStore()
 const route = useRoute()
 const router = useRouter()
 const ready = ref(false)
+const currentPage = ref(1)
+const PAGE_SIZE = 24
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 
 function queryValue(value: unknown) {
@@ -39,6 +41,10 @@ function applyRouteFilters() {
   store.keyword = queryValue(route.query.keyword)
   store.activeScene = currentScene.value
   store.sortMode = route.query.sort === 'hottest' ? 'hottest' : 'newest'
+  const requestedPage = Number(queryValue(route.query.page))
+  currentPage.value = Number.isInteger(requestedPage) && requestedPage > 0
+    ? requestedPage
+    : 1
 }
 
 function filterQuery() {
@@ -46,14 +52,20 @@ function filterQuery() {
   const keyword = store.keyword.trim()
   if (keyword) query.keyword = keyword
   if (store.sortMode === 'hottest') query.sort = 'hottest'
+  if (currentPage.value > 1) query.page = String(currentPage.value)
   return query
 }
 
 async function runSearch() {
   try {
-    await store.searchResources({ sort: store.sortMode, scene: currentScene.value })
+    await store.searchResources({
+      sort: store.sortMode,
+      scene: currentScene.value,
+      page: currentPage.value,
+      size: PAGE_SIZE
+    })
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '资源加载失败')
+    ElMessage.error(error instanceof Error ? error.message : '内容加载失败')
   }
 }
 
@@ -68,6 +80,19 @@ function scheduleSearch() {
 function resetFilters() {
   store.keyword = ''
   store.sortMode = 'newest'
+  updateFilters()
+}
+
+function updateFilters() {
+  currentPage.value = 1
+  void router.replace({ path: route.path, query: filterQuery() })
+  scheduleSearch()
+}
+
+function changePage(page: number) {
+  currentPage.value = page
+  void router.replace({ path: route.path, query: filterQuery() })
+  scheduleSearch()
 }
 
 applyRouteFilters()
@@ -86,12 +111,6 @@ watch(() => [route.path, route.query], () => {
   if (ready.value) scheduleSearch()
 }, { deep: true })
 
-watch(() => [store.keyword, store.sortMode], () => {
-  if (!ready.value) return
-  void router.replace({ path: route.path, query: filterQuery() })
-  scheduleSearch()
-})
-
 onUnmounted(() => {
   if (searchTimer) clearTimeout(searchTimer)
   store.cancelResourceSearch()
@@ -106,13 +125,19 @@ onUnmounted(() => {
         <h1>{{ pageInfo.title }}</h1>
         <p class="sub">{{ pageInfo.description }}</p>
       </div>
-      <span class="result-count">共 {{ store.filteredResources.length }} 个结果</span>
+      <span class="result-count">共 {{ store.searchResultTotal }} 个结果</span>
     </div>
 
     <div class="filter-panel">
       <div class="toolbar">
-        <el-input v-model="store.keyword" clearable :placeholder="pageInfo.search" class="resource-search" />
-        <el-select v-model="store.sortMode" class="sort-select">
+        <el-input
+          v-model="store.keyword"
+          clearable
+          :placeholder="pageInfo.search"
+          class="resource-search"
+          @input="updateFilters"
+        />
+        <el-select v-model="store.sortMode" class="sort-select" @change="updateFilters">
           <el-option label="最新发布" value="newest" />
           <el-option label="热门优先" value="hottest" />
         </el-select>
@@ -120,12 +145,22 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div v-loading="store.loading" class="resource-results">
+    <div v-loading="store.searchLoading" class="resource-results">
       <div v-if="store.filteredResources.length" class="resource-grid">
         <ResourceCard v-for="item in store.filteredResources" :key="item.id" :item="item" />
       </div>
-      <el-empty v-else-if="!store.loading" description="暂无匹配资源" />
+      <el-empty v-else-if="!store.searchLoading" description="暂无匹配内容" />
     </div>
+    <el-pagination
+      v-if="store.searchResultTotal > PAGE_SIZE"
+      class="content-pagination"
+      background
+      layout="prev, pager, next"
+      :current-page="currentPage"
+      :page-size="PAGE_SIZE"
+      :total="store.searchResultTotal"
+      @current-change="changePage"
+    />
   </section>
 </template>
 
@@ -159,6 +194,11 @@ onUnmounted(() => {
 
 .resource-results {
   min-height: 160px;
+}
+
+.content-pagination {
+  justify-content: center;
+  margin-top: 26px;
 }
 
 @media (max-width: 560px) {

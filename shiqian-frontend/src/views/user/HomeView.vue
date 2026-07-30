@@ -79,7 +79,7 @@ function viewAllResources() {
           <b>{{ channel.label }}</b>
           <small>{{ channel.description }}</small>
         </span>
-        <strong>{{ store.publishedResources.filter(item => item.scene === channel.value).length }}</strong>
+        <strong>进入</strong>
       </button>
     </div>
   </section>

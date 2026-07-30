@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS t_resource (
     content_type VARCHAR(30) DEFAULT 'ARTICLE' COMMENT '内容类型 ARTICLE/FILE/MIXED',
     content_scene VARCHAR(30) NOT NULL DEFAULT 'SHARE' COMMENT '内容频道 BLOG/GALLERY/SHARE',
     tags VARCHAR(500) DEFAULT NULL COMMENT '可选自由标签，逗号分隔',
+    external_source VARCHAR(50) DEFAULT NULL COMMENT '外部内容来源',
+    external_id VARCHAR(128) DEFAULT NULL COMMENT '外部来源唯一标识',
     category_id BIGINT DEFAULT NULL COMMENT '分类ID',
     file_url VARCHAR(500) DEFAULT NULL COMMENT '文件地址（可选，文字资源可为空）',
     file_size BIGINT NOT NULL DEFAULT 0 COMMENT '文件大小（字节）',
@@ -32,6 +34,7 @@ CREATE TABLE IF NOT EXISTS t_resource (
     update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除（0=正常, 1=已删除）',
     PRIMARY KEY (id),
+    UNIQUE KEY uk_external_content (external_source, external_id),
     INDEX idx_user_id (user_id),
     INDEX idx_content_scene (content_scene),
     INDEX idx_category_id (category_id)
