@@ -7,28 +7,16 @@ import lombok.NoArgsConstructor;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
-/**
- * 资源下载消息
- */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class ResourceDownloadMessage implements Serializable {
+public class ResourceIndexMessage implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
     private String messageId;
-
+    private Long eventId;
+    private String eventType;
     private Long resourceId;
-
-    private Long userId;
-
-    private LocalDateTime timestamp;
-
-    public ResourceDownloadMessage(
-            Long resourceId,
-            Long userId,
-            LocalDateTime timestamp) {
-        this(null, resourceId, userId, timestamp);
-    }
+    private LocalDateTime occurredAt;
 }

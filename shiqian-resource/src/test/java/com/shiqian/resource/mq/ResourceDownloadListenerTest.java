@@ -10,6 +10,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import java.time.LocalDateTime;
 
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 
 /**
  * 资源下载消息监听器测试
@@ -24,8 +25,10 @@ class ResourceDownloadListenerTest extends BaseResourceTest {
 
     @Test
     void shouldHandleDownloadMessage() {
-        ResourceDownloadMessage message = new ResourceDownloadMessage(1L, 2L, LocalDateTime.now());
+        ResourceDownloadMessage message = new ResourceDownloadMessage(
+                java.util.UUID.randomUUID().toString(), 1L, 2L, LocalDateTime.now());
         resourceDownloadListener.onDownloadMessage(message);
-        verify(resourceService).incrementDownloadCount(1L);
+        resourceDownloadListener.onDownloadMessage(message);
+        verify(resourceService, times(1)).incrementDownloadCount(1L);
     }
 }

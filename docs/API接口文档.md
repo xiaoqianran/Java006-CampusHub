@@ -289,8 +289,9 @@ Spring Security 每次认证读取共享 Redis 权限快照，缓存未命中时
 1. 敏感词过滤（title + description）
 2. 校验分类存在
 3. 写入 t_resource，status=0（待审核）、version=1、downloadCount=0
-4. 同步写入 Elasticsearch（index: `resource`）
-5. 清除相关缓存
+4. 在同一 MySQL 事务写入 `t_outbox_event`
+5. Outbox 发布器异步投递 `resource.index`，消费者按资源 ID 覆盖或删除 ES 文档
+6. 清除相关缓存
 
 #### 6.1.2 分页查询资源列表
 
@@ -334,8 +335,8 @@ Spring Security 每次认证读取共享 Redis 权限快照，缓存未命中时
 **业务逻辑**：
 - 敏感词校验 + 分类校验
 - version 自增
-- 同步更新 Elasticsearch
-- **当前未校验资源归属**（持有 update 权限即可修改任意资源）
+- 同事务写入 `RESOURCE_UPDATED` Outbox 事件，提交后异步更新 Elasticsearch
+- Service 校验资源归属；具备 `resource:audit` 权限的管理员也可维护
 
 #### 6.1.5 删除资源
 
@@ -359,9 +360,10 @@ Spring Security 每次认证读取共享 Redis 权限快照，缓存未命中时
 **实现**：
 - 立即返回 200
 - 向 RabbitMQ 发送 `resource.download` 消息
-- 消费者异步执行 `download_count + 1`
+- 消费者异步执行 `download_count + 1`，并写入索引更新 Outbox 事件
 
-**幂等性**：消费者未做严格幂等，短时间内重复下载会多次计数。
+**幂等性**：每次下载消息包含 UUID `messageId`；消费者先写
+`t_mq_consumed_message` 唯一记录，同一消息重复投递只计数一次。用户主动发起新的下载仍会正常计数。
 
 #### 6.1.7 收藏资源
 
@@ -407,7 +409,7 @@ Spring Security 每次认证读取共享 Redis 权限快照，缓存未命中时
 
 **返回**：`Page<ResourceDocument>`（字段较少，无 downloadCount、createTime 等）
 
-**注意**：搜索结果**不区分 status**，待审核资源也可能被搜到。
+**注意**：搜索固定过滤 `status=1`，只返回已审核发布资源。
 
 #### 6.1.11 审核资源（管理员）
 
@@ -423,7 +425,9 @@ Spring Security 每次认证读取共享 Redis 权限快照，缓存未命中时
 
 **副作用**：
 - 更新 MySQL status
-- 发送 `resource.audit` 消息到 RabbitMQ（当前消费者仅记录日志）
+- 同事务写入 `RESOURCE_AUDITED` Outbox 事件
+- 提交后分别发送索引同步与审核结果通知消息
+- 通知消费者将结果幂等写入 `t_user_notification`
 
 ---
 
@@ -523,6 +527,9 @@ Spring Security 每次认证读取共享 Redis 权限快照，缓存未命中时
 - **t_resource**：资源主表（含 download_count、status、version）
 - **t_category**：多级分类（parent_id=0 为根）
 - **t_favorite**：用户收藏（user_id + resource_id 唯一）
+- **t_outbox_event**：资源领域事件、发布状态与有限重试信息
+- **t_mq_consumed_message**：按消息 ID + 消费者名称去重
+- **t_user_notification**：审核结果通知持久化
 
 ---
 
@@ -544,8 +551,12 @@ Spring Security 每次认证读取共享 Redis 权限快照，缓存未命中时
 
 | RoutingKey       | Queue                    | 生产者             | 消费者                  | 用途               |
 |------------------|--------------------------|--------------------|-------------------------|--------------------|
-| resource.download| resource.download.queue  | 下载接口           | ResourceDownloadListener| 异步 +1 下载次数   |
-| resource.audit   | resource.audit.queue     | 审核接口           | ResourceAuditListener   | 审核通知（当前仅日志） |
+| resource.index   | resource.index.queue     | OutboxPublisher    | ResourceIndexListener   | 按 MySQL 当前状态同步 ES |
+| resource.audit   | resource.audit.queue     | OutboxPublisher    | ResourceAuditListener   | 持久化审核结果通知 |
+| resource.download| resource.download.queue  | 下载接口           | ResourceDownloadListener| 幂等增加下载次数   |
+
+三个主队列均绑定 `resource.dlx`，消费失败在 3 次有限重试后进入各自 DLQ。
+Outbox 发布失败采用指数退避定时补偿，达到上限后转为 `DEAD`，不会无限重试。
 
 ---
 
@@ -557,12 +568,11 @@ Spring Security 每次认证读取共享 Redis 权限快照，缓存未命中时
 - title / description（text，standard analyzer）
 - categoryId、userId、fileType、status（keyword / long / integer）
 
-**同步时机**：
-- 创建资源时立即写入
-- 更新资源时覆盖
-- 删除资源时删除文档
-
-**当前局限**：搜索接口不强制过滤 status=1。
+**同步机制**：
+- 资源事务写入 Outbox，不在 MySQL 事务中访问 Elasticsearch
+- RabbitMQ 消费者按 `resourceId` 作为文档 ID 覆盖写入
+- 消费时重新读取 MySQL 当前状态；资源不存在、已删除或未发布时删除 ES 文档
+- ES 失败抛出异常触发有限重试与 DLQ，成功后才记录消费幂等标记
 
 ---
 

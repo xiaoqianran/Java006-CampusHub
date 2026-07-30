@@ -259,14 +259,17 @@ Prometheus + Grafana 监控
 
 | 交换机 | Routing Key | 队列 | 消息体 | 用途 |
 | --- | --- | --- | --- | --- |
-| `resource.topic.exchange` | `resource.download` | `resource.download.queue` | `resourceId`, `userId`, `timestamp` | 异步增加下载次数 |
-| `resource.topic.exchange` | `resource.audit` | `resource.audit.queue` | `resourceId`, `status`, `operatorId`, `timestamp` | 审核状态变更通知/后续扩展 |
+| `resource.topic` | `resource.index` | `resource.index.queue` | `messageId`, `eventId`, `eventType`, `resourceId` | 最终一致同步 Elasticsearch |
+| `resource.topic` | `resource.download` | `resource.download.queue` | `messageId`, `resourceId`, `userId`, `timestamp` | 幂等增加下载次数 |
+| `resource.topic` | `resource.audit` | `resource.audit.queue` | `messageId`, `resourceId`, `userId`, `status`, `reason` | 持久化审核结果通知 |
 
 设计原则：
 
 1. 下载接口只发送消息，不在主链路同步更新计数，降低接口响应时间。
-2. 消费端保证幂等，按资源 ID 更新下载计数。
-3. MQ 异常时记录错误日志，后续可接入死信队列和重试策略。
+2. 资源写事务同时写入 `t_outbox_event`，定时发布器使用发布确认和指数退避补偿。
+3. 消费端通过 `t_mq_consumed_message` 保证幂等；索引按资源 ID 覆盖写入。
+4. 三个主队列使用有限重试，耗尽后由 `resource.dlx` 路由到各自 DLQ。
+5. 队列消息数由 `rabbitmq.queue.messages{queue=...}` 指标监控。
 
 ## 9. 接口规范
 
@@ -683,22 +686,22 @@ Prometheus + Grafana 监控
 3. 敏感词过滤资源标题和描述。
 4. 写入 `t_resource`，默认 `status=0` 待审核，`version=1`。
 5. 删除相关缓存。
-6. 审核通过后同步到 Elasticsearch。
+6. 同事务写入 Outbox；提交后通过 RabbitMQ 最终一致同步 Elasticsearch。
 
 ### 11.4 资源搜索逻辑
 
 1. 普通分页查询优先使用 MySQL，支持分类和关键词条件。
 2. 全文搜索接口使用 Elasticsearch，对 `title`、`description` 做匹配。
 3. 搜索结果按相关度、发布时间、下载次数等维度排序。
-4. 对只允许展示审核通过资源的场景，需要追加 `status=1` 条件。
+4. 全文搜索固定追加 `status=1`，不会暴露待审核或下架资源。
 
 ### 11.5 下载统计逻辑
 
 1. 用户点击下载，接口构造 `ResourceDownloadMessage`。
 2. 生产者发送消息到 RabbitMQ。
 3. 消费者接收消息后校验资源是否存在。
-4. 异步更新 `download_count = download_count + 1`。
-5. 更新热门资源缓存或等待定时任务刷新。
+4. 以 `messageId + consumerName` 唯一键去重后异步更新 `download_count = download_count + 1`。
+5. 在同一事务写入索引更新 Outbox 事件并清理详情缓存。
 
 ### 11.6 收藏逻辑
 
@@ -846,4 +849,3 @@ mvn clean package -DskipTests
 | 搜索体验 | 支持高亮、分类聚合、文件类型筛选、热词推荐 |
 | 消息可靠性 | 增加消息确认、重试、死信队列和消费幂等表 |
 | 安全 | 增加接口限流、登录失败锁定、操作审计日志 |
-

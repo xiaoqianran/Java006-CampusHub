@@ -40,4 +40,5 @@ mysql -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" -p \
 
 - 新版本依赖 Redis 进行令牌会话校验；Redis 不可用时鉴权默认拒绝，属于安全失败关闭。
 - 历史 JWT 不包含令牌类型和版本，发布后需要用户重新登录。
-- 第一阶段的 Elasticsearch/RabbitMQ 提交后事件不能提供进程崩溃后的可靠重试；第五阶段完成 Outbox 后才具备最终一致性保障。
+- 第五阶段已用持久化 Outbox、RabbitMQ 有限重试与 DLQ 替换第一阶段的临时提交后事件；
+  当前事件可以在进程或中间件恢复后定时补偿。

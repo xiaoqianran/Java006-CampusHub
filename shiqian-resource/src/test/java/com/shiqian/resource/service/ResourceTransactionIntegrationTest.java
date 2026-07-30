@@ -7,6 +7,8 @@ import com.shiqian.resource.dto.ResourceCreateDTO;
 import com.shiqian.resource.dto.ResourceUpdateDTO;
 import com.shiqian.resource.entity.Resource;
 import com.shiqian.resource.entity.ResourceAttachment;
+import com.shiqian.resource.entity.OutboxEvent;
+import com.shiqian.resource.mapper.OutboxEventMapper;
 import com.shiqian.resource.mapper.ResourceAttachmentMapper;
 import com.shiqian.resource.mapper.ResourceMapper;
 import org.junit.jupiter.api.Test;
@@ -19,8 +21,6 @@ import java.util.ArrayList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
 
 class ResourceTransactionIntegrationTest extends BaseResourceTest {
 
@@ -30,11 +30,15 @@ class ResourceTransactionIntegrationTest extends BaseResourceTest {
     private ResourceMapper resourceMapper;
     @Autowired
     private ResourceAttachmentMapper attachmentMapper;
+    @Autowired
+    private OutboxEventMapper outboxEventMapper;
     private final List<Long> createdResourceIds = new ArrayList<>();
 
     @AfterEach
     void cleanUp() {
         for (Long resourceId : createdResourceIds) {
+            outboxEventMapper.delete(
+                    new QueryWrapper<OutboxEvent>().eq("aggregate_id", resourceId));
             attachmentMapper.delete(
                     new QueryWrapper<ResourceAttachment>().eq("resource_id", resourceId));
             resourceMapper.physicalDeleteById(resourceId);
@@ -83,10 +87,9 @@ class ResourceTransactionIntegrationTest extends BaseResourceTest {
     }
 
     @Test
-    void elasticsearchFailureAfterCommitMustNotRollbackMysql() {
-        when(resourceDocumentRepository.save(any())).thenThrow(new IllegalStateException("ES unavailable"));
+    void committedMysqlWriteMustLeaveDurableOutboxForLaterEsSynchronization() {
         ResourceCreateDTO dto = new ResourceCreateDTO();
-        dto.setTitle("ES失败不回滚-" + System.nanoTime());
+        dto.setTitle("Outbox持久补偿-" + System.nanoTime());
         dto.setContentMarkdown("正文");
 
         Resource saved = resourceService.createResource(11L, dto);
@@ -94,6 +97,11 @@ class ResourceTransactionIntegrationTest extends BaseResourceTest {
 
         assertEquals(1L, resourceMapper.selectCount(
                 new QueryWrapper<Resource>().eq("id", saved.getId())));
+        assertEquals(1L, outboxEventMapper.selectCount(
+                new QueryWrapper<OutboxEvent>()
+                        .eq("aggregate_id", saved.getId())
+                        .eq("event_type", "RESOURCE_CREATED")
+                        .eq("status", "PENDING")));
     }
 
     private AttachmentCreateDTO validAttachment() {

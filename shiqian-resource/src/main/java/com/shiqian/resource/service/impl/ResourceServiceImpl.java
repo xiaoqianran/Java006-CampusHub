@@ -8,7 +8,6 @@ import com.shiqian.common.exception.BusinessException;
 import com.shiqian.common.security.SecurityUtil;
 import com.shiqian.resource.cache.CacheNames;
 import org.springframework.security.access.prepost.PreAuthorize;
-import com.shiqian.resource.dto.ResourceAuditMessage;
 import com.shiqian.resource.dto.AttachmentCreateDTO;
 import com.shiqian.resource.dto.ResourceCreateDTO;
 import com.shiqian.resource.dto.ResourceUpdateDTO;
@@ -18,8 +17,9 @@ import com.shiqian.resource.entity.ResourceAttachment;
 import com.shiqian.resource.mapper.ResourceAttachmentMapper;
 import com.shiqian.resource.mapper.FavoriteMapper;
 import com.shiqian.resource.mapper.ResourceMapper;
-import com.shiqian.resource.event.ResourceAuditCommittedEvent;
-import com.shiqian.resource.event.ResourceIndexEvent;
+import com.shiqian.resource.outbox.OutboxEventType;
+import com.shiqian.resource.outbox.OutboxService;
+import com.shiqian.resource.outbox.ResourceEventPayload;
 import com.shiqian.resource.service.AdminLogService;
 import com.shiqian.resource.service.AuthorEnrichmentService;
 import com.shiqian.resource.service.CategoryService;
@@ -34,7 +34,6 @@ import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -58,7 +57,7 @@ public class ResourceServiceImpl implements ResourceService {
     private final ResourceAttachmentMapper resourceAttachmentMapper;
     private final CategoryService categoryService;
     private final FavoriteMapper favoriteMapper;
-    private final ApplicationEventPublisher eventPublisher;
+    private final OutboxService outboxService;
     private final SensitiveWordFilter sensitiveWordFilter;
     private final AdminLogService adminLogService;
     private final AuthorEnrichmentService authorEnrichmentService;
@@ -113,7 +112,10 @@ public class ResourceServiceImpl implements ResourceService {
             syncAttachments(resource.getId(), dto.getAttachments());
         }
 
-        eventPublisher.publishEvent(ResourceIndexEvent.upsert(resource.getId()));
+        outboxService.append(
+                OutboxEventType.RESOURCE_CREATED,
+                resource.getId(),
+                ResourceEventPayload.resource(resource.getId()));
         log.info("资源创建成功: id={}, title={}, userId={}, attachments={}", 
                  resource.getId(), resource.getTitle(), userId, 
                  dto.getAttachments() != null ? dto.getAttachments().size() : 0);
@@ -228,7 +230,10 @@ public class ResourceServiceImpl implements ResourceService {
             syncAttachments(id, dto.getAttachments());
         }
 
-        eventPublisher.publishEvent(ResourceIndexEvent.upsert(id));
+        outboxService.append(
+                OutboxEventType.RESOURCE_UPDATED,
+                id,
+                ResourceEventPayload.resource(id));
         log.info("资源更新成功: id={}, title={}, version={}, attachmentsProvided={}", 
                  id, resource.getTitle(), resource.getVersion(), dto.getAttachments() != null);
     }
@@ -245,7 +250,10 @@ public class ResourceServiceImpl implements ResourceService {
             throw new BusinessException(403, "无权删除该资源");
         }
         resourceMapper.deleteById(id);
-        eventPublisher.publishEvent(ResourceIndexEvent.delete(id));
+        outboxService.append(
+                OutboxEventType.RESOURCE_DELETED,
+                id,
+                ResourceEventPayload.resource(id));
         log.info("资源删除成功: id={}, userId={}", id, userId);
     }
 
@@ -261,6 +269,10 @@ public class ResourceServiceImpl implements ResourceService {
         wrapper.eq("id", id);
         wrapper.setSql("download_count = download_count + 1");
         resourceMapper.update(null, wrapper);
+        outboxService.append(
+                OutboxEventType.RESOURCE_UPDATED,
+                id,
+                ResourceEventPayload.resource(id));
         log.info("资源下载计数增加: id={}", id);
     }
 
@@ -335,10 +347,16 @@ public class ResourceServiceImpl implements ResourceService {
         };
         adminLogService.recordLog(operatorId, action, resourceId, normalizedReason);
 
-        ResourceAuditMessage message = new ResourceAuditMessage(
-                resourceId, status, operatorId, now);
-        eventPublisher.publishEvent(ResourceIndexEvent.upsert(resourceId));
-        eventPublisher.publishEvent(new ResourceAuditCommittedEvent(message));
+        outboxService.append(
+                OutboxEventType.RESOURCE_AUDITED,
+                resourceId,
+                ResourceEventPayload.audited(
+                        resourceId,
+                        existing.getUserId(),
+                        status,
+                        operatorId,
+                        normalizedReason,
+                        now));
         log.info("资源审核完成: resourceId={}, status={}, operatorId={}, reason={}",
                 resourceId, status, operatorId, normalizedReason);
     }
@@ -366,7 +384,10 @@ public class ResourceServiceImpl implements ResourceService {
                 .set("review_time", null);
         resourceMapper.update(null, update);
 
-        eventPublisher.publishEvent(ResourceIndexEvent.upsert(resourceId));
+        outboxService.append(
+                OutboxEventType.RESOURCE_UPDATED,
+                resourceId,
+                ResourceEventPayload.resource(resourceId));
         log.info("资源重新提交成功: id={}, userId={}", resourceId, userId);
     }
 
@@ -607,7 +628,10 @@ public class ResourceServiceImpl implements ResourceService {
         }
         Long operatorId = SecurityUtil.getCurrentUserId();
         adminLogService.recordLog(operatorId, "RESOURCE_RESTORE", id, null);
-        eventPublisher.publishEvent(ResourceIndexEvent.upsert(id));
+        outboxService.append(
+                OutboxEventType.RESOURCE_UPDATED,
+                id,
+                ResourceEventPayload.resource(id));
         log.info("资源从回收站恢复: id={}", id);
     }
 
@@ -626,7 +650,10 @@ public class ResourceServiceImpl implements ResourceService {
         }
         Long operatorId = SecurityUtil.getCurrentUserId();
         adminLogService.recordLog(operatorId, "RESOURCE_PERMANENT_DELETE", id, null);
-        eventPublisher.publishEvent(ResourceIndexEvent.delete(id));
+        outboxService.append(
+                OutboxEventType.RESOURCE_DELETED,
+                id,
+                ResourceEventPayload.resource(id));
         log.info("资源永久删除: id={}", id);
     }
 

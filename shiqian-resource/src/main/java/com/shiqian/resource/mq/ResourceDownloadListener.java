@@ -2,7 +2,7 @@ package com.shiqian.resource.mq;
 
 import com.shiqian.resource.config.RabbitMQConfig;
 import com.shiqian.resource.dto.ResourceDownloadMessage;
-import com.shiqian.resource.service.ResourceService;
+import com.shiqian.resource.service.ResourceMessageProcessingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -16,12 +16,23 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class ResourceDownloadListener {
 
-    private final ResourceService resourceService;
+    private final ResourceMessageProcessingService processingService;
 
     @RabbitListener(queues = RabbitMQConfig.RESOURCE_DOWNLOAD_QUEUE)
     public void onDownloadMessage(ResourceDownloadMessage message) {
-        log.info("收到资源下载消息: resourceId={}, userId={}",
-                message.getResourceId(), message.getUserId());
-        resourceService.incrementDownloadCount(message.getResourceId());
+        try {
+            boolean processed = processingService.processDownload(message);
+            log.info("资源下载消息消费完成: messageId={}, resourceId={}, processed={}",
+                    message.getMessageId(), message.getResourceId(), processed);
+        } catch (Exception exception) {
+            log.error("资源下载消息消费失败，将进入有限重试: messageId={}, resourceId={}",
+                    message != null ? message.getMessageId() : null,
+                    message != null ? message.getResourceId() : null,
+                    exception);
+            if (exception instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            throw new IllegalStateException("资源下载消息消费失败", exception);
+        }
     }
 }

@@ -42,6 +42,11 @@ jwt:
   refresh-token-expiration: 604800000
 
 resource:
+  messaging:
+    outbox:
+      enabled: false
+    monitor:
+      enabled: false
   upload-dir: target/test-uploads
   upload:
     max-file-size: 52428800
@@ -56,3 +61,4 @@ mybatis-plus:
   mapper-locations: classpath*:mapper/**/*.xml
   configuration:
     map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl

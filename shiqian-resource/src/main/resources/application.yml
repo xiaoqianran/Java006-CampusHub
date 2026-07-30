@@ -44,13 +44,23 @@ spring:
     username: ${RABBITMQ_USER}
     password: ${RABBITMQ_PASSWORD}
     virtual-host: ${RABBITMQ_VHOST:/}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
     listener:
       simple:
         acknowledge-mode: auto
+        default-requeue-rejected: false
+        concurrency: ${RABBITMQ_CONSUMER_CONCURRENCY:2}
+        max-concurrency: ${RABBITMQ_CONSUMER_MAX_CONCURRENCY:8}
+        prefetch: ${RABBITMQ_CONSUMER_PREFETCH:20}
         retry:
           enabled: true
           max-attempts: 3
           initial-interval: 1000ms
+          multiplier: 2
+          max-interval: 5000ms
   servlet:
     multipart:
       max-file-size: 50MB
@@ -66,6 +76,22 @@ resource:
     category-tree-ttl: ${CACHE_CATEGORY_TREE_TTL:60m}
     null-ttl: ${CACHE_NULL_TTL:60s}
     jitter: ${CACHE_TTL_JITTER:5m}
+  messaging:
+    outbox:
+      enabled: ${OUTBOX_PUBLISHER_ENABLED:true}
+      batch-size: ${OUTBOX_BATCH_SIZE:50}
+      max-attempts: ${OUTBOX_MAX_ATTEMPTS:8}
+      base-backoff: ${OUTBOX_BASE_BACKOFF:5s}
+      max-backoff: ${OUTBOX_MAX_BACKOFF:10m}
+      claim-timeout: ${OUTBOX_CLAIM_TIMEOUT:2m}
+      confirm-timeout: ${OUTBOX_CONFIRM_TIMEOUT:5s}
+      poll-interval-ms: ${OUTBOX_POLL_INTERVAL_MS:1000}
+      initial-delay-ms: ${OUTBOX_INITIAL_DELAY_MS:3000}
+    monitor:
+      enabled: ${RABBIT_QUEUE_MONITOR_ENABLED:true}
+      warning-threshold: ${RABBIT_QUEUE_WARNING_THRESHOLD:1000}
+      poll-interval-ms: ${RABBIT_QUEUE_MONITOR_INTERVAL_MS:15000}
+      initial-delay-ms: ${RABBIT_QUEUE_MONITOR_INITIAL_DELAY_MS:15000}
   upload-dir: uploads/resources
   upload:
     max-file-size: 52428800

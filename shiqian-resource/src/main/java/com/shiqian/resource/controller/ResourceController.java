@@ -3,17 +3,16 @@ package com.shiqian.resource.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shiqian.common.result.Result;
 import com.shiqian.common.security.SecurityUtil;
-import com.shiqian.resource.config.RabbitMQConfig;
 import com.shiqian.resource.document.ResourceDocument;
 import com.shiqian.resource.dto.FileDownloadVO;
 import com.shiqian.resource.dto.ResourceCreateDTO;
-import com.shiqian.resource.dto.ResourceDownloadMessage;
 import com.shiqian.resource.dto.ResourceUpdateDTO;
 import com.shiqian.resource.dto.ResourceReviewDTO;
 import com.shiqian.resource.entity.Resource;
 import com.shiqian.resource.service.FavoriteService;
 import com.shiqian.resource.service.ResourceSearchService;
 import com.shiqian.resource.service.ResourceService;
+import com.shiqian.resource.service.ResourceMessagePublisher;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -22,7 +21,6 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -39,7 +37,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.validation.annotation.Validated;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Tag(name = "资源管理", description = "资源上传、查询、更新、删除、下载、收藏等接口")
@@ -53,7 +50,7 @@ public class ResourceController {
     private final ResourceService resourceService;
     private final FavoriteService favoriteService;
     private final ResourceSearchService resourceSearchService;
-    private final RabbitTemplate rabbitTemplate;
+    private final ResourceMessagePublisher messagePublisher;
 
     @Operation(summary = "创建资源")
     @PostMapping
@@ -209,11 +206,7 @@ public class ResourceController {
             return Result.fail(400, "资源暂无可下载文件");
         }
 
-        ResourceDownloadMessage message = new ResourceDownloadMessage(id, userId, LocalDateTime.now());
-        rabbitTemplate.convertAndSend(
-                RabbitMQConfig.RESOURCE_TOPIC_EXCHANGE,
-                RabbitMQConfig.RESOURCE_DOWNLOAD_ROUTING_KEY,
-                message);
+        messagePublisher.publishDownload(id, userId);
 
         FileDownloadVO vo = new FileDownloadVO();
         vo.setResourceId(resource.getId());
