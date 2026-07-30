@@ -1,6 +1,6 @@
 package com.shiqian.resource.dto;
 
-import com.shiqian.resource.entity.ResourceAttachment;
+import com.shiqian.resource.vo.ResourceAttachmentVO;
 import lombok.Data;
 
 import java.util.List;
@@ -18,5 +18,5 @@ public class FileDownloadVO {
 
     private String fileType;
 
-    private List<ResourceAttachment> attachments;
+    private List<ResourceAttachmentVO> attachments;
 }

@@ -1,5 +1,6 @@
 package com.shiqian.user.config;
 
+import io.swagger.v3.oas.models.OpenAPI;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -20,6 +21,9 @@ class SecurityConfigTest {
     @Autowired
     private WebApplicationContext context;
 
+    @Autowired
+    private OpenAPI openAPI;
+
     @Test
     void shouldLoadSecurityConfig() {
         assertNotNull(context.getBean(SecurityConfig.class));
@@ -28,5 +32,11 @@ class SecurityConfigTest {
     @Test
     void shouldEnableMethodSecurity() {
         assertTrue(SecurityConfig.class.isAnnotationPresent(EnableMethodSecurity.class));
+    }
+
+    @Test
+    void shouldDocumentJwtBearerAuthentication() {
+        assertNotNull(openAPI.getComponents());
+        assertNotNull(openAPI.getComponents().getSecuritySchemes().get("bearerAuth"));
     }
 }

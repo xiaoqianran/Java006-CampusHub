@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shiqian.common.exception.BusinessException;
 import com.shiqian.common.security.SecurityUtil;
 import com.shiqian.resource.cache.CacheNames;
+import com.shiqian.resource.assembler.ResourceResponseAssembler;
 import com.shiqian.resource.dto.ResourceTaxonomySelection;
 import com.shiqian.resource.dto.ResourceVersionVO;
 import com.shiqian.resource.entity.Resource;
@@ -44,6 +45,7 @@ public class ResourceVersionServiceImpl implements ResourceVersionService {
     private final OutboxService outboxService;
     private final ObjectMapper objectMapper;
     private final StoredObjectService storedObjectService;
+    private final ResourceResponseAssembler responseAssembler;
 
     @Override
     public void ensureInitialSnapshot(Resource resource) {
@@ -241,7 +243,11 @@ public class ResourceVersionServiceImpl implements ResourceVersionService {
         vo.setFileSize(version.getFileSize());
         vo.setFileType(version.getFileType());
         vo.setAttachments(readJson(
-                version.getAttachmentsJson(), new TypeReference<List<ResourceAttachment>>() {}));
+                        version.getAttachmentsJson(),
+                        new TypeReference<List<ResourceAttachment>>() {})
+                .stream()
+                .map(responseAssembler::toAttachmentVO)
+                .toList());
         vo.setChangeDescription(version.getChangeDescription());
         vo.setCreatedBy(version.getCreatedBy());
         vo.setCreateTime(version.getCreateTime());

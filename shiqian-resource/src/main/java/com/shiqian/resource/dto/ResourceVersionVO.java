@@ -1,6 +1,6 @@
 package com.shiqian.resource.dto;
 
-import com.shiqian.resource.entity.ResourceAttachment;
+import com.shiqian.resource.vo.ResourceAttachmentVO;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -23,7 +23,7 @@ public class ResourceVersionVO {
     private String fileUrl;
     private Long fileSize;
     private String fileType;
-    private List<ResourceAttachment> attachments;
+    private List<ResourceAttachmentVO> attachments;
     private String changeDescription;
     private Long createdBy;
     private LocalDateTime createTime;

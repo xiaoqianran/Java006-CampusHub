@@ -41,6 +41,11 @@ chmod +x 01_Environment.sh
 - Prometheus: `http://localhost:19090`
 - Grafana: `http://localhost:3000`
 
+本地 profile 默认让 User/Resource 只监听 `127.0.0.1`，外部业务请求统一进入
+Gateway；可通过 `INTERNAL_SERVER_ADDRESS` 显式覆盖。Prometheus 与 Grafana 在
+Linux 上使用 host 网络并同样只监听回环地址，因此既能采集三个 Java 服务，也
+不会把内部服务或监控端口直接暴露到公网。
+
 `.env` 中必须填写 Redis、RabbitMQ、MySQL、MinIO、Grafana 密码。Redis
 容器启用了认证，后端服务与 exporter 共用 `REDIS_PASSWORD`，不要使用空密码。
 
@@ -232,7 +237,9 @@ docker compose -f docker-compose.yml -f docker-compose.low-memory.yml \
 
 Prometheus 会采集三个 Java 服务、Redis、RabbitMQ 和 Elasticsearch；
 Grafana 自动加载 JVM/HTTP 与业务/基础设施两个 Dashboard，告警规则位于
-`docker/prometheus/alerts.yml`。
+`docker/prometheus/alerts.yml`。该监控编排使用 Linux host 网络访问仅监听
+回环地址的 Java 服务；Docker Desktop 环境可将 `INTERNAL_SERVER_ADDRESS`
+调整为 Docker Desktop 可访问的宿主机地址，并同步调整 Prometheus targets。
 
 ### 手动 Maven 打包
 

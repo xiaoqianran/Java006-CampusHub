@@ -60,12 +60,12 @@ class MonitoringConfigTest {
         assertTrue(jobNames.contains("redis"));
         assertTrue(jobNames.contains("rabbitmq"));
         assertTrue(jobNames.contains("elasticsearch"));
-        assertTrue(targets.contains("host.docker.internal:8080"));
-        assertTrue(targets.contains("host.docker.internal:8081"));
-        assertTrue(targets.contains("host.docker.internal:8082"));
-        assertTrue(targets.contains("redis-exporter:9121"));
-        assertTrue(targets.contains("rabbitmq:15692"));
-        assertTrue(targets.contains("elasticsearch-exporter:9114"));
+        assertTrue(targets.contains("127.0.0.1:8080"));
+        assertTrue(targets.contains("127.0.0.1:8081"));
+        assertTrue(targets.contains("127.0.0.1:8082"));
+        assertTrue(targets.contains("127.0.0.1:9121"));
+        assertTrue(targets.contains("127.0.0.1:15692"));
+        assertTrue(targets.contains("127.0.0.1:9114"));
     }
 
     @Test
@@ -81,7 +81,7 @@ class MonitoringConfigTest {
                 provider.get("providers")).get(0));
 
         assertEquals("Prometheus", prometheus.get("name"));
-        assertEquals("http://prometheus:9090", prometheus.get("url"));
+        assertEquals("http://127.0.0.1:19090", prometheus.get("url"));
         assertEquals("/var/lib/grafana/dashboards",
                 asMap(dashboardProvider.get("options")).get("path"));
     }

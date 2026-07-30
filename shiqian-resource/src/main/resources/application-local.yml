@@ -14,3 +14,6 @@ spring:
 resource:
   user-client:
     url: ${USER_SERVICE_URL:http://localhost:8081}
+
+server:
+  address: ${INTERNAL_SERVER_ADDRESS:127.0.0.1}

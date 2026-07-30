@@ -8,8 +8,11 @@ import com.shiqian.common.security.SecurityUtil;
 import com.shiqian.user.dto.LoginDTO;
 import com.shiqian.user.dto.LoginVO;
 import com.shiqian.user.dto.RegisterDTO;
+import com.shiqian.user.dto.RefreshTokenDTO;
 import com.shiqian.user.dto.UpdateUserDTO;
 import com.shiqian.user.dto.UserInfoVO;
+import com.shiqian.user.dto.UserRoleUpdateDTO;
+import com.shiqian.user.dto.UserStatusUpdateDTO;
 import com.shiqian.user.dto.ChangePasswordDTO;
 import com.shiqian.common.security.LoginUser;
 import com.shiqian.user.service.UserService;
@@ -27,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestHeader;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.validation.annotation.Validated;
@@ -78,13 +82,13 @@ public class UserController {
     @Operation(summary = "刷新访问令牌（使用 refreshToken 重新签发 accessToken + refreshToken）")
     @PostMapping("/refresh")
     @DistributedRateLimit(name = "user:refresh", limit = 30, windowSeconds = 60, keyMode = RateLimitKeyMode.IP)
-    public Result<LoginVO> refresh(@RequestBody Map<String, String> body) {
-        String refreshToken = body != null ? body.get("refreshToken") : null;
-        LoginVO loginVO = userService.refresh(refreshToken);
+    public Result<LoginVO> refresh(@RequestBody @Valid RefreshTokenDTO body) {
+        LoginVO loginVO = userService.refresh(body.getRefreshToken());
         return Result.ok(loginVO);
     }
 
     @Operation(summary = "退出登录（撤销当前访问令牌及该用户全部刷新令牌）")
+    @SecurityRequirement(name = "bearerAuth")
     @PostMapping("/logout")
     public Result<Void> logout(
             @RequestHeader(value = "Authorization", required = false) String authorization) {
@@ -98,6 +102,7 @@ public class UserController {
     }
 
     @Operation(summary = "更新当前用户信息")
+    @SecurityRequirement(name = "bearerAuth")
     @PutMapping("/me")
     public Result<Void> updateCurrentUser(@RequestBody @Valid UpdateUserDTO updateUserDTO) {
         LoginUser loginUser = (LoginUser) SecurityContextHolder.getContext()
@@ -107,6 +112,7 @@ public class UserController {
     }
 
     @Operation(summary = "修改当前用户密码（修改后所有旧令牌失效）")
+    @SecurityRequirement(name = "bearerAuth")
     @PutMapping("/me/password")
     public Result<Void> changePassword(@RequestBody @Valid ChangePasswordDTO changePasswordDTO) {
         Long userId = SecurityUtil.getCurrentUserId();
@@ -115,6 +121,7 @@ public class UserController {
     }
 
     @Operation(summary = "获取当前用户信息")
+    @SecurityRequirement(name = "bearerAuth")
     @GetMapping("/me")
     public Result<UserInfoVO> getCurrentUser() {
         Long userId = SecurityUtil.getCurrentUserId();
@@ -125,6 +132,7 @@ public class UserController {
     }
 
     @Operation(summary = "管理员分页查询用户")
+    @SecurityRequirement(name = "bearerAuth")
     @GetMapping("/admin/users")
     @PreAuthorize("hasAuthority('user:manage')")
     public Result<Page<UserInfoVO>> pageUsers(
@@ -135,26 +143,26 @@ public class UserController {
     }
 
     @Operation(summary = "管理员修改用户状态（启用/禁用）")
+    @SecurityRequirement(name = "bearerAuth")
     @PutMapping("/admin/users/{id}/status")
     @PreAuthorize("hasAuthority('user:manage')")
     public Result<Void> updateUserStatus(
             @PathVariable @Positive Long id,
-            @RequestBody @Valid java.util.Map<String, Integer> body) {
+            @RequestBody @Valid UserStatusUpdateDTO body) {
         Long operatorId = SecurityUtil.getCurrentUserId();
-        Integer status = body.get("status");
-        userService.updateUserStatus(id, status, operatorId);
+        userService.updateUserStatus(id, body.getStatus(), operatorId);
         return Result.ok();
     }
 
     @Operation(summary = "管理员修改用户角色（USER/ADMIN）")
+    @SecurityRequirement(name = "bearerAuth")
     @PutMapping("/admin/users/{id}/role")
     @PreAuthorize("hasAuthority('user:manage')")
     public Result<Void> updateUserRole(
             @PathVariable @Positive Long id,
-            @RequestBody java.util.Map<String, String> body) {
+            @RequestBody @Valid UserRoleUpdateDTO body) {
         Long operatorId = SecurityUtil.getCurrentUserId();
-        String role = body != null ? body.get("role") : null;
-        userService.updateUserRole(id, role, operatorId);
+        userService.updateUserRole(id, body.getRole(), operatorId);
         return Result.ok();
     }
 }

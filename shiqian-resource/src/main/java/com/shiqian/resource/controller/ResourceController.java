@@ -5,6 +5,7 @@ import com.shiqian.common.result.Result;
 import com.shiqian.common.ratelimit.DistributedRateLimit;
 import com.shiqian.common.ratelimit.RateLimitKeyMode;
 import com.shiqian.common.security.SecurityUtil;
+import com.shiqian.resource.assembler.ResourceResponseAssembler;
 import com.shiqian.resource.document.ResourceDocument;
 import com.shiqian.resource.dto.FileDownloadVO;
 import com.shiqian.resource.dto.IndexConsistencyVO;
@@ -22,6 +23,7 @@ import com.shiqian.resource.service.ResourceVersionService;
 import com.shiqian.resource.service.ResourceMessagePublisher;
 import com.shiqian.resource.service.ResourceIndexMaintenanceService;
 import com.shiqian.resource.service.ResourceCounterService;
+import com.shiqian.resource.vo.ResourceVO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -42,6 +44,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
@@ -65,8 +68,10 @@ public class ResourceController {
     private final ResourceIndexMaintenanceService indexMaintenanceService;
     private final ResourceBusinessMetrics businessMetrics;
     private final ResourceCounterService counterService;
+    private final ResourceResponseAssembler responseAssembler;
 
     @Operation(summary = "创建资源")
+    @SecurityRequirement(name = "bearerAuth")
     @PostMapping
     @PreAuthorize("hasAuthority('resource:create')")
     @DistributedRateLimit(name = "resource:publish", limit = 10, windowSeconds = 60, keyMode = RateLimitKeyMode.USER)
@@ -82,7 +87,7 @@ public class ResourceController {
 
     @Operation(summary = "分页查询资源列表")
     @GetMapping
-    public Result<Page<Resource>> pageResources(
+    public Result<Page<ResourceVO>> pageResources(
             @RequestParam(defaultValue = "1") @Min(1) Integer page,
             @RequestParam(defaultValue = "10") @Min(1) @Max(100) Integer size,
             @RequestParam(required = false) Long categoryId,
@@ -96,13 +101,14 @@ public class ResourceController {
                         page, size, categoryId, keyword, sort, scene, tagId, tag)
                 : resourceService.pagePublishedResources(
                         page, size, categoryId, keyword, sort, scene, tagId, tag);
-        return Result.ok(result);
+        return Result.ok(responseAssembler.toResourcePage(result));
     }
 
     @Operation(summary = "分页查询当前用户发布的资源")
+    @SecurityRequirement(name = "bearerAuth")
     @GetMapping("/mine")
     @PreAuthorize("hasAuthority('resource:read')")
-    public Result<Page<Resource>> pageMyResources(
+    public Result<Page<ResourceVO>> pageMyResources(
             @RequestParam(defaultValue = "1") @Min(1) Integer page,
             @RequestParam(defaultValue = "10") @Min(1) @Max(100) Integer size,
             @RequestParam(required = false) String sort) {
@@ -110,13 +116,15 @@ public class ResourceController {
         if (userId == null) {
             return Result.fail(401, "未登录");
         }
-        return Result.ok(resourceService.pageUserResources(userId, page, size, sort));
+        return Result.ok(responseAssembler.toResourcePage(
+                resourceService.pageUserResources(userId, page, size, sort)));
     }
 
     @Operation(summary = "分页查询当前用户收藏的资源")
+    @SecurityRequirement(name = "bearerAuth")
     @GetMapping("/favorites")
     @PreAuthorize("hasAuthority('resource:favorite')")
-    public Result<Page<Resource>> pageFavoriteResources(
+    public Result<Page<ResourceVO>> pageFavoriteResources(
             @RequestParam(defaultValue = "1") @Min(1) Integer page,
             @RequestParam(defaultValue = "10") @Min(1) @Max(100) Integer size,
             @RequestParam(required = false) String sort) {
@@ -124,20 +132,24 @@ public class ResourceController {
         if (userId == null) {
             return Result.fail(401, "未登录");
         }
-        return Result.ok(favoriteService.pageFavorites(userId, page, size, sort));
+        return Result.ok(responseAssembler.toResourcePage(
+                favoriteService.pageFavorites(userId, page, size, sort)));
     }
 
     @Operation(summary = "管理员分页查询回收站资源")
+    @SecurityRequirement(name = "bearerAuth")
     @GetMapping("/recycle-bin")
     @PreAuthorize("hasAuthority('resource:audit')")
-    public Result<Page<Resource>> pageRecycleResources(
+    public Result<Page<ResourceVO>> pageRecycleResources(
             @RequestParam(defaultValue = "1") @Min(1) Integer page,
             @RequestParam(defaultValue = "10") @Min(1) @Max(100) Integer size,
             @RequestParam(required = false) String keyword) {
-        return Result.ok(resourceService.pageRecycleResources(page, size, keyword));
+        return Result.ok(responseAssembler.toResourcePage(
+                resourceService.pageRecycleResources(page, size, keyword)));
     }
 
     @Operation(summary = "从回收站恢复资源")
+    @SecurityRequirement(name = "bearerAuth")
     @PutMapping("/{id}/restore")
     @PreAuthorize("hasAuthority('resource:audit')")
     public Result<Void> restoreResource(@PathVariable @Positive Long id) {
@@ -146,6 +158,7 @@ public class ResourceController {
     }
 
     @Operation(summary = "永久删除资源（不可恢复）")
+    @SecurityRequirement(name = "bearerAuth")
     @DeleteMapping("/{id}/permanent")
     @PreAuthorize("hasAuthority('resource:audit')")
     public Result<Void> permanentDeleteResource(@PathVariable @Positive Long id) {
@@ -155,7 +168,7 @@ public class ResourceController {
 
     @Operation(summary = "根据ID获取资源详情")
     @GetMapping("/{id}")
-    public Result<Resource> getResourceById(@PathVariable @Positive Long id) {
+    public Result<ResourceVO> getResourceById(@PathVariable @Positive Long id) {
         Resource resource = resourceService.getResourceById(id);
         if (resource == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "资源不存在或已删除");
@@ -163,7 +176,7 @@ public class ResourceController {
         if (!canViewResource(resource)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "资源不存在或已删除");
         }
-        return Result.ok(resource);
+        return Result.ok(responseAssembler.toResourceVO(resource));
     }
 
     private boolean canViewResource(Resource resource) {
@@ -176,6 +189,7 @@ public class ResourceController {
     }
 
     @Operation(summary = "更新资源")
+    @SecurityRequirement(name = "bearerAuth")
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('resource:update')")
     public Result<Void> updateResource(@PathVariable @Positive Long id,
@@ -189,6 +203,7 @@ public class ResourceController {
     }
 
     @Operation(summary = "查询资源版本历史")
+    @SecurityRequirement(name = "bearerAuth")
     @GetMapping("/{id}/versions")
     @PreAuthorize("hasAuthority('resource:update')")
     public Result<List<ResourceVersionVO>> listVersions(@PathVariable @Positive Long id) {
@@ -197,6 +212,7 @@ public class ResourceController {
     }
 
     @Operation(summary = "查询指定资源版本")
+    @SecurityRequirement(name = "bearerAuth")
     @GetMapping("/{id}/versions/{version}")
     @PreAuthorize("hasAuthority('resource:update')")
     public Result<ResourceVersionVO> getVersion(
@@ -207,6 +223,7 @@ public class ResourceController {
     }
 
     @Operation(summary = "回滚到指定资源版本（回滚会生成新版本并重新进入审核）")
+    @SecurityRequirement(name = "bearerAuth")
     @PostMapping("/{id}/versions/{version}/rollback")
     @PreAuthorize("hasAuthority('resource:update')")
     public Result<Integer> rollbackVersion(
@@ -223,6 +240,7 @@ public class ResourceController {
     }
 
     @Operation(summary = "重新提交待修改资源")
+    @SecurityRequirement(name = "bearerAuth")
     @PutMapping("/{id}/resubmit")
     @PreAuthorize("hasAuthority('resource:update')")
     public Result<Void> resubmitResource(@PathVariable @Positive Long id) {
@@ -235,6 +253,7 @@ public class ResourceController {
     }
 
     @Operation(summary = "删除资源")
+    @SecurityRequirement(name = "bearerAuth")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('resource:delete')")
     public Result<Void> deleteResource(@PathVariable @Positive Long id) {
@@ -269,7 +288,7 @@ public class ResourceController {
         vo.setFileUrl(resource.getFileUrl());
         vo.setFileSize(resource.getFileSize());
         vo.setFileType(resource.getFileType());
-        vo.setAttachments(resource.getAttachments());
+        vo.setAttachments(responseAssembler.toAttachmentVOs(resource.getAttachments()));
         return Result.ok(vo);
     }
 
@@ -287,6 +306,7 @@ public class ResourceController {
     }
 
     @Operation(summary = "收藏资源")
+    @SecurityRequirement(name = "bearerAuth")
     @PostMapping("/{id}/favorite")
     @DistributedRateLimit(name = "resource:favorite", limit = 30, windowSeconds = 60, keyMode = RateLimitKeyMode.USER)
     public Result<Void> addFavorite(@PathVariable @Positive Long id) {
@@ -299,6 +319,7 @@ public class ResourceController {
     }
 
     @Operation(summary = "取消收藏")
+    @SecurityRequirement(name = "bearerAuth")
     @DeleteMapping("/{id}/favorite")
     public Result<Void> removeFavorite(@PathVariable @Positive Long id) {
         Long userId = SecurityUtil.getCurrentUserId();
@@ -310,6 +331,7 @@ public class ResourceController {
     }
 
     @Operation(summary = "查询是否已收藏")
+    @SecurityRequirement(name = "bearerAuth")
     @GetMapping("/{id}/favorite")
     public Result<Boolean> isFavorited(@PathVariable @Positive Long id) {
         Long userId = SecurityUtil.getCurrentUserId();
@@ -322,7 +344,7 @@ public class ResourceController {
     @Operation(summary = "搜索资源")
     @GetMapping("/search")
     @DistributedRateLimit(name = "resource:search", limit = 60, windowSeconds = 60)
-    public Result<Page<Resource>> search(
+    public Result<Page<ResourceVO>> search(
             @RequestParam @NotBlank @Size(max = 100) String keyword,
             @RequestParam(defaultValue = "1") @Min(1) Integer page,
             @RequestParam(defaultValue = "10") @Min(1) @Max(100) Integer size,
@@ -352,10 +374,11 @@ public class ResourceController {
         Page<Resource> result = new Page<>(page, size, searchResult.getTotalElements());
         result.setRecords(resources);
         businessMetrics.searched(searchResult.isEmpty());
-        return Result.ok(result);
+        return Result.ok(responseAssembler.toResourcePage(result));
     }
 
     @Operation(summary = "管理员重建 Elasticsearch 资源索引")
+    @SecurityRequirement(name = "bearerAuth")
     @PostMapping("/index/rebuild")
     @PreAuthorize("hasAuthority('resource:audit')")
     public Result<Long> rebuildIndex() {
@@ -363,6 +386,7 @@ public class ResourceController {
     }
 
     @Operation(summary = "检查 MySQL 与 Elasticsearch 资源索引一致性")
+    @SecurityRequirement(name = "bearerAuth")
     @GetMapping("/index/consistency")
     @PreAuthorize("hasAuthority('resource:audit')")
     public Result<IndexConsistencyVO> checkIndexConsistency() {
@@ -370,6 +394,7 @@ public class ResourceController {
     }
 
     @Operation(summary = "审核或调整资源状态")
+    @SecurityRequirement(name = "bearerAuth")
     @PutMapping("/{id}/audit")
     @PreAuthorize("hasAuthority('resource:audit')")
     @DistributedRateLimit(name = "resource:audit", limit = 30, windowSeconds = 60, keyMode = RateLimitKeyMode.USER)

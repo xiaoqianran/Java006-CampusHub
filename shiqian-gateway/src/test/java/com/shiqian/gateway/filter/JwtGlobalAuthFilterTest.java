@@ -98,6 +98,36 @@ class JwtGlobalAuthFilterTest {
     }
 
     @Test
+    void shouldPassPublicTagQueryWithoutToken() {
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/tag"));
+        AtomicReference<ServerWebExchange> captured = new AtomicReference<>();
+
+        filter.filter(exchange, chainExchange -> {
+            captured.set(chainExchange);
+            return Mono.empty();
+        }).block();
+
+        assertNull(exchange.getResponse().getStatusCode());
+        assertNotNull(captured.get());
+    }
+
+    @Test
+    void shouldPassAnonymousResourceViewWithoutToken() {
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.post("/api/resource/42/view"));
+        AtomicReference<ServerWebExchange> captured = new AtomicReference<>();
+
+        filter.filter(exchange, chainExchange -> {
+            captured.set(chainExchange);
+            return Mono.empty();
+        }).block();
+
+        assertNull(exchange.getResponse().getStatusCode());
+        assertNotNull(captured.get());
+    }
+
+    @Test
     void shouldPassOptionsRequestWithoutToken() {
         MockServerWebExchange exchange = MockServerWebExchange.from(
                 MockServerHttpRequest.method(HttpMethod.OPTIONS, "/api/resource"));

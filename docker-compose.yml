@@ -97,6 +97,7 @@ services:
     ports:
       - "127.0.0.1:5672:5672"
       - "127.0.0.1:15672:15672"
+      - "127.0.0.1:15692:15692"
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
       - ./docker/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
@@ -130,17 +131,15 @@ services:
     image: prom/prometheus:v2.52.0
     container_name: shiqian-prometheus
     mem_limit: 512m
-    ports:
-      - "127.0.0.1:19090:9090"
+    network_mode: host
     volumes:
       - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./docker/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus-data:/prometheus
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
+      - "--web.listen-address=127.0.0.1:19090"
       - "--web.enable-lifecycle"
       - "--storage.tsdb.retention.time=15d"
     depends_on:
@@ -151,7 +150,7 @@ services:
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/ready"]
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:19090/-/ready"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -160,12 +159,13 @@ services:
     image: grafana/grafana:10.4.2
     container_name: shiqian-grafana
     mem_limit: 384m
-    ports:
-      - "127.0.0.1:3000:3000"
+    network_mode: host
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:?请在.env中设置GRAFANA_ADMIN_USER}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?请在.env中设置GRAFANA_ADMIN_PASSWORD}
       GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_HTTP_ADDR: "127.0.0.1"
+      GF_SERVER_HTTP_PORT: "3000"
       TZ: Asia/Shanghai
     volumes:
       - grafana-data:/var/lib/grafana
@@ -184,6 +184,8 @@ services:
     image: oliver006/redis_exporter:v1.62.0
     container_name: shiqian-redis-exporter
     mem_limit: 96m
+    ports:
+      - "127.0.0.1:9121:9121"
     environment:
       REDIS_ADDR: redis://redis:6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:?请在.env中设置REDIS_PASSWORD}
@@ -200,6 +202,8 @@ services:
     image: prometheuscommunity/elasticsearch-exporter:v1.8.0
     container_name: shiqian-elasticsearch-exporter
     mem_limit: 128m
+    ports:
+      - "127.0.0.1:9114:9114"
     command:
       - "--es.uri=http://elasticsearch:9200"
       - "--es.all"

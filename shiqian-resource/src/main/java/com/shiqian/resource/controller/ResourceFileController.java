@@ -14,6 +14,7 @@ import com.shiqian.resource.monitoring.ResourceBusinessMetrics;
 import com.shiqian.resource.service.StoredObjectService;
 import com.shiqian.resource.storage.StoredObjectAccess;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -81,6 +82,7 @@ public class ResourceFileController {
     private int maxArchiveEntries;
 
     @Operation(summary = "批量上传资源附件")
+    @SecurityRequirement(name = "bearerAuth")
     @PostMapping
     @PreAuthorize("hasAuthority('resource:create')")
     @DistributedRateLimit(name = "resource:upload", limit = 20, windowSeconds = 60, keyMode = RateLimitKeyMode.USER)

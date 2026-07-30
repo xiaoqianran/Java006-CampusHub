@@ -7,6 +7,12 @@ spring:
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:local}
   cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      config:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+        file-extension: yml
     openfeign:
       circuitbreaker:
         enabled: true
@@ -28,7 +34,7 @@ spring:
     baseline-version: 4
     validate-migration-naming: true
   elasticsearch:
-    uris: http://localhost:9200
+    uris: ${ELASTICSEARCH_URIS:http://127.0.0.1:9200}
     connection-timeout: 5s
     socket-timeout: 30s
   data:

@@ -5,3 +5,6 @@ spring:
         enabled: false
       config:
         enabled: false
+
+server:
+  address: ${INTERNAL_SERVER_ADDRESS:127.0.0.1}

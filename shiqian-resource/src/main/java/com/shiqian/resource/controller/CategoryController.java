@@ -2,9 +2,11 @@ package com.shiqian.resource.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shiqian.common.result.Result;
+import com.shiqian.resource.assembler.ResourceResponseAssembler;
 import com.shiqian.resource.dto.CategoryDTO;
 import com.shiqian.resource.entity.Category;
 import com.shiqian.resource.service.CategoryService;
+import com.shiqian.resource.vo.CategoryVO;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -37,8 +40,10 @@ import java.util.List;
 public class CategoryController {
 
     private final CategoryService categoryService;
+    private final ResourceResponseAssembler responseAssembler;
 
     @Operation(summary = "新增分类")
+    @SecurityRequirement(name = "bearerAuth")
     @PostMapping
     @PreAuthorize("hasAuthority('resource:audit')")
     public Result<Void> addCategory(@RequestBody @Valid CategoryDTO categoryDTO) {
@@ -49,6 +54,7 @@ public class CategoryController {
     }
 
     @Operation(summary = "更新分类")
+    @SecurityRequirement(name = "bearerAuth")
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('resource:audit')")
     public Result<Void> updateCategory(@PathVariable @Positive Long id,
@@ -61,6 +67,7 @@ public class CategoryController {
     }
 
     @Operation(summary = "删除分类")
+    @SecurityRequirement(name = "bearerAuth")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('resource:audit')")
     public Result<Void> deleteCategory(@PathVariable @Positive Long id) {
@@ -70,25 +77,25 @@ public class CategoryController {
 
     @Operation(summary = "根据ID获取分类")
     @GetMapping("/{id}")
-    public Result<Category> getCategoryById(@PathVariable @Positive Long id) {
+    public Result<CategoryVO> getCategoryById(@PathVariable @Positive Long id) {
         Category category = categoryService.getCategoryById(id);
-        return Result.ok(category);
+        return Result.ok(responseAssembler.toCategoryVO(category));
     }
 
     @Operation(summary = "获取分类树")
     @GetMapping("/tree")
-    public Result<List<Category>> getCategoryTree() {
+    public Result<List<CategoryVO>> getCategoryTree() {
         List<Category> tree = categoryService.getCategoryTree();
-        return Result.ok(tree);
+        return Result.ok(responseAssembler.toCategoryVOs(tree));
     }
 
     @Operation(summary = "分页查询分类列表")
     @GetMapping
-    public Result<Page<Category>> pageCategories(
+    public Result<Page<CategoryVO>> pageCategories(
             @RequestParam(defaultValue = "1") @Min(1) Integer page,
             @RequestParam(defaultValue = "10") @Min(1) @Max(100) Integer size) {
         Page<Category> pageParam = new Page<>(page, size);
         Page<Category> result = categoryService.pageCategories(pageParam);
-        return Result.ok(result);
+        return Result.ok(responseAssembler.toCategoryPage(result));
     }
 }

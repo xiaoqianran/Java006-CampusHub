@@ -14,7 +14,10 @@ spring:
         - id: shiqian-resource
           uri: http://localhost:8082
           predicates:
-            - Path=/api/resource/**,/api/category/**,/api/admin/**,/api/jimeng/**
+            - Path=/api/resource/**,/api/category/**,/api/tag/**,/api/admin/**,/api/jimeng/**
 
 # 本地开发模式：直连后端服务，避免依赖 Nacos 服务发现
 # 生产环境可切换 profile 或移除本文件使用 lb:// + Nacos
+
+server:
+  address: ${GATEWAY_SERVER_ADDRESS:0.0.0.0}

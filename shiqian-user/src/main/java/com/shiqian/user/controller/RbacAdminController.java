@@ -12,6 +12,7 @@ import com.shiqian.user.dto.RoleUpdateDTO;
 import com.shiqian.user.dto.RoleVO;
 import com.shiqian.user.service.RbacService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
@@ -35,6 +36,7 @@ import java.util.List;
 @RequestMapping("/api/user/admin/rbac")
 @RequiredArgsConstructor
 @PreAuthorize("hasAuthority('rbac:manage')")
+@SecurityRequirement(name = "bearerAuth")
 public class RbacAdminController {
 
     private final RbacService rbacService;

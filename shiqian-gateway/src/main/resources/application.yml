@@ -15,7 +15,7 @@ spring:
   cloud:
     nacos:
       discovery:
-        server-addr: 127.0.0.1:8848
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
     gateway:
       routes:
         - id: shiqian-user
@@ -25,7 +25,7 @@ spring:
         - id: shiqian-resource
           uri: lb://shiqian-resource
           predicates:
-            - Path=/api/resource/**,/api/category/**,/api/admin/**,/api/jimeng/**
+            - Path=/api/resource/**,/api/category/**,/api/tag/**,/api/admin/**,/api/jimeng/**
 
 jwt:
   secret: ${JWT_SECRET}

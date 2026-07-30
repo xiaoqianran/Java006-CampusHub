@@ -10,7 +10,7 @@ scrape_configs:
     metrics_path: /actuator/prometheus
     static_configs:
       - targets:
-          - host.docker.internal:8080
+          - 127.0.0.1:8080
         labels:
           application: shiqian-gateway
 
@@ -18,7 +18,7 @@ scrape_configs:
     metrics_path: /actuator/prometheus
     static_configs:
       - targets:
-          - host.docker.internal:8081
+          - 127.0.0.1:8081
         labels:
           application: shiqian-user
 
@@ -26,21 +26,21 @@ scrape_configs:
     metrics_path: /actuator/prometheus
     static_configs:
       - targets:
-          - host.docker.internal:8082
+          - 127.0.0.1:8082
         labels:
           application: shiqian-resource
 
   - job_name: redis
     static_configs:
       - targets:
-          - redis-exporter:9121
+          - 127.0.0.1:9121
 
   - job_name: rabbitmq
     static_configs:
       - targets:
-          - rabbitmq:15692
+          - 127.0.0.1:15692
 
   - job_name: elasticsearch
     static_configs:
       - targets:
-          - elasticsearch-exporter:9114
+          - 127.0.0.1:9114
