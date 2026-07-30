@@ -1,6 +1,7 @@
 package com.shiqian.resource.service;
 
 import com.shiqian.resource.BaseResourceTest;
+import com.shiqian.resource.cache.CacheNames;
 import com.shiqian.resource.entity.Category;
 import com.shiqian.resource.mapper.CategoryMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -48,7 +49,7 @@ class CategoryServiceCacheTest extends BaseResourceTest {
     private void cleanDatabase() {
         jdbcTemplate.execute("DELETE FROM t_category");
         jdbcTemplate.execute("ALTER TABLE t_category ALTER COLUMN id RESTART WITH 1");
-        Cache cache = cacheManager.getCache("category:tree");
+        Cache cache = cacheManager.getCache(CacheNames.CATEGORY_TREE);
         if (cache != null) {
             cache.clear();
         }
@@ -74,9 +75,9 @@ class CategoryServiceCacheTest extends BaseResourceTest {
         assertNotNull(first, "首次查询必须返回分类树");
         assertFalse(first.isEmpty(), "分类树不能为空");
 
-        Cache cache = cacheManager.getCache("category:tree");
+        Cache cache = cacheManager.getCache(CacheNames.CATEGORY_TREE);
         assertNotNull(cache, "缓存对象不能为空");
-        Cache.ValueWrapper wrapper = cache.get("SimpleKey []");
+        Cache.ValueWrapper wrapper = cache.get("all");
         assertNotNull(wrapper, "首次查询后缓存必须写入");
         assertNotNull(wrapper.get(), "缓存值不能为空");
 
@@ -95,9 +96,9 @@ class CategoryServiceCacheTest extends BaseResourceTest {
         categoryMapper.insert(category);
 
         categoryService.getCategoryTree();
-        Cache cache = cacheManager.getCache("category:tree");
+        Cache cache = cacheManager.getCache(CacheNames.CATEGORY_TREE);
         assertNotNull(cache);
-        assertNotNull(cache.get("SimpleKey []"), "修改前缓存必须存在");
+        assertNotNull(cache.get("all"), "修改前缓存必须存在");
 
         Category newCategory = new Category();
         newCategory.setName("新增分类");
@@ -106,17 +107,17 @@ class CategoryServiceCacheTest extends BaseResourceTest {
         newCategory.setSortOrder(2);
         categoryService.addCategory(newCategory);
 
-        assertNull(cache.get("SimpleKey []"), "新增分类后缓存必须被清除");
+        assertNull(cache.get("all"), "新增分类后缓存必须被清除");
 
         List<Category> tree = categoryService.getCategoryTree();
         assertEquals(2, tree.size(), "分类树应包含两个根节点");
-        assertNotNull(cache.get("SimpleKey []"), "再次查询后缓存应重新写入");
+        assertNotNull(cache.get("all"), "再次查询后缓存应重新写入");
 
         category.setName("修改后分类");
         categoryService.updateCategory(category);
-        assertNull(cache.get("SimpleKey []"), "更新分类后缓存必须被清除");
+        assertNull(cache.get("all"), "更新分类后缓存必须被清除");
 
         categoryService.deleteCategory(newCategory.getId());
-        assertNull(cache.get("SimpleKey []"), "删除分类后缓存必须被清除");
+        assertNull(cache.get("all"), "删除分类后缓存必须被清除");
     }
 }

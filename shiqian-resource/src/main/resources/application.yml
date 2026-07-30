@@ -47,6 +47,12 @@ spring:
       max-request-size: 500MB
 
 resource:
+  cache:
+    default-ttl: ${CACHE_DEFAULT_TTL:15m}
+    resource-detail-ttl: ${CACHE_RESOURCE_DETAIL_TTL:20m}
+    category-tree-ttl: ${CACHE_CATEGORY_TREE_TTL:60m}
+    null-ttl: ${CACHE_NULL_TTL:60s}
+    jitter: ${CACHE_TTL_JITTER:5m}
   upload-dir: uploads/resources
   upload:
     max-file-size: 52428800

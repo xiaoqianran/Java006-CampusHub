@@ -3,19 +3,18 @@ package com.shiqian.resource.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shiqian.common.exception.BusinessException;
+import com.shiqian.resource.cache.CacheNames;
 import com.shiqian.resource.entity.Category;
 import com.shiqian.resource.mapper.CategoryMapper;
 import com.shiqian.resource.service.CategoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.Cache;
-import org.springframework.cache.CacheManager;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -27,16 +26,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CategoryServiceImpl implements CategoryService {
 
-    private static final String CATEGORY_TREE_CACHE_KEY = "category:tree";
-    private static final Duration CATEGORY_TREE_TTL = Duration.ofMinutes(30);
-    private static final String SPRING_CACHE_KEY = "SimpleKey []";
-
     private final CategoryMapper categoryMapper;
-    private final RedisTemplate<String, Object> redisTemplate;
-    private final CacheManager cacheManager;
 
     @Override
-    @CacheEvict(value = "category:tree", allEntries = true)
+    @CacheEvict(cacheNames = CacheNames.CATEGORY_TREE, allEntries = true)
+    @Transactional(rollbackFor = Exception.class)
     public void addCategory(Category category) {
         if (category.getParentId() != null && category.getParentId() != 0) {
             Category parent = categoryMapper.selectById(category.getParentId());
@@ -49,11 +43,11 @@ public class CategoryServiceImpl implements CategoryService {
         category.setSortOrder(category.getSortOrder() != null ? category.getSortOrder() : 0);
         // icon (string) and sortOrder are fully supported for create (via DTO + entity fields)
         categoryMapper.insert(category);
-        evictCategoryTreeCache();
     }
 
     @Override
-    @CacheEvict(value = "category:tree", allEntries = true)
+    @CacheEvict(cacheNames = CacheNames.CATEGORY_TREE, allEntries = true)
+    @Transactional(rollbackFor = Exception.class)
     public void updateCategory(Category category) {
         Category existing = categoryMapper.selectById(category.getId());
         if (existing == null || existing.getDeleted() == 1) {
@@ -71,11 +65,11 @@ public class CategoryServiceImpl implements CategoryService {
         category.setCreateTime(null);
         // icon (string) and sortOrder fully supported for update (BeanUtils copy from DTO which includes them)
         categoryMapper.updateById(category);
-        evictCategoryTreeCache();
     }
 
     @Override
-    @CacheEvict(value = "category:tree", allEntries = true)
+    @CacheEvict(cacheNames = CacheNames.CATEGORY_TREE, allEntries = true)
+    @Transactional(rollbackFor = Exception.class)
     public void deleteCategory(Long id) {
         Category existing = categoryMapper.selectById(id);
         if (existing == null || existing.getDeleted() == 1) {
@@ -90,7 +84,6 @@ public class CategoryServiceImpl implements CategoryService {
         }
 
         categoryMapper.deleteById(id);
-        evictCategoryTreeCache();
     }
 
     @Override
@@ -99,26 +92,12 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @Cacheable(
+            cacheNames = CacheNames.CATEGORY_TREE,
+            key = CacheNames.CATEGORY_TREE_KEY,
+            sync = true)
     public List<Category> getCategoryTree() {
-        Cache cache = cacheManager.getCache(CATEGORY_TREE_CACHE_KEY);
-        if (cache != null) {
-            Cache.ValueWrapper wrapper = cache.get(SPRING_CACHE_KEY);
-            if (wrapper != null && wrapper.get() instanceof List<?> cachedList) {
-                List<Category> tree = cachedList.stream()
-                    .filter(Category.class::isInstance)
-                    .map(Category.class::cast)
-                    .toList();
-                redisTemplate.opsForValue().set(CATEGORY_TREE_CACHE_KEY, tree, CATEGORY_TREE_TTL);
-                return tree;
-            }
-        }
-
-        List<Category> tree = loadCategoryTree();
-        if (cache != null) {
-            cache.put(SPRING_CACHE_KEY, tree);
-        }
-        redisTemplate.opsForValue().set(CATEGORY_TREE_CACHE_KEY, tree, CATEGORY_TREE_TTL);
-        return tree;
+        return loadCategoryTree();
     }
 
     private List<Category> loadCategoryTree() {
@@ -134,14 +113,6 @@ public class CategoryServiceImpl implements CategoryService {
                 .collect(Collectors.groupingBy(Category::getParentId));
 
         return buildTree(childrenMap, 0L);
-    }
-
-    private void evictCategoryTreeCache() {
-        Cache cache = cacheManager.getCache(CATEGORY_TREE_CACHE_KEY);
-        if (cache != null) {
-            cache.clear();
-        }
-        redisTemplate.delete(CATEGORY_TREE_CACHE_KEY);
     }
 
     private List<Category> buildTree(Map<Long, List<Category>> childrenMap, Long parentId) {

@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shiqian.common.content.SensitiveWordFilter;
 import com.shiqian.common.exception.BusinessException;
 import com.shiqian.common.security.SecurityUtil;
+import com.shiqian.resource.cache.CacheNames;
 import org.springframework.security.access.prepost.PreAuthorize;
 import com.shiqian.resource.dto.ResourceAuditMessage;
 import com.shiqian.resource.dto.AttachmentCreateDTO;
@@ -61,6 +62,9 @@ public class ResourceServiceImpl implements ResourceService {
     private final AdminLogService adminLogService;
 
     @Override
+    @CacheEvict(
+            cacheNames = CacheNames.RESOURCE_DETAIL,
+            key = "#result.id")
     @Transactional(rollbackFor = Exception.class)
     public Resource createResource(Long userId, ResourceCreateDTO dto) {
         validateContent(dto.getTitle(), dto.getSummary(), dto.getContentMarkdown(), dto.getTags());
@@ -115,7 +119,7 @@ public class ResourceServiceImpl implements ResourceService {
     }
 
     @Override
-    @Cacheable(value = "resource:detail", key = "#id", unless = "#result == null")
+    @Cacheable(cacheNames = CacheNames.RESOURCE_DETAIL, key = "#id", sync = true)
     public Resource getResourceById(Long id) {
         Resource resource = resourceMapper.selectById(id);
         if (resource == null || resource.getDeleted() == 1) {
@@ -158,7 +162,7 @@ public class ResourceServiceImpl implements ResourceService {
     }
 
     @Override
-    @CacheEvict(value = "resource:detail", key = "#id")
+    @CacheEvict(cacheNames = CacheNames.RESOURCE_DETAIL, key = "#id")
     @Transactional(rollbackFor = Exception.class)
     public void updateResource(Long userId, Long id, ResourceUpdateDTO dto) {
         Resource existing = resourceMapper.selectById(id);
@@ -228,7 +232,7 @@ public class ResourceServiceImpl implements ResourceService {
     }
 
     @Override
-    @CacheEvict(value = "resource:detail", key = "#id")
+    @CacheEvict(cacheNames = CacheNames.RESOURCE_DETAIL, key = "#id")
     @Transactional(rollbackFor = Exception.class)
     public void deleteResource(Long userId, Long id) {
         Resource existing = resourceMapper.selectById(id);
@@ -244,6 +248,8 @@ public class ResourceServiceImpl implements ResourceService {
     }
 
     @Override
+    @CacheEvict(cacheNames = CacheNames.RESOURCE_DETAIL, key = "#id")
+    @Transactional(rollbackFor = Exception.class)
     public void incrementDownloadCount(Long id) {
         Resource existing = resourceMapper.selectById(id);
         if (existing == null || existing.getDeleted() == 1) {
@@ -257,6 +263,8 @@ public class ResourceServiceImpl implements ResourceService {
     }
 
     @Override
+    @CacheEvict(cacheNames = CacheNames.RESOURCE_DETAIL, key = "#id")
+    @Transactional(rollbackFor = Exception.class)
     public void incrementViewCount(Long id) {
         Resource existing = resourceMapper.selectById(id);
         if (existing == null || existing.getDeleted() == 1) {
@@ -270,7 +278,7 @@ public class ResourceServiceImpl implements ResourceService {
     }
 
     @Override
-    @CacheEvict(value = "resource:detail", key = "#resourceId")
+    @CacheEvict(cacheNames = CacheNames.RESOURCE_DETAIL, key = "#resourceId")
     @Transactional(rollbackFor = Exception.class)
     public void auditResource(Long resourceId, Integer status, Long operatorId) {
         String legacyReason = status != null && status >= STATUS_NEEDS_CHANGES
@@ -280,7 +288,7 @@ public class ResourceServiceImpl implements ResourceService {
     }
 
     @Override
-    @CacheEvict(value = "resource:detail", key = "#resourceId")
+    @CacheEvict(cacheNames = CacheNames.RESOURCE_DETAIL, key = "#resourceId")
     @Transactional(rollbackFor = Exception.class)
     public void reviewResource(Long resourceId, Integer status, String reason, Long operatorId) {
         applyReview(resourceId, status, reason, operatorId);
@@ -334,7 +342,7 @@ public class ResourceServiceImpl implements ResourceService {
     }
 
     @Override
-    @CacheEvict(value = "resource:detail", key = "#resourceId")
+    @CacheEvict(cacheNames = CacheNames.RESOURCE_DETAIL, key = "#resourceId")
     @Transactional(rollbackFor = Exception.class)
     public void resubmitResource(Long userId, Long resourceId) {
         Resource existing = resourceMapper.selectById(resourceId);
@@ -587,7 +595,7 @@ public class ResourceServiceImpl implements ResourceService {
 
     @Override
     @PreAuthorize("hasAuthority('resource:audit')")
-    @CacheEvict(value = "resource:detail", key = "#id")
+    @CacheEvict(cacheNames = CacheNames.RESOURCE_DETAIL, key = "#id")
     @Transactional(rollbackFor = Exception.class)
     public void restoreResource(Long id) {
         int rows = resourceMapper.restoreById(id);
@@ -602,7 +610,7 @@ public class ResourceServiceImpl implements ResourceService {
 
     @Override
     @PreAuthorize("hasAuthority('resource:audit')")
-    @CacheEvict(value = "resource:detail", key = "#id")
+    @CacheEvict(cacheNames = CacheNames.RESOURCE_DETAIL, key = "#id")
     @Transactional(rollbackFor = Exception.class)
     public void permanentDeleteResource(Long id) {
         resourceAttachmentMapper.delete(
