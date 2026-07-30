@@ -10,8 +10,8 @@ import com.shiqian.resource.cache.CacheNames;
 import org.springframework.security.access.prepost.PreAuthorize;
 import com.shiqian.resource.dto.AttachmentCreateDTO;
 import com.shiqian.resource.dto.ResourceCreateDTO;
+import com.shiqian.resource.dto.ResourceTaxonomySelection;
 import com.shiqian.resource.dto.ResourceUpdateDTO;
-import com.shiqian.resource.entity.Category;
 import com.shiqian.resource.entity.Resource;
 import com.shiqian.resource.entity.ResourceAttachment;
 import com.shiqian.resource.mapper.ResourceAttachmentMapper;
@@ -22,8 +22,9 @@ import com.shiqian.resource.outbox.OutboxService;
 import com.shiqian.resource.outbox.ResourceEventPayload;
 import com.shiqian.resource.service.AdminLogService;
 import com.shiqian.resource.service.AuthorEnrichmentService;
-import com.shiqian.resource.service.CategoryService;
+import com.shiqian.resource.service.ResourceTaxonomyService;
 import com.shiqian.resource.service.ResourceService;
+import com.shiqian.resource.service.ResourceVersionService;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -55,12 +56,13 @@ public class ResourceServiceImpl implements ResourceService {
 
     private final ResourceMapper resourceMapper;
     private final ResourceAttachmentMapper resourceAttachmentMapper;
-    private final CategoryService categoryService;
     private final FavoriteMapper favoriteMapper;
     private final OutboxService outboxService;
     private final SensitiveWordFilter sensitiveWordFilter;
     private final AdminLogService adminLogService;
     private final AuthorEnrichmentService authorEnrichmentService;
+    private final ResourceTaxonomyService taxonomyService;
+    private final ResourceVersionService resourceVersionService;
 
     @Override
     @CacheEvict(
@@ -68,17 +70,23 @@ public class ResourceServiceImpl implements ResourceService {
             key = "#result.id")
     @Transactional(rollbackFor = Exception.class)
     public Resource createResource(Long userId, ResourceCreateDTO dto) {
-        validateContent(dto.getTitle(), dto.getSummary(), dto.getContentMarkdown(), dto.getTags());
+        ResourceTaxonomySelection taxonomy = taxonomyService.normalize(
+                dto.getCategoryId(), dto.getCategoryIds(), dto.getTags(), dto.getTagNames());
+        validateContent(
+                dto.getTitle(),
+                dto.getSummary(),
+                dto.getContentMarkdown(),
+                taxonomy.legacyTags());
         validateContentSource(
                 dto.getContentMarkdown(),
                 dto.getFileUrl(),
                 dto.getAttachments(),
                 false,
                 dto.getContentType());
-        validateOptionalCategory(dto.getCategoryId());
-
         Resource resource = new Resource();
         BeanUtils.copyProperties(dto, resource);
+        resource.setCategoryId(taxonomy.primaryCategoryId());
+        resource.setTags(taxonomy.legacyTags());
         resource.setUserId(userId);
         resource.setDownloadCount(0);
         resource.setViewCount(0);
@@ -111,6 +119,10 @@ public class ResourceServiceImpl implements ResourceService {
         if (dto.getAttachments() != null) {
             syncAttachments(resource.getId(), dto.getAttachments());
         }
+        taxonomyService.sync(resource.getId(), taxonomy);
+        // 新主键不应存在历史快照；若测试库或人工修复后留下孤儿记录，先清理再建 v1。
+        resourceVersionService.deleteVersions(resource.getId());
+        resourceVersionService.recordSnapshot(resource, userId, "创建资源");
 
         outboxService.append(
                 OutboxEventType.RESOURCE_CREATED,
@@ -133,6 +145,7 @@ public class ResourceServiceImpl implements ResourceService {
             new QueryWrapper<ResourceAttachment>().eq("resource_id", id).orderByAsc("sort_order")
         );
         resource.setAttachments(attachments);
+        taxonomyService.enrich(java.util.List.of(resource));
         authorEnrichmentService.enrich(java.util.List.of(resource));
         return resource;
     }
@@ -162,6 +175,7 @@ public class ResourceServiceImpl implements ResourceService {
                 .toList();
         authorEnrichmentService.enrich(ordered);
         enrichAttachments(ordered);
+        taxonomyService.enrich(ordered);
         return ordered;
     }
 
@@ -169,14 +183,20 @@ public class ResourceServiceImpl implements ResourceService {
     @CacheEvict(cacheNames = CacheNames.RESOURCE_DETAIL, key = "#id")
     @Transactional(rollbackFor = Exception.class)
     public void updateResource(Long userId, Long id, ResourceUpdateDTO dto) {
-        Resource existing = resourceMapper.selectById(id);
+        Resource existing = resourceMapper.selectByIdForUpdate(id);
         if (existing == null || existing.getDeleted() == 1) {
             throw new BusinessException("资源不存在");
         }
         if (!canModify(existing, userId)) {
             throw new BusinessException("无权更新该资源");
         }
-        validateContent(dto.getTitle(), dto.getSummary(), dto.getContentMarkdown(), dto.getTags());
+        ResourceTaxonomySelection taxonomy = taxonomyService.normalize(
+                dto.getCategoryId(), dto.getCategoryIds(), dto.getTags(), dto.getTagNames());
+        validateContent(
+                dto.getTitle(),
+                dto.getSummary(),
+                dto.getContentMarkdown(),
+                taxonomy.legacyTags());
         boolean keepExistingAttachments = dto.getAttachments() == null
                 && resourceAttachmentMapper.selectCount(
                     new QueryWrapper<ResourceAttachment>().eq("resource_id", id)) > 0;
@@ -193,10 +213,12 @@ public class ResourceServiceImpl implements ResourceService {
                 keepExistingAttachments,
                 dto.getContentType());
 
-        validateOptionalCategory(dto.getCategoryId());
+        resourceVersionService.ensureInitialSnapshot(existing);
 
         Resource resource = new Resource();
         BeanUtils.copyProperties(dto, resource);
+        resource.setCategoryId(taxonomy.primaryCategoryId());
+        resource.setTags(taxonomy.legacyTags());
         resource.setId(id);
         resource.setUserId(existing.getUserId());
         resource.setVersion(existing.getVersion() + 1);
@@ -229,6 +251,9 @@ public class ResourceServiceImpl implements ResourceService {
         if (dto.getAttachments() != null) {
             syncAttachments(id, dto.getAttachments());
         }
+        taxonomyService.sync(id, taxonomy);
+        Resource updated = resourceMapper.selectById(id);
+        resourceVersionService.recordSnapshot(updated, userId, dto.getChangeDescription());
 
         outboxService.append(
                 OutboxEventType.RESOURCE_UPDATED,
@@ -404,13 +429,24 @@ public class ResourceServiceImpl implements ResourceService {
             String keyword,
             String sort,
             String contentScene) {
+        return pageResources(page, size, categoryId, keyword, sort, contentScene, null, null);
+    }
+
+    @Override
+    public Page<Resource> pageResources(
+            Integer page,
+            Integer size,
+            Long categoryId,
+            String keyword,
+            String sort,
+            String contentScene,
+            Long tagId,
+            String tagName) {
         Page<Resource> pageParam = new Page<>(page, size);
         QueryWrapper<Resource> wrapper = new QueryWrapper<>();
         wrapper.eq("deleted", 0);
 
-        if (categoryId != null) {
-            wrapper.eq("category_id", categoryId);
-        }
+        applyTaxonomyFilters(wrapper, categoryId, tagId, tagName);
         applyContentSceneFilter(wrapper, contentScene);
 
         if (StringUtils.hasText(keyword)) {
@@ -426,6 +462,7 @@ public class ResourceServiceImpl implements ResourceService {
         Page<Resource> result = resourceMapper.selectPage(pageParam, wrapper);
         authorEnrichmentService.enrich(result.getRecords());
         enrichAttachments(result.getRecords());
+        taxonomyService.enrich(result.getRecords());
         return result;
     }
 
@@ -442,14 +479,25 @@ public class ResourceServiceImpl implements ResourceService {
             String keyword,
             String sort,
             String contentScene) {
+        return pagePublishedResources(page, size, categoryId, keyword, sort, contentScene, null, null);
+    }
+
+    @Override
+    public Page<Resource> pagePublishedResources(
+            Integer page,
+            Integer size,
+            Long categoryId,
+            String keyword,
+            String sort,
+            String contentScene,
+            Long tagId,
+            String tagName) {
         Page<Resource> pageParam = new Page<>(page, size);
         QueryWrapper<Resource> wrapper = new QueryWrapper<>();
         wrapper.eq("deleted", 0);
         wrapper.eq("status", 1);
 
-        if (categoryId != null) {
-            wrapper.eq("category_id", categoryId);
-        }
+        applyTaxonomyFilters(wrapper, categoryId, tagId, tagName);
         applyContentSceneFilter(wrapper, contentScene);
 
         if (StringUtils.hasText(keyword)) {
@@ -465,6 +513,7 @@ public class ResourceServiceImpl implements ResourceService {
         Page<Resource> result = resourceMapper.selectPage(pageParam, wrapper);
         authorEnrichmentService.enrich(result.getRecords());
         enrichAttachments(result.getRecords());
+        taxonomyService.enrich(result.getRecords());
         return result;
     }
 
@@ -492,6 +541,7 @@ public class ResourceServiceImpl implements ResourceService {
         Page<Resource> result = resourceMapper.selectPage(pageParam, wrapper);
         authorEnrichmentService.enrich(result.getRecords());
         enrichAttachments(result.getRecords());
+        taxonomyService.enrich(result.getRecords());
         return result;
     }
 
@@ -529,16 +579,6 @@ public class ResourceServiceImpl implements ResourceService {
         }
     }
 
-    private void validateOptionalCategory(Long categoryId) {
-        if (categoryId == null) {
-            return;
-        }
-        Category category = categoryService.getCategoryById(categoryId);
-        if (category == null || category.getDeleted() == 1) {
-            throw new BusinessException("分类不存在");
-        }
-    }
-
     private String normalizeContentScene(String requestedScene, String fallback) {
         if (!StringUtils.hasText(requestedScene)) {
             return StringUtils.hasText(fallback)
@@ -556,6 +596,46 @@ public class ResourceServiceImpl implements ResourceService {
         String scene = normalizeContentScene(contentScene, null);
         if (scene != null) {
             wrapper.eq("content_scene", scene);
+        }
+    }
+
+    private void applyTaxonomyFilters(
+            QueryWrapper<Resource> wrapper,
+            Long categoryId,
+            Long tagId,
+            String tagName) {
+        if (categoryId != null) {
+            wrapper.and(group -> group
+                    .eq("category_id", categoryId)
+                    .or()
+                    .exists("""
+                            SELECT 1
+                            FROM t_resource_category rc
+                            WHERE rc.resource_id = t_resource.id
+                              AND rc.category_id = {0}
+                            """, categoryId));
+        }
+        if (tagId != null) {
+            wrapper.exists("""
+                    SELECT 1
+                    FROM t_resource_tag rt
+                    WHERE rt.resource_id = t_resource.id
+                      AND rt.tag_id = {0}
+                    """, tagId);
+        }
+        if (StringUtils.hasText(tagName)) {
+            wrapper.and(group -> group
+                    .like("tags", tagName.trim())
+                    .or()
+                    .exists("""
+                            SELECT 1
+                            FROM t_resource_tag rt
+                            JOIN t_tag t ON t.id = rt.tag_id
+                            WHERE rt.resource_id = t_resource.id
+                              AND t.deleted = 0
+                              AND t.status = 1
+                              AND t.name = {0}
+                            """, tagName.trim()));
         }
     }
 
@@ -655,6 +735,8 @@ public class ResourceServiceImpl implements ResourceService {
     public void permanentDeleteResource(Long id) {
         resourceAttachmentMapper.delete(
                 new QueryWrapper<ResourceAttachment>().eq("resource_id", id));
+        taxonomyService.removeResourceRelations(id);
+        resourceVersionService.deleteVersions(id);
         favoriteMapper.delete(
                 new QueryWrapper<com.shiqian.resource.entity.Favorite>().eq("resource_id", id));
         int rows = resourceMapper.physicalDeleteById(id);

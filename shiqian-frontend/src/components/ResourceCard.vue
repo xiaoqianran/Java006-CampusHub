@@ -64,6 +64,31 @@ const promptForCopy = computed(() =>
   (props.item.contentMarkdown || props.item.title || '').trim()
 )
 
+function safeHighlight(field: string, fallback: string) {
+  const fragment = props.item.searchHighlights?.[field]?.[0]
+  if (!fragment) return escapeHtml(fallback)
+  return escapeHtml(fragment)
+    .replace(/&lt;em&gt;/g, '<mark>')
+    .replace(/&lt;\/em&gt;/g, '</mark>')
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
+const highlightedTitle = computed(() => safeHighlight('title', props.item.title))
+const highlightedDescription = computed(() =>
+  safeHighlight(
+    props.item.searchHighlights?.summary?.length ? 'summary' : 'description',
+    props.item.desc
+  )
+)
+
 function openDetail() {
   router.push(`/detail/${props.item.id}`)
 }
@@ -142,8 +167,8 @@ async function copyPrompt(event: MouseEvent) {
             受欢迎
           </el-tag>
         </div>
-        <h3 class="gallery-title" :title="item.title">{{ item.title }}</h3>
-        <p v-if="galleryMeta" class="gallery-meta">{{ galleryMeta }}</p>
+        <h3 class="gallery-title" :title="item.title" v-html="highlightedTitle" />
+        <p v-if="galleryMeta" class="gallery-meta" v-html="highlightedDescription" />
         <div v-if="visibleTags.length" class="card-tags">
           <el-tag v-for="tag in visibleTags" :key="tag" size="small" effect="plain"># {{ tag }}</el-tag>
         </div>
@@ -175,7 +200,7 @@ async function copyPrompt(event: MouseEvent) {
       <div class="resource-cover">
         <div>
           <span class="cover-category">{{ contentSceneLabel(item.scene) }}</span>
-          <h3>{{ item.title }}</h3>
+          <h3 v-html="highlightedTitle" />
         </div>
         <div class="cover-tags">
           <el-tag effect="light">{{ item.type }}</el-tag>
@@ -184,7 +209,7 @@ async function copyPrompt(event: MouseEvent) {
           </el-tag>
         </div>
       </div>
-      <p class="resource-desc">{{ item.desc }}</p>
+      <p class="resource-desc" v-html="highlightedDescription" />
       <div v-if="visibleTags.length" class="card-tags">
         <el-tag v-for="tag in visibleTags" :key="tag" size="small" effect="plain"># {{ tag }}</el-tag>
       </div>

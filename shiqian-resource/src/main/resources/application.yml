@@ -92,6 +92,9 @@ resource:
       warning-threshold: ${RABBIT_QUEUE_WARNING_THRESHOLD:1000}
       poll-interval-ms: ${RABBIT_QUEUE_MONITOR_INTERVAL_MS:15000}
       initial-delay-ms: ${RABBIT_QUEUE_MONITOR_INITIAL_DELAY_MS:15000}
+  search:
+    consistency-interval-ms: ${RESOURCE_SEARCH_CONSISTENCY_INTERVAL_MS:3600000}
+    consistency-initial-delay-ms: ${RESOURCE_SEARCH_CONSISTENCY_INITIAL_DELAY_MS:600000}
   upload-dir: uploads/resources
   upload:
     max-file-size: 52428800

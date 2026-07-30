@@ -51,6 +51,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/resource/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/resource/*/download").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/category/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/tag/**").permitAll()
                 // 油猴同步接口：控制器内限制仅本机可写
                 .requestMatchers("/api/jimeng/**").permitAll()
                 .requestMatchers("/actuator/**").permitAll()

@@ -1,12 +1,17 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Star, StarFilled, Download, View, User, CopyDocument } from '@element-plus/icons-vue'
 import StatusTag from '@/components/StatusTag.vue'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
 import AttachmentPreviewDialog from '@/components/AttachmentPreviewDialog.vue'
-import { contentSceneLabel, useAppStore, type ResourceAttachmentItem } from '@/stores/app'
+import {
+  contentSceneLabel,
+  useAppStore,
+  type ResourceAttachmentItem,
+  type ResourceVersionItem
+} from '@/stores/app'
 import { buildApiUrl } from '@/api/client'
 
 const route = useRoute()
@@ -67,6 +72,20 @@ const nonImageAttachments = computed(() => resource.value?.attachments?.filter(a
 const detailLoading = ref(true)
 const previewVisible = ref(false)
 const previewAttachment = ref<ResourceAttachmentItem | null>(null)
+const versionDrawerVisible = ref(false)
+const versionLoading = ref(false)
+const versions = ref<ResourceVersionItem[]>([])
+const compareVersionNumbers = ref<number[]>([])
+const compareVersions = computed(() =>
+  compareVersionNumbers.value
+    .map(versionNumber => versions.value.find(item => item.versionNumber === versionNumber))
+    .filter((item): item is ResourceVersionItem => Boolean(item))
+)
+const canManageVersions = computed(() => Boolean(
+  store.logged
+  && resource.value
+  && (store.role === 'admin' || store.currentUser?.userId === resource.value.userId)
+))
 
 watch(
   () => resource.value?.id,
@@ -78,7 +97,10 @@ watch(
 onMounted(async () => {
   detailLoading.value = true
   try {
-    await store.loadResourceDetail(Number(route.params.id))
+    await Promise.all([
+      store.loadResourceDetail(Number(route.params.id)),
+      store.logged ? store.loadCurrentUser().catch(() => undefined) : Promise.resolve()
+    ])
     // 加载详情后立即记录一次浏览（支持未登录用户），乐观+1本地 views
     store.incrementView(Number(route.params.id))
   } catch (error) {
@@ -87,6 +109,43 @@ onMounted(async () => {
     detailLoading.value = false
   }
 })
+
+async function openVersions() {
+  if (!resource.value) return
+  versionDrawerVisible.value = true
+  versionLoading.value = true
+  try {
+    versions.value = await store.loadResourceVersions(resource.value.id)
+    compareVersionNumbers.value = versions.value
+      .slice(0, 2)
+      .map(item => item.versionNumber)
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '版本历史加载失败')
+  } finally {
+    versionLoading.value = false
+  }
+}
+
+async function rollbackVersion(version: ResourceVersionItem) {
+  if (!resource.value) return
+  try {
+    await ElMessageBox.confirm(
+      `确认回滚到 v${version.versionNumber}？系统会生成一个新版本并重新进入审核。`,
+      '回滚资源版本',
+      { type: 'warning', confirmButtonText: '确认回滚' }
+    )
+    const nextVersion = await store.rollbackResourceVersion(
+      resource.value.id,
+      version.versionNumber,
+      `从详情页回滚到版本 ${version.versionNumber}`
+    )
+    versions.value = await store.loadResourceVersions(resource.value.id)
+    ElMessage.success(`已生成 v${nextVersion}`)
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(error instanceof Error ? error.message : '版本回滚失败')
+  }
+}
 
 async function toggleFavorite() {
   if (!store.logged) {
@@ -185,16 +244,22 @@ function hideBrokenDetailImage(att: ResourceAttachmentItem) {
     <section v-if="resource" class="detail-layout">
     <el-card class="detail-card" shadow="never">
       <el-tag>{{ contentSceneLabel(resource.scene) }}</el-tag>
-      <el-tag v-if="resource.categoryId" type="info" effect="plain" style="margin-left: 6px">{{ resource.cat }}</el-tag>
+      <el-tag
+        v-for="category in resource.categoryNames"
+        :key="category"
+        type="info"
+        effect="plain"
+        style="margin-left: 6px"
+      >{{ category }}</el-tag>
       <el-tag v-if="(resource.downloads + resource.views) > 15" type="danger" size="small" effect="light" style="margin-left: 6px">受欢迎</el-tag>
       <h1 class="detail-title">{{ resource.title }}</h1>
 
       <p v-if="showSummary" class="sub detail-summary">
         {{ resource.summary || resource.desc }}
       </p>
-      <div v-if="resource.tags" class="detail-tags">
+      <div v-if="resource.tagNames.length" class="detail-tags">
         <el-tag
-          v-for="tag in resource.tags.split(/[,，]/).map(t => t.trim()).filter(Boolean)"
+          v-for="tag in resource.tagNames"
           :key="tag"
           size="small"
           effect="plain"
@@ -219,6 +284,9 @@ function hideBrokenDetailImage(att: ResourceAttachmentItem) {
         </el-button>
         <el-button :icon="store.isFavorite(resource.id) ? StarFilled : Star" @click="toggleFavorite">
           {{ store.isFavorite(resource.id) ? '取消收藏' : '加入收藏' }}
+        </el-button>
+        <el-button v-if="canManageVersions" @click="openVersions">
+          版本历史（当前 v{{ resource.version }}）
         </el-button>
       </div>
 
@@ -319,6 +387,105 @@ function hideBrokenDetailImage(att: ResourceAttachmentItem) {
     :attachment="previewAttachment"
     @download="downloadAttachment"
   />
+  <el-drawer
+    v-model="versionDrawerVisible"
+    title="资源版本历史"
+    size="min(720px, 92vw)"
+  >
+    <div v-loading="versionLoading" class="version-list">
+      <el-empty v-if="!versionLoading && !versions.length" description="暂无版本记录" />
+      <section v-if="versions.length > 1" class="version-compare">
+        <div class="version-compare-toolbar">
+          <div>
+            <b>版本对比</b>
+            <p class="sub">选择两个版本，快速核对标题、摘要、正文、标签和附件变化。</p>
+          </div>
+          <el-select
+            v-model="compareVersionNumbers"
+            multiple
+            :multiple-limit="2"
+            placeholder="请选择两个版本"
+            style="width: 260px"
+          >
+            <el-option
+              v-for="version in versions"
+              :key="version.versionNumber"
+              :label="`v${version.versionNumber}`"
+              :value="version.versionNumber"
+            />
+          </el-select>
+        </div>
+        <div v-if="compareVersions.length === 2" class="version-compare-grid">
+          <el-card
+            v-for="version in compareVersions"
+            :key="`compare-${version.id}`"
+            shadow="never"
+            class="version-compare-card"
+          >
+            <h3>v{{ version.versionNumber }} · {{ version.title }}</h3>
+            <p class="sub">{{ version.changeDescription || '未填写修改说明' }}</p>
+            <p><b>摘要：</b>{{ version.summary || '无' }}</p>
+            <p>
+              <b>标签：</b>
+              {{ version.tagNames.length ? version.tagNames.map(tag => `#${tag}`).join(' ') : '无' }}
+            </p>
+            <p><b>附件：</b>{{ version.attachments.length }} 个</p>
+            <MarkdownPreview
+              v-if="version.markdownContent"
+              :model-value="version.markdownContent"
+            />
+            <p v-else class="sub">该版本无 Markdown 正文</p>
+          </el-card>
+        </div>
+        <el-alert
+          v-else
+          type="info"
+          :closable="false"
+          title="请选择两个版本进行对比"
+        />
+      </section>
+      <el-card
+        v-for="version in versions"
+        :key="version.id"
+        shadow="never"
+        class="version-card"
+      >
+        <div class="version-heading">
+          <div>
+            <b>v{{ version.versionNumber }} · {{ version.title }}</b>
+            <p class="sub">
+              {{ version.changeDescription || '未填写修改说明' }}
+              <span v-if="version.createTime"> · {{ new Date(version.createTime).toLocaleString() }}</span>
+            </p>
+          </div>
+          <el-button
+            v-if="version.versionNumber !== resource?.version"
+            size="small"
+            type="warning"
+            plain
+            @click="rollbackVersion(version)"
+          >回滚到此版本</el-button>
+        </div>
+        <div class="detail-tags">
+          <el-tag v-for="tag in version.tagNames" :key="tag" size="small"># {{ tag }}</el-tag>
+        </div>
+        <p v-if="version.summary">{{ version.summary }}</p>
+        <el-collapse v-if="version.markdownContent || version.attachments.length">
+          <el-collapse-item title="查看该版本正文与附件">
+            <MarkdownPreview
+              v-if="version.markdownContent"
+              :model-value="version.markdownContent"
+            />
+            <ul v-if="version.attachments.length">
+              <li v-for="file in version.attachments" :key="file.fileUrl">
+                {{ file.fileName }}（{{ formatFileSize(file.fileSize) }}）
+              </li>
+            </ul>
+          </el-collapse-item>
+        </el-collapse>
+      </el-card>
+    </div>
+  </el-drawer>
   </div>
 </template>
 
@@ -346,6 +513,69 @@ function hideBrokenDetailImage(att: ResourceAttachmentItem) {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.version-list {
+  min-height: 180px;
+}
+
+.version-compare {
+  margin-bottom: 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.version-compare-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.version-compare-toolbar p {
+  margin: 5px 0 0;
+}
+
+.version-compare-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.version-compare-card {
+  min-width: 0;
+  max-height: 520px;
+  overflow: auto;
+}
+
+.version-compare-card h3 {
+  margin-top: 0;
+}
+
+.version-card + .version-card {
+  margin-top: 12px;
+}
+
+.version-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.version-heading p {
+  margin: 6px 0 10px;
+}
+
+@media (max-width: 720px) {
+  .version-compare-toolbar {
+    flex-direction: column;
+  }
+
+  .version-compare-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .image-gallery {

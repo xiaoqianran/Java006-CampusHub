@@ -17,6 +17,15 @@ public interface ResourceMapper extends BaseMapper<Resource> {
     @Select("""
             SELECT *
             FROM t_resource
+            WHERE id = #{id}
+              AND deleted = 0
+            FOR UPDATE
+            """)
+    Resource selectByIdForUpdate(@Param("id") Long id);
+
+    @Select("""
+            SELECT *
+            FROM t_resource
             WHERE external_source = #{source}
               AND external_id = #{externalId}
             ORDER BY id DESC

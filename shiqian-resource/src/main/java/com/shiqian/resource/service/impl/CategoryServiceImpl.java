@@ -6,11 +6,16 @@ import com.shiqian.common.exception.BusinessException;
 import com.shiqian.resource.cache.CacheNames;
 import com.shiqian.resource.entity.Category;
 import com.shiqian.resource.mapper.CategoryMapper;
+import com.shiqian.resource.outbox.OutboxEventType;
+import com.shiqian.resource.outbox.OutboxService;
+import com.shiqian.resource.outbox.ResourceEventPayload;
 import com.shiqian.resource.service.CategoryService;
+import com.shiqian.resource.service.ResourceTaxonomyService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
@@ -27,6 +32,8 @@ import java.util.stream.Collectors;
 public class CategoryServiceImpl implements CategoryService {
 
     private final CategoryMapper categoryMapper;
+    private final ResourceTaxonomyService taxonomyService;
+    private final OutboxService outboxService;
 
     @Override
     @CacheEvict(cacheNames = CacheNames.CATEGORY_TREE, allEntries = true)
@@ -46,7 +53,10 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
-    @CacheEvict(cacheNames = CacheNames.CATEGORY_TREE, allEntries = true)
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheNames.CATEGORY_TREE, allEntries = true),
+            @CacheEvict(cacheNames = CacheNames.RESOURCE_DETAIL, allEntries = true)
+    })
     @Transactional(rollbackFor = Exception.class)
     public void updateCategory(Category category) {
         Category existing = categoryMapper.selectById(category.getId());
@@ -65,10 +75,18 @@ public class CategoryServiceImpl implements CategoryService {
         category.setCreateTime(null);
         // icon (string) and sortOrder fully supported for update (BeanUtils copy from DTO which includes them)
         categoryMapper.updateById(category);
+        taxonomyService.resourceIdsByCategory(category.getId()).forEach(resourceId ->
+                outboxService.append(
+                        OutboxEventType.RESOURCE_UPDATED,
+                        resourceId,
+                        ResourceEventPayload.resource(resourceId)));
     }
 
     @Override
-    @CacheEvict(cacheNames = CacheNames.CATEGORY_TREE, allEntries = true)
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheNames.CATEGORY_TREE, allEntries = true),
+            @CacheEvict(cacheNames = CacheNames.RESOURCE_DETAIL, allEntries = true)
+    })
     @Transactional(rollbackFor = Exception.class)
     public void deleteCategory(Long id) {
         Category existing = categoryMapper.selectById(id);
@@ -83,7 +101,12 @@ public class CategoryServiceImpl implements CategoryService {
             throw new BusinessException("该分类下存在子分类，无法删除");
         }
 
+        List<Long> affected = taxonomyService.removeCategoryRelations(id);
         categoryMapper.deleteById(id);
+        affected.forEach(resourceId -> outboxService.append(
+                OutboxEventType.RESOURCE_UPDATED,
+                resourceId,
+                ResourceEventPayload.resource(resourceId)));
     }
 
     @Override

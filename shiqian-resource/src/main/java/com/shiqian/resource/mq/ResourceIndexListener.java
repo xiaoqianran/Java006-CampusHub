@@ -7,6 +7,8 @@ import com.shiqian.resource.entity.Resource;
 import com.shiqian.resource.mapper.ResourceMapper;
 import com.shiqian.resource.repository.ResourceDocumentRepository;
 import com.shiqian.resource.service.MessageIdempotencyService;
+import com.shiqian.resource.service.AuthorEnrichmentService;
+import com.shiqian.resource.service.ResourceTaxonomyService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -25,6 +27,8 @@ public class ResourceIndexListener {
     private final ResourceDocumentRepository resourceDocumentRepository;
     private final ResourceDocumentMapper documentMapper;
     private final MessageIdempotencyService idempotencyService;
+    private final ResourceTaxonomyService taxonomyService;
+    private final AuthorEnrichmentService authorEnrichmentService;
 
     @RabbitListener(queues = RabbitMQConfig.RESOURCE_INDEX_QUEUE)
     public void onIndexMessage(ResourceIndexMessage message) {
@@ -57,6 +61,8 @@ public class ResourceIndexListener {
             resourceDocumentRepository.deleteById(resourceId);
             return;
         }
+        taxonomyService.enrich(java.util.List.of(resource));
+        authorEnrichmentService.enrich(java.util.List.of(resource));
         resourceDocumentRepository.save(documentMapper.fromResource(resource));
     }
 

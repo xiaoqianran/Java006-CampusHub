@@ -21,9 +21,29 @@ public interface ResourceService {
 
     Page<Resource> pageResources(Integer page, Integer size, Long categoryId, String keyword, String sort, String contentScene);
 
+    Page<Resource> pageResources(
+            Integer page,
+            Integer size,
+            Long categoryId,
+            String keyword,
+            String sort,
+            String contentScene,
+            Long tagId,
+            String tagName);
+
     Page<Resource> pagePublishedResources(Integer page, Integer size, Long categoryId, String keyword, String sort);
 
     Page<Resource> pagePublishedResources(Integer page, Integer size, Long categoryId, String keyword, String sort, String contentScene);
+
+    Page<Resource> pagePublishedResources(
+            Integer page,
+            Integer size,
+            Long categoryId,
+            String keyword,
+            String sort,
+            String contentScene,
+            Long tagId,
+            String tagName);
 
     Page<Resource> pageUserResources(Long userId, Integer page, Integer size, String sort);
 

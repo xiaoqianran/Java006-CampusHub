@@ -94,7 +94,7 @@ describe('app store - critical recent methods', () => {
     await store.searchResources({ page: 2, size: 24, scene: 'GALLERY' })
 
     expect(vi.mocked(request)).toHaveBeenCalledTimes(1)
-    expect(vi.mocked(request).mock.calls[0][0]).toBe('/api/resource')
+    expect(vi.mocked(request).mock.calls[0][0]).toBe('/api/resource/search')
     expect(vi.mocked(request).mock.calls[0][1]).toMatchObject({
       query: {
         keyword: 'Java',

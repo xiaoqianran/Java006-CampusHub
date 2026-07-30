@@ -191,6 +191,80 @@ CREATE TABLE IF NOT EXISTS `t_resource_attachment` (
   COLLATE=utf8mb4_unicode_ci
   COMMENT='资源附件表';
 
+CREATE TABLE IF NOT EXISTS `t_category` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `parent_id` BIGINT NOT NULL DEFAULT 0,
+    `name` VARCHAR(100) NOT NULL,
+    `sort_order` INT NOT NULL DEFAULT 0,
+    `icon` VARCHAR(255) DEFAULT NULL,
+    `status` TINYINT NOT NULL DEFAULT 1,
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `deleted` TINYINT NOT NULL DEFAULT 0,
+    INDEX `idx_parent_id` (`parent_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='资源分类';
+
+CREATE TABLE IF NOT EXISTS `t_tag` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `name` VARCHAR(50) NOT NULL,
+    `status` TINYINT NOT NULL DEFAULT 1,
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `deleted` TINYINT NOT NULL DEFAULT 0,
+    UNIQUE KEY `uk_tag_name` (`name`),
+    INDEX `idx_tag_status` (`status`, `deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='资源标签';
+
+CREATE TABLE IF NOT EXISTS `t_resource_category` (
+    `resource_id` BIGINT NOT NULL,
+    `category_id` BIGINT NOT NULL,
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`resource_id`, `category_id`),
+    INDEX `idx_resource_category_category` (`category_id`, `resource_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='资源分类关系';
+
+CREATE TABLE IF NOT EXISTS `t_resource_tag` (
+    `resource_id` BIGINT NOT NULL,
+    `tag_id` BIGINT NOT NULL,
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`resource_id`, `tag_id`),
+    INDEX `idx_resource_tag_tag` (`tag_id`, `resource_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='资源标签关系';
+
+CREATE TABLE IF NOT EXISTS `t_resource_version` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `resource_id` BIGINT NOT NULL,
+    `version_number` INT NOT NULL,
+    `title` VARCHAR(200) NOT NULL,
+    `summary` VARCHAR(500) DEFAULT NULL,
+    `description` VARCHAR(1000) DEFAULT NULL,
+    `markdown_content` LONGTEXT DEFAULT NULL,
+    `category_id` BIGINT DEFAULT NULL,
+    `tags` VARCHAR(500) DEFAULT NULL,
+    `content_scene` VARCHAR(30) NOT NULL,
+    `resource_type` VARCHAR(30) NOT NULL,
+    `file_url` VARCHAR(500) DEFAULT NULL,
+    `file_size` BIGINT NOT NULL DEFAULT 0,
+    `file_type` VARCHAR(100) DEFAULT NULL,
+    `category_ids_json` JSON NOT NULL,
+    `tag_names_json` JSON NOT NULL,
+    `attachments_json` JSON NOT NULL,
+    `change_description` VARCHAR(500) DEFAULT NULL,
+    `created_by` BIGINT NOT NULL,
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY `uk_resource_version` (`resource_id`, `version_number`),
+    INDEX `idx_resource_version_time` (`resource_id`, `create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='资源版本快照';
+
+CREATE TABLE IF NOT EXISTS `t_favorite` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `user_id` BIGINT NOT NULL,
+    `resource_id` BIGINT NOT NULL,
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY `uk_user_resource` (`user_id`, `resource_id`),
+    INDEX `idx_favorite_resource` (`resource_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='资源收藏';
+
 CREATE TABLE IF NOT EXISTS `t_admin_operation_log` (
     `id` BIGINT AUTO_INCREMENT,
     `operator_id` BIGINT NOT NULL DEFAULT 0,

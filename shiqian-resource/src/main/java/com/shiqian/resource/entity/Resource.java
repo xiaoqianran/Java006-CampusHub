@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Data
 @TableName("t_resource")
@@ -81,4 +82,20 @@ public class Resource {
 
     @TableField(exist = false)
     private String authorAvatar;
+
+    // 规范化分类和标签关系；旧 categoryId/tags 字段继续作为兼容镜像。
+    @TableField(exist = false)
+    private List<Long> categoryIds;
+
+    @TableField(exist = false)
+    private List<String> categoryNames;
+
+    @TableField(exist = false)
+    private List<Long> tagIds;
+
+    @TableField(exist = false)
+    private List<String> tagNames;
+
+    @TableField(exist = false)
+    private Map<String, List<String>> searchHighlights;
 }

@@ -19,6 +19,8 @@ const groups = [
   {
     label: '平台管理',
     links: [
+      { path: '/admin/categories', label: '分类管理' },
+      { path: '/admin/tags', label: '标签管理' },
       { path: '/admin/users', label: '用户管理' },
       { path: '/admin/logs', label: '操作日志' }
     ]

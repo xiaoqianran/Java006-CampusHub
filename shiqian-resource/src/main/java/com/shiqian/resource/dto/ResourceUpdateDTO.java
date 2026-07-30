@@ -35,6 +35,15 @@ public class ResourceUpdateDTO {
     @Min(value = 1, message = "分类ID必须大于0")
     private Long categoryId;
 
+    @Size(max = 10, message = "每个资源最多选择10个分类")
+    private List<@Min(value = 1, message = "分类ID必须大于0") Long> categoryIds;
+
+    @Size(max = 20, message = "每个资源最多添加20个标签")
+    private List<@NotBlank(message = "标签名称不能为空") @Size(max = 50, message = "单个标签最多50个字符") String> tagNames;
+
+    @Size(max = 500, message = "版本说明最多500个字符")
+    private String changeDescription;
+
     @Size(max = 500, message = "文件地址最多500个字符")
     private String fileUrl;
 

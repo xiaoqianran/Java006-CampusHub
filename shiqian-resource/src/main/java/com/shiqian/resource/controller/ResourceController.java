@@ -5,14 +5,19 @@ import com.shiqian.common.result.Result;
 import com.shiqian.common.security.SecurityUtil;
 import com.shiqian.resource.document.ResourceDocument;
 import com.shiqian.resource.dto.FileDownloadVO;
+import com.shiqian.resource.dto.IndexConsistencyVO;
 import com.shiqian.resource.dto.ResourceCreateDTO;
+import com.shiqian.resource.dto.ResourceRollbackDTO;
 import com.shiqian.resource.dto.ResourceUpdateDTO;
+import com.shiqian.resource.dto.ResourceVersionVO;
 import com.shiqian.resource.dto.ResourceReviewDTO;
 import com.shiqian.resource.entity.Resource;
 import com.shiqian.resource.service.FavoriteService;
 import com.shiqian.resource.service.ResourceSearchService;
 import com.shiqian.resource.service.ResourceService;
+import com.shiqian.resource.service.ResourceVersionService;
 import com.shiqian.resource.service.ResourceMessagePublisher;
+import com.shiqian.resource.service.ResourceIndexMaintenanceService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -51,6 +56,8 @@ public class ResourceController {
     private final FavoriteService favoriteService;
     private final ResourceSearchService resourceSearchService;
     private final ResourceMessagePublisher messagePublisher;
+    private final ResourceVersionService resourceVersionService;
+    private final ResourceIndexMaintenanceService indexMaintenanceService;
 
     @Operation(summary = "创建资源")
     @PostMapping
@@ -72,10 +79,14 @@ public class ResourceController {
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String sort,
-            @RequestParam(required = false) String scene) {
+            @RequestParam(required = false) String scene,
+            @RequestParam(required = false) Long tagId,
+            @RequestParam(required = false) @Size(max = 50) String tag) {
         Page<Resource> result = SecurityUtil.hasAuthority("resource:audit")
-                ? resourceService.pageResources(page, size, categoryId, keyword, sort, scene)
-                : resourceService.pagePublishedResources(page, size, categoryId, keyword, sort, scene);
+                ? resourceService.pageResources(
+                        page, size, categoryId, keyword, sort, scene, tagId, tag)
+                : resourceService.pagePublishedResources(
+                        page, size, categoryId, keyword, sort, scene, tagId, tag);
         return Result.ok(result);
     }
 
@@ -166,6 +177,40 @@ public class ResourceController {
         }
         resourceService.updateResource(userId, id, dto);
         return Result.ok();
+    }
+
+    @Operation(summary = "查询资源版本历史")
+    @GetMapping("/{id}/versions")
+    @PreAuthorize("hasAuthority('resource:update')")
+    public Result<List<ResourceVersionVO>> listVersions(@PathVariable @Positive Long id) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        return Result.ok(resourceVersionService.listVersions(userId, id));
+    }
+
+    @Operation(summary = "查询指定资源版本")
+    @GetMapping("/{id}/versions/{version}")
+    @PreAuthorize("hasAuthority('resource:update')")
+    public Result<ResourceVersionVO> getVersion(
+            @PathVariable @Positive Long id,
+            @PathVariable @Positive Integer version) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        return Result.ok(resourceVersionService.getVersion(userId, id, version));
+    }
+
+    @Operation(summary = "回滚到指定资源版本（回滚会生成新版本并重新进入审核）")
+    @PostMapping("/{id}/versions/{version}/rollback")
+    @PreAuthorize("hasAuthority('resource:update')")
+    public Result<Integer> rollbackVersion(
+            @PathVariable @Positive Long id,
+            @PathVariable @Positive Integer version,
+            @RequestBody(required = false) @Valid ResourceRollbackDTO dto) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        Resource rolledBack = resourceVersionService.rollback(
+                userId,
+                id,
+                version,
+                dto == null ? null : dto.getChangeDescription());
+        return Result.ok(rolledBack.getVersion());
     }
 
     @Operation(summary = "重新提交待修改资源")
@@ -265,16 +310,45 @@ public class ResourceController {
             @RequestParam(defaultValue = "1") @Min(1) Integer page,
             @RequestParam(defaultValue = "10") @Min(1) @Max(100) Integer size,
             @RequestParam(required = false) String sort,
-            @RequestParam(required = false) String scene) {
+            @RequestParam(required = false) String scene,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Long tagId,
+            @RequestParam(required = false) @Size(max = 50) String tag) {
         org.springframework.data.domain.Page<ResourceDocument> searchResult =
-                resourceSearchService.search(keyword, page, size, sort, scene);
+                resourceSearchService.search(
+                        keyword, page, size, sort, scene, categoryId, tagId, tag);
         List<Long> orderedIds = searchResult.getContent().stream()
                 .map(ResourceDocument::getId)
                 .toList();
         List<Resource> resources = resourceService.getPublishedResourcesByIds(orderedIds, scene);
+        java.util.Map<Long, java.util.Map<String, List<String>>> highlights =
+                searchResult.getContent().stream()
+                        .collect(java.util.stream.Collectors.toMap(
+                                ResourceDocument::getId,
+                                document -> document.getHighlights() == null
+                                        ? java.util.Map.of()
+                                        : document.getHighlights(),
+                                (left, right) -> left));
+        resources.forEach(resource ->
+                resource.setSearchHighlights(highlights.getOrDefault(
+                        resource.getId(), java.util.Map.of())));
         Page<Resource> result = new Page<>(page, size, searchResult.getTotalElements());
         result.setRecords(resources);
         return Result.ok(result);
+    }
+
+    @Operation(summary = "管理员重建 Elasticsearch 资源索引")
+    @PostMapping("/index/rebuild")
+    @PreAuthorize("hasAuthority('resource:audit')")
+    public Result<Long> rebuildIndex() {
+        return Result.ok(indexMaintenanceService.rebuildIndex());
+    }
+
+    @Operation(summary = "检查 MySQL 与 Elasticsearch 资源索引一致性")
+    @GetMapping("/index/consistency")
+    @PreAuthorize("hasAuthority('resource:audit')")
+    public Result<IndexConsistencyVO> checkIndexConsistency() {
+        return Result.ok(indexMaintenanceService.checkConsistency());
     }
 
     @Operation(summary = "审核或调整资源状态")

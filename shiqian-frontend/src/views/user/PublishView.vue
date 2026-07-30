@@ -40,7 +40,9 @@ const form = reactive({
   scene: 'BLOG' as ContentScene,
   title: '',
   cat: '',
+  categories: [] as string[],
   tags: '',
+  tagNames: [] as string[],
   summary: '',
   contentMarkdown: ''
 })
@@ -59,7 +61,9 @@ function draftPayload() {
     scene: form.scene,
     title: form.title,
     cat: form.cat,
+    categories: form.categories,
     tags: form.tags,
+    tagNames: form.tagNames,
     summary: form.summary,
     contentMarkdown: form.contentMarkdown,
     attachments: uploadedFiles.value
@@ -74,7 +78,13 @@ function applyDraft(data: any) {
       : data.mode === 'ARTICLE' ? 'BLOG' : 'SHARE',
     title: data.title || '',
     cat: data.cat || '',
+    categories: Array.isArray(data.categories)
+      ? data.categories
+      : data.cat ? [data.cat] : [],
     tags: data.tags || '',
+    tagNames: Array.isArray(data.tagNames)
+      ? data.tagNames
+      : (data.tags || '').split(/[,，]/).map((tag: string) => tag.trim()).filter(Boolean),
     summary: data.summary || '',
     contentMarkdown: data.contentMarkdown || ''
   })
@@ -117,6 +127,20 @@ function clearDraft() {
 
 watch(form, scheduleAutoSave, { deep: true })
 watch(uploadedFiles, scheduleAutoSave, { deep: true })
+watch(
+  () => form.categories,
+  categories => {
+    form.cat = categories[0] || ''
+  },
+  { deep: true }
+)
+watch(
+  () => form.tagNames,
+  tags => {
+    form.tags = tags.join(',')
+  },
+  { deep: true }
+)
 watch(
   () => selectedFiles.value.map(item => item.uid).join(','),
   () => {
@@ -277,7 +301,9 @@ async function submit() {
     await store.submitResource({
       title: form.title.trim(),
       cat: form.cat || undefined,
+      categories: form.categories,
       tags: form.tags.trim(),
+      tagNames: form.tagNames,
       summary: form.summary.trim(),
       contentMarkdown: form.contentMarkdown.trim(),
       contentScene: form.scene,
@@ -351,18 +377,32 @@ async function submit() {
               </el-form-item>
             </el-col>
             <el-col :xs="24" :md="8">
-              <el-form-item label="分类（选填）">
-                <el-select v-model="form.cat" class="full" clearable placeholder="不选择也可以发布">
+              <el-form-item label="分类（选填，可多选）">
+                <el-select
+                  v-model="form.categories"
+                  class="full"
+                  multiple
+                  clearable
+                  collapse-tags
+                  collapse-tags-tooltip
+                  :max-collapse-tags="2"
+                  placeholder="最多选择 10 个分类"
+                >
                   <el-option v-for="category in store.categories" :key="category" :label="category" :value="category" />
                 </el-select>
               </el-form-item>
             </el-col>
             <el-col :span="24">
-              <el-form-item label="自由标签（选填）">
-                <el-input
-                  v-model="form.tags"
-                  maxlength="500"
-                  placeholder="例如：Java, 校园生活, 摄影；使用逗号分隔"
+              <el-form-item label="自由标签（选填，可直接输入后回车）">
+                <el-select
+                  v-model="form.tagNames"
+                  class="full"
+                  multiple
+                  filterable
+                  allow-create
+                  default-first-option
+                  :multiple-limit="20"
+                  placeholder="例如：Java、校园生活、摄影"
                 />
               </el-form-item>
             </el-col>

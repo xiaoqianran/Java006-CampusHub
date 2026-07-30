@@ -42,10 +42,13 @@ let autoUploadTimer: number | null = null
 const form = reactive({
   title: '',
   cat: '',
+  categories: [] as string[],
   scene: 'SHARE' as ContentScene,
   tags: '',
+  tagNames: [] as string[],
   summary: '',
-  contentMarkdown: ''
+  contentMarkdown: '',
+  changeDescription: ''
 })
 
 const canSubmit = computed(() => {
@@ -63,14 +66,36 @@ watch(
   }
 )
 
+watch(
+  () => form.categories,
+  categories => {
+    form.cat = categories[0] || ''
+  },
+  { deep: true }
+)
+
+watch(
+  () => form.tagNames,
+  tags => {
+    form.tags = tags.join(',')
+  },
+  { deep: true }
+)
+
 function fillForm() {
   const resource = store.getResource(resourceId.value)
   if (!resource) return false
 
   form.title = resource.title
   form.cat = resource.categoryId ? resource.cat : ''
+  form.categories = resource.categoryNames?.length
+    ? [...resource.categoryNames]
+    : resource.categoryId ? [resource.cat] : []
   form.scene = resource.scene
   form.tags = resource.tags || ''
+  form.tagNames = resource.tagNames?.length
+    ? [...resource.tagNames]
+    : (resource.tags || '').split(/[,，]/).map(tag => tag.trim()).filter(Boolean)
   form.summary = resource.summary || resource.desc || ''
   form.contentMarkdown = resource.contentMarkdown || ''
 
@@ -251,10 +276,13 @@ async function submit() {
     await store.updateResource(resourceId.value, {
       title: form.title,
       cat: form.cat || undefined,
+      categories: form.categories,
       contentScene: form.scene,
       tags: form.tags,
+      tagNames: form.tagNames,
       summary: form.summary,
       contentMarkdown: form.contentMarkdown,
+      changeDescription: form.changeDescription,
       // 始终传递 attachments（即使空数组也表示清空所有），以触发多附件编辑逻辑
       attachments: finalAttachments.length ? finalAttachments : []
     })
@@ -294,15 +322,32 @@ async function submit() {
             </el-form-item>
           </el-col>
           <el-col :xs="24" :md="12">
-            <el-form-item label="分类（选填）">
-              <el-select v-model="form.cat" class="full" clearable placeholder="不选择也可以保存">
+            <el-form-item label="分类（选填，可多选）">
+              <el-select
+                v-model="form.categories"
+                class="full"
+                multiple
+                clearable
+                collapse-tags
+                collapse-tags-tooltip
+                placeholder="最多选择 10 个分类"
+              >
                 <el-option v-for="category in store.categories" :key="category" :label="category" :value="category" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :xs="24" :md="12">
-            <el-form-item label="自由标签（选填）">
-              <el-input v-model="form.tags" maxlength="500" placeholder="使用逗号分隔" />
+            <el-form-item label="自由标签（选填，可直接输入后回车）">
+              <el-select
+                v-model="form.tagNames"
+                class="full"
+                multiple
+                filterable
+                allow-create
+                default-first-option
+                :multiple-limit="20"
+                placeholder="最多 20 个标签"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -395,6 +440,16 @@ async function submit() {
                 type="textarea"
                 :rows="2"
                 placeholder="一句话总结这个资源（用于卡片展示和搜索结果）"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="本次修改说明（选填）">
+              <el-input
+                v-model="form.changeDescription"
+                maxlength="500"
+                show-word-limit
+                placeholder="例如：补充附件并修正文中示例"
               />
             </el-form-item>
           </el-col>

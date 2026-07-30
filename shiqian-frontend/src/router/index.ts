@@ -16,6 +16,7 @@ const AuditView = () => import('@/views/admin/AuditView.vue')
 const ResourceAdminView = () => import('@/views/admin/ResourceAdminView.vue')
 const RecycleBinView = () => import('@/views/admin/RecycleBinView.vue')
 const CategoryAdminView = () => import('@/views/admin/CategoryAdminView.vue')
+const TagAdminView = () => import('@/views/admin/TagAdminView.vue')
 const UserAdminView = () => import('@/views/admin/UserAdminView.vue')
 const AdminLogView = () => import('@/views/admin/AdminLogView.vue')
 
@@ -44,6 +45,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/admin/resources', component: ResourceAdminView, meta: { ...adminMeta, title: '内容管理' } },
   { path: '/admin/recycle-bin', component: RecycleBinView, meta: { ...adminMeta, title: '回收站' } },
   { path: '/admin/categories', component: CategoryAdminView, meta: { ...adminMeta, title: '分类管理' } },
+  { path: '/admin/tags', component: TagAdminView, meta: { ...adminMeta, title: '标签管理' } },
   { path: '/admin/users', component: UserAdminView, meta: { ...adminMeta, title: '用户管理' } },
   { path: '/admin/logs', component: AdminLogView, meta: { ...adminMeta, title: '操作日志' } },
   { path: '/:pathMatch(.*)*', redirect: '/home' }

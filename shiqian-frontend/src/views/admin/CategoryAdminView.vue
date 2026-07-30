@@ -42,15 +42,21 @@ onMounted(() => {
 const selectedResources = computed(() => {
   if (!selectedCategory.value) return []
   return store.resources.filter(item =>
-    item.categoryId === selectedCategory.value?.id || item.cat === selectedCategory.value?.name
+    item.categoryIds.includes(selectedCategory.value!.id)
+    || item.categoryId === selectedCategory.value?.id
+    || item.cat === selectedCategory.value?.name
   )
 })
 
 const categoryCountMap = computed(() => {
   const map = new Map<number, number>()
   store.resources.forEach(item => {
-    if (!item.categoryId) return
-    map.set(item.categoryId, (map.get(item.categoryId) || 0) + 1)
+    const categoryIds = item.categoryIds.length
+      ? item.categoryIds
+      : item.categoryId ? [item.categoryId] : []
+    new Set(categoryIds).forEach(categoryId => {
+      map.set(categoryId, (map.get(categoryId) || 0) + 1)
+    })
   })
   return map
 })
@@ -122,7 +128,7 @@ async function submitCategoryForm() {
 
 async function deleteCategoryConfirm(id: number, name: string) {
   try {
-    await ElMessageBox.confirm(`确认删除分类「${name}」？注意：仅当无子分类时允许删除，关联资源将保留原 categoryId 引用。`, '删除分类', {
+    await ElMessageBox.confirm(`确认删除分类「${name}」？仅当无子分类时允许删除，资源与该分类的关联会被自动清理。`, '删除分类', {
       type: 'warning',
       confirmButtonText: '删除',
       cancelButtonText: '取消'

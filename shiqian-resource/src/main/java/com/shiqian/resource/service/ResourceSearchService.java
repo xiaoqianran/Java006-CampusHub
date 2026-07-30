@@ -8,4 +8,14 @@ public interface ResourceSearchService {
     Page<ResourceDocument> search(String keyword, Integer page, Integer size, String sort);
 
     Page<ResourceDocument> search(String keyword, Integer page, Integer size, String sort, String contentScene);
+
+    Page<ResourceDocument> search(
+            String keyword,
+            Integer page,
+            Integer size,
+            String sort,
+            String contentScene,
+            Long categoryId,
+            Long tagId,
+            String tagName);
 }

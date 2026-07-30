@@ -34,6 +34,12 @@ export interface ResourceApiItem {
   contentScene?: ContentScene
   tags?: string
   categoryId?: number
+  categoryIds?: number[]
+  categoryNames?: string[]
+  tagIds?: number[]
+  tagNames?: string[]
+  version?: number
+  searchHighlights?: Record<string, string[]>
   fileUrl?: string
   fileSize?: number
   fileType?: string
@@ -86,6 +92,12 @@ export interface CategoryApiItem {
   children?: CategoryApiItem[]
 }
 
+export interface TagApiItem {
+  id: number
+  name: string
+  status: number
+}
+
 export interface LoginUser {
   userId: number
   username: string
@@ -102,8 +114,13 @@ export interface ResourceItem {
   title: string
   cat: string
   categoryId?: number
+  categoryIds: number[]
+  categoryNames: string[]
   scene: ContentScene
   tags?: string
+  tagIds: number[]
+  tagNames: string[]
+  version: number
   type: string
   author: string
   userId?: number
@@ -125,6 +142,28 @@ export interface ResourceItem {
   reviewTime?: string
   offlineReason?: string
   publishedTime?: string
+  searchHighlights?: Record<string, string[]>
+}
+
+export interface ResourceVersionItem {
+  id: number
+  resourceId: number
+  versionNumber: number
+  title: string
+  summary?: string
+  description?: string
+  markdownContent?: string
+  categoryIds: number[]
+  tagNames: string[]
+  contentScene: ContentScene
+  resourceType: string
+  fileUrl?: string
+  fileSize?: number
+  fileType?: string
+  attachments: ResourceAttachmentItem[]
+  changeDescription?: string
+  createdBy: number
+  createTime?: string
 }
 
 export interface UserItem {
@@ -167,10 +206,12 @@ interface RegisterPayload {
 interface ResourceSubmitPayload {
   title: string
   cat?: string
+  categories?: string[]
   summary: string
   contentMarkdown?: string
   contentScene: ContentScene
   tags?: string
+  tagNames?: string[]
   attachments?: UploadedFileItem[]
   files?: UploadedFileItem[]   // 临时兼容，submitResource 内部处理
 }
@@ -178,10 +219,13 @@ interface ResourceSubmitPayload {
 interface ResourceUpdatePayload {
   title: string
   cat?: string
+  categories?: string[]
   summary: string
   contentMarkdown: string
   contentScene: ContentScene
   tags?: string
+  tagNames?: string[]
+  changeDescription?: string
   file?: UploadedFileItem | ResourceAttachmentItem
   attachments?: (UploadedFileItem | ResourceAttachmentItem)[]
 }
@@ -259,6 +303,7 @@ export const useAppStore = defineStore('app', () => {
   }
 
   const categoryTree = ref<CategoryApiItem[]>([])
+  const tags = ref<TagApiItem[]>([])
   const resources = ref<ResourceItem[]>([])
   const recycleResources = ref<ResourceItem[]>([])
   const users = ref<UserItem[]>([])
@@ -346,13 +391,27 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function mapResource(item: ResourceApiItem): ResourceItem {
+    const categoryIds = item.categoryIds?.length
+      ? item.categoryIds
+      : item.categoryId ? [item.categoryId] : []
+    const categoryNames = item.categoryNames?.length
+      ? item.categoryNames
+      : categoryIds.map(id => categoryName(id)).filter(name => name !== '未分类')
+    const tagNames = item.tagNames?.length
+      ? item.tagNames
+      : (item.tags || '').split(/[,，]/).map(tag => tag.trim()).filter(Boolean)
     return {
       id: item.id,
       title: item.title,
-      cat: categoryName(item.categoryId),
-      categoryId: item.categoryId,
+      cat: categoryNames[0] || categoryName(item.categoryId),
+      categoryId: categoryIds[0],
+      categoryIds,
+      categoryNames,
       scene: item.contentScene || 'SHARE',
-      tags: item.tags,
+      tags: tagNames.join(','),
+      tagIds: item.tagIds || [],
+      tagNames,
+      version: item.version || 1,
       type: item.fileType || '资料',
       // 优先使用后端富化 authorNickname；回退与后端保持一致（匿名用户），确保卡片/详情一致性
       author: item.authorNickname || '匿名用户',
@@ -373,7 +432,8 @@ export const useAppStore = defineStore('app', () => {
       reviewerId: item.reviewerId,
       reviewTime: item.reviewTime,
       offlineReason: item.offlineReason,
-      publishedTime: item.publishedTime
+      publishedTime: item.publishedTime,
+      searchHighlights: item.searchHighlights
     }
   }
 
@@ -422,6 +482,8 @@ export const useAppStore = defineStore('app', () => {
     keyword?: string
     sort?: string
     scene?: ContentScene
+    tagId?: number
+    tag?: string
   }) {
     return JSON.stringify({
       scope: `${logged.value}:${role.value}`,
@@ -430,7 +492,9 @@ export const useAppStore = defineStore('app', () => {
       categoryId: params.categoryId ?? null,
       keyword: params.keyword?.trim() || '',
       sort: params.sort ?? sortMode.value,
-      scene: params.scene ?? null
+      scene: params.scene ?? null,
+      tagId: params.tagId ?? null,
+      tag: params.tag?.trim() || ''
     })
   }
 
@@ -462,6 +526,38 @@ export const useAppStore = defineStore('app', () => {
     return task
   }
 
+  async function loadTags(keyword?: string) {
+    tags.value = await request<TagApiItem[]>('/api/tag', {
+      query: { keyword: keyword?.trim() || undefined }
+    })
+    return tags.value
+  }
+
+  async function createTag(name: string) {
+    const created = await request<TagApiItem>('/api/tag', {
+      method: 'POST',
+      body: jsonBody({ name: name.trim() })
+    })
+    await loadTags()
+    return created
+  }
+
+  async function updateTag(id: number, name: string) {
+    const updated = await request<TagApiItem>(`/api/tag/${id}`, {
+      method: 'PUT',
+      body: jsonBody({ name: name.trim() })
+    })
+    await loadTags()
+    invalidateResourceCache()
+    return updated
+  }
+
+  async function deleteTag(id: number) {
+    await request<void>(`/api/tag/${id}`, { method: 'DELETE' })
+    await loadTags()
+    invalidateResourceCache()
+  }
+
   async function loadResources(
     params: {
       page?: number
@@ -470,6 +566,8 @@ export const useAppStore = defineStore('app', () => {
       keyword?: string
       sort?: string
       scene?: ContentScene
+      tagId?: number
+      tag?: string
     } = {},
     options: LoadOptions = {}
   ) {
@@ -485,7 +583,9 @@ export const useAppStore = defineStore('app', () => {
         categoryId: params.categoryId,
         keyword: params.keyword,
         sort: params.sort ?? sortMode.value,
-        scene: params.scene
+        scene: params.scene,
+        tagId: params.tagId,
+        tag: params.tag
       }
     })
       .then(data => {
@@ -539,6 +639,9 @@ export const useAppStore = defineStore('app', () => {
     scene?: ContentSceneFilter
     page?: number
     size?: number
+    categoryId?: number
+    tagId?: number
+    tag?: string
   } = {}) {
     searchAbortController?.abort()
     const sequence = ++searchSequence
@@ -553,8 +656,19 @@ export const useAppStore = defineStore('app', () => {
     searchAbortController = controller
     searchLoading.value = true
     try {
-      const data = await request<PageResult<ResourceApiItem>>('/api/resource', {
-        query: { keyword: text, page, size, sort, scene: requestedScene },
+      const data = await request<PageResult<ResourceApiItem>>(
+        text ? '/api/resource/search' : '/api/resource',
+        {
+        query: {
+          keyword: text || undefined,
+          page,
+          size,
+          sort,
+          scene: requestedScene,
+          categoryId: params.categoryId,
+          tagId: params.tagId,
+          tag: params.tag
+        },
         signal: controller.signal
       })
       if (sequence !== searchSequence) return
@@ -858,7 +972,15 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function submitResource(payload: ResourceSubmitPayload) {
-    const categoryIdValue = payload.cat ? categoryId(payload.cat) : undefined
+    const categoryNames = payload.categories?.length
+      ? payload.categories
+      : payload.cat ? [payload.cat] : []
+    const categoryIds = categoryNames
+      .map(categoryId)
+      .filter((id): id is number => id !== undefined)
+    const tagNames = payload.tagNames?.length
+      ? payload.tagNames.map(tag => tag.trim()).filter(Boolean)
+      : (payload.tags || '').split(/[,，]/).map(tag => tag.trim()).filter(Boolean)
 
     const attachments = (payload.attachments ?? payload.files ?? []).map((file, index) => ({
       fileName: (file as any).originalName || (file as any).fileName,
@@ -884,12 +1006,14 @@ export const useAppStore = defineStore('app', () => {
       method: 'POST',
       body: jsonBody({
         title: payload.title,
-        categoryId: categoryIdValue,
+        categoryId: categoryIds[0],
+        categoryIds,
         summary: payload.summary,
         contentMarkdown,
         contentType,
         contentScene: payload.contentScene,
-        tags: payload.tags?.trim() || undefined,
+        tags: tagNames.join(',') || undefined,
+        tagNames,
         attachments
       })
     })
@@ -900,7 +1024,15 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function updateResource(id: number, payload: ResourceUpdatePayload) {
-    const categoryIdValue = payload.cat ? categoryId(payload.cat) : undefined
+    const categoryNames = payload.categories?.length
+      ? payload.categories
+      : payload.cat ? [payload.cat] : []
+    const categoryIds = categoryNames
+      .map(categoryId)
+      .filter((value): value is number => value !== undefined)
+    const tagNames = payload.tagNames?.length
+      ? payload.tagNames.map(tag => tag.trim()).filter(Boolean)
+      : (payload.tags || '').split(/[,，]/).map(tag => tag.trim()).filter(Boolean)
 
     const existing = getResource(id)
     const hasFiles = payload.attachments !== undefined
@@ -910,13 +1042,16 @@ export const useAppStore = defineStore('app', () => {
 
     const body: any = {
       title: payload.title,
-      categoryId: categoryIdValue,
+      categoryId: categoryIds[0],
+      categoryIds,
       summary: payload.summary,
       description: payload.summary,
       contentMarkdown: payload.contentMarkdown,
       contentType: hasFiles && hasText ? 'MIXED' : hasFiles ? 'FILE' : 'ARTICLE',
       contentScene: payload.contentScene,
-      tags: payload.tags?.trim() || ''
+      tags: tagNames.join(','),
+      tagNames,
+      changeDescription: payload.changeDescription?.trim() || undefined
     }
 
     // 如果提供 attachments 数组（编辑多附件场景），则发送之（后端将替换）；否则兼容 legacy file
@@ -946,10 +1081,14 @@ export const useAppStore = defineStore('app', () => {
     const item = getResource(id)
     if (item) {
       item.title = payload.title
-      item.cat = payload.cat || '未分类'
-      item.categoryId = categoryIdValue
+      item.cat = categoryNames[0] || '未分类'
+      item.categoryId = categoryIds[0]
+      item.categoryIds = categoryIds
+      item.categoryNames = categoryNames
       item.scene = payload.contentScene
-      item.tags = payload.tags?.trim() || ''
+      item.tags = tagNames.join(',')
+      item.tagNames = tagNames
+      item.version += 1
       item.desc = payload.summary
       item.summary = payload.summary
       item.contentMarkdown = payload.contentMarkdown
@@ -977,6 +1116,28 @@ export const useAppStore = defineStore('app', () => {
     invalidateResourceCache(id)
     detailLoadedAt.set(id, Date.now())
     myResourcesLoadedAt.clear()
+  }
+
+  async function loadResourceVersions(id: number) {
+    return request<ResourceVersionItem[]>(`/api/resource/${id}/versions`)
+  }
+
+  async function rollbackResourceVersion(
+    id: number,
+    version: number,
+    changeDescription?: string
+  ) {
+    const nextVersion = await request<number>(
+      `/api/resource/${id}/versions/${version}/rollback`,
+      {
+        method: 'POST',
+        body: jsonBody({ changeDescription: changeDescription?.trim() || undefined })
+      }
+    )
+    invalidateResourceCache(id)
+    myResourcesLoadedAt.clear()
+    await loadResourceDetail(id, { force: true })
+    return nextVersion
   }
 
   async function createCategory(name: string, icon?: string, sortOrder?: number) {
@@ -1100,6 +1261,7 @@ export const useAppStore = defineStore('app', () => {
     searchLoading,
     searchResultTotal,
     categoryTree,
+    tags,
     flatCategories,
     categories,
     resources,
@@ -1128,6 +1290,7 @@ export const useAppStore = defineStore('app', () => {
     resetFilters,
     loadHomeData,
     loadCategories,
+    loadTags,
     loadResources,
     loadRecycleResources,
     searchResources,
@@ -1154,9 +1317,14 @@ export const useAppStore = defineStore('app', () => {
     uploadFiles,
     submitResource,
     updateResource,
+    loadResourceVersions,
+    rollbackResourceVersion,
     createCategory,
     updateCategory,
     deleteCategory,
+    createTag,
+    updateTag,
+    deleteTag,
     // 新增管理员能力
     updateUserStatus,
     updateUserRole,

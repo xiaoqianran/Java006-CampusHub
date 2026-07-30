@@ -10,6 +10,8 @@ const route = useRoute()
 const router = useRouter()
 const ready = ref(false)
 const currentPage = ref(1)
+const selectedCategoryId = ref<number | undefined>()
+const selectedTag = ref('')
 const PAGE_SIZE = 24
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -45,6 +47,11 @@ function applyRouteFilters() {
   currentPage.value = Number.isInteger(requestedPage) && requestedPage > 0
     ? requestedPage
     : 1
+  const requestedCategoryId = Number(queryValue(route.query.categoryId))
+  selectedCategoryId.value = Number.isInteger(requestedCategoryId) && requestedCategoryId > 0
+    ? requestedCategoryId
+    : undefined
+  selectedTag.value = queryValue(route.query.tag)
 }
 
 function filterQuery() {
@@ -52,6 +59,8 @@ function filterQuery() {
   const keyword = store.keyword.trim()
   if (keyword) query.keyword = keyword
   if (store.sortMode === 'hottest') query.sort = 'hottest'
+  if (selectedCategoryId.value) query.categoryId = String(selectedCategoryId.value)
+  if (selectedTag.value) query.tag = selectedTag.value
   if (currentPage.value > 1) query.page = String(currentPage.value)
   return query
 }
@@ -62,7 +71,9 @@ async function runSearch() {
       sort: store.sortMode,
       scene: currentScene.value,
       page: currentPage.value,
-      size: PAGE_SIZE
+      size: PAGE_SIZE,
+      categoryId: selectedCategoryId.value,
+      tag: selectedTag.value || undefined
     })
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '内容加载失败')
@@ -80,6 +91,8 @@ function scheduleSearch() {
 function resetFilters() {
   store.keyword = ''
   store.sortMode = 'newest'
+  selectedCategoryId.value = undefined
+  selectedTag.value = ''
   updateFilters()
 }
 
@@ -100,6 +113,10 @@ applyRouteFilters()
 onMounted(async () => {
   try {
     ready.value = true
+    await Promise.all([
+      store.loadCategories(),
+      store.loadTags()
+    ])
     await runSearch()
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '内容加载失败')
@@ -140,6 +157,36 @@ onUnmounted(() => {
         <el-select v-model="store.sortMode" class="sort-select" @change="updateFilters">
           <el-option label="最新发布" value="newest" />
           <el-option label="热门优先" value="hottest" />
+        </el-select>
+        <el-select
+          v-model="selectedCategoryId"
+          clearable
+          filterable
+          class="taxonomy-select"
+          placeholder="全部分类"
+          @change="updateFilters"
+        >
+          <el-option
+            v-for="category in store.flatCategories"
+            :key="category.id"
+            :label="category.name"
+            :value="category.id"
+          />
+        </el-select>
+        <el-select
+          v-model="selectedTag"
+          clearable
+          filterable
+          class="taxonomy-select"
+          placeholder="全部标签"
+          @change="updateFilters"
+        >
+          <el-option
+            v-for="tag in store.tags"
+            :key="tag.id"
+            :label="`# ${tag.name}`"
+            :value="tag.name"
+          />
         </el-select>
         <el-button @click="resetFilters">重置筛选</el-button>
       </div>
@@ -194,6 +241,10 @@ onUnmounted(() => {
 
 .sort-select {
   width: 140px;
+}
+
+.taxonomy-select {
+  width: 170px;
 }
 
 .resource-results {
