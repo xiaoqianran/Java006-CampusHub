@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -37,8 +38,9 @@ class InternalUserControllerTest {
 
     @BeforeEach
     void cleanDatabase() {
-        jdbcTemplate.execute("DELETE FROM t_user");
-        jdbcTemplate.execute("ALTER TABLE t_user ALTER COLUMN id RESTART WITH 1");
+        jdbcTemplate.execute("DELETE FROM sys_user_role");
+        jdbcTemplate.execute("DELETE FROM sys_user");
+        jdbcTemplate.execute("ALTER TABLE sys_user ALTER COLUMN id RESTART WITH 1");
     }
 
     @Test
@@ -96,6 +98,22 @@ class InternalUserControllerTest {
                 .andExpect(jsonPath("$.code").value(400));
     }
 
+    @Test
+    void shouldReturnCurrentDatabaseAuthoritiesToTrustedService() throws Exception {
+        User alice = user("alice", "小艾", "alice@example.com", "13800138000");
+        userMapper.insert(alice);
+        jdbcTemplate.update(
+                "INSERT INTO sys_user_role(user_id, role_id) VALUES (?, ?)",
+                alice.getId(),
+                1L);
+
+        mockMvc.perform(get("/internal/users/{userId}/authorities", alice.getId())
+                        .header(InternalApiHeaders.SERVICE_KEY, SERVICE_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.roles[0]").value("USER"))
+                .andExpect(jsonPath("$.data.permissions", hasSize(6)));
+    }
+
     private User user(String username, String nickname, String email, String phone) {
         User user = new User();
         user.setUsername(username);
@@ -104,7 +122,6 @@ class InternalUserControllerTest {
         user.setEmail(email);
         user.setPhone(phone);
         user.setAvatar("https://example.com/avatar.png");
-        user.setRole("ADMIN");
         user.setStatus(1);
         user.setTokenVersion(0L);
         user.setDeleted(0);

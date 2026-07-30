@@ -103,29 +103,35 @@ MyBatis-Plus `Page` 返回格式：
 
 ## 4. 角色与权限体系
 
-### 4.1 角色（User.role）
+### 4.1 数据库驱动 RBAC
 
-| 角色   | 描述   | 说明                     |
-|--------|--------|--------------------------|
-| USER   | 普通用户 | 学生默认角色             |
-| ADMIN  | 管理员 | 拥有额外审核与管理权限   |
+角色与权限分别保存在 `sys_role`、`sys_permission`，通过
+`sys_user_role`、`sys_role_permission` 建立多对多关系。一个用户可以拥有多个角色，
+Spring Security 每次认证读取共享 Redis 权限快照，缓存未命中时回源用户数据库。
 
-### 4.2 权限映射（RolePermissionMapping）
+| 内置角色 | 说明 |
+|----------|------|
+| USER | 默认角色，拥有日常资源权限 |
+| ADMIN | 内容管理员，额外拥有资源审核和用户管理权限 |
+| SUPER_ADMIN | 超级管理员，额外拥有 `rbac:manage` |
 
-| 权限 Code            | 描述         | USER | ADMIN |
-|----------------------|--------------|------|-------|
-| resource:read        | 资源查看     | ✓    | ✓     |
-| resource:download    | 资源下载     | ✓    | ✓     |
-| resource:favorite    | 收藏操作     | ✓    | ✓     |
-| resource:create      | 发布资源     | ✓    | ✓     |
-| resource:update      | 更新资源     | ✓    | ✓     |
-| resource:delete      | 删除资源     | ✓    | ✓     |
-| resource:audit       | 审核资源     | ✗    | ✓     |
-| user:manage          | 用户管理     | ✗    | ✓     |
+`role` 仍作为兼容字段出现在 Token 和部分前端响应中；真正的接口授权以 `roles`、
+`permissions` 和 Spring Security authority 为准，不再使用 Java 硬编码角色映射。
 
-**注意**：
-- 普通用户拥有 `resource:update` 权限，但当前 `updateResource` 实现**未校验归属**（可更新任意资源）。
-- 删除接口 `deleteResource` **严格校验**只有上传者本人可删。
+### 4.2 RBAC 管理接口
+
+以下接口统一要求 `rbac:manage`：
+
+| 方法 | 路径 | 用途 |
+|------|------|------|
+| GET / POST | `/api/user/admin/rbac/roles` | 查询或创建角色 |
+| PUT / DELETE | `/api/user/admin/rbac/roles/{roleId}` | 更新或删除自定义角色 |
+| PUT | `/api/user/admin/rbac/roles/{roleId}/permissions` | 替换角色权限 |
+| GET / POST | `/api/user/admin/rbac/permissions` | 查询或创建权限 |
+| PUT / DELETE | `/api/user/admin/rbac/permissions/{permissionId}` | 更新或删除自定义权限 |
+| PUT | `/api/user/admin/rbac/users/{userId}/roles` | 替换用户的多个角色 |
+
+系统禁止删除内置角色/权限，也禁止移除或禁用最后一个启用的超级管理员。
 
 ---
 
@@ -214,7 +220,9 @@ MyBatis-Plus `Page` 返回格式：
   "userId": 1001,
   "username": "zhangsan",
   "nickname": "张三",
-  "role": "USER"
+  "role": "USER",
+  "roles": ["USER"],
+  "permissions": ["resource:read", "resource:create"]
 }
 ```
 
@@ -494,7 +502,7 @@ MyBatis-Plus `Page` 返回格式：
 
 ## 7. 数据库表结构摘要
 
-### 7.1 shiqian_user.t_user
+### 7.1 shiqian_user
 
 | 字段         | 类型          | 说明                     |
 |--------------|---------------|--------------------------|
@@ -502,9 +510,13 @@ MyBatis-Plus `Page` 返回格式：
 | username     | VARCHAR(50)   | UNIQUE                   |
 | password     | VARCHAR(200)  | BCrypt                   |
 | nickname     | VARCHAR(50)   |                          |
-| role         | VARCHAR(20)   | USER / ADMIN             |
 | status       | TINYINT       | 0=禁用 1=正常            |
+| token_version| BIGINT        | 令牌撤销版本             |
 | deleted      | TINYINT       | 逻辑删除                 |
+
+用户主表为 `sys_user`；角色权限表为 `sys_role`、`sys_permission`、
+`sys_user_role`、`sys_role_permission`。旧 `t_user.role` 由
+`V4__database_driven_rbac.sql` 迁移后删除。
 
 ### 7.2 shiqian_resource 库
 

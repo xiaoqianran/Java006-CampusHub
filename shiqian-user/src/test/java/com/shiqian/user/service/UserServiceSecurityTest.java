@@ -2,9 +2,12 @@ package com.shiqian.user.service;
 
 import com.shiqian.common.exception.BusinessException;
 import com.shiqian.common.security.JwtUtil;
+import com.shiqian.common.security.AuthoritySnapshot;
 import com.shiqian.common.security.TokenType;
 import com.shiqian.user.dto.ChangePasswordDTO;
+import com.shiqian.user.dto.LoginDTO;
 import com.shiqian.user.dto.LoginVO;
+import com.shiqian.user.dto.RegisterDTO;
 import com.shiqian.user.entity.User;
 import com.shiqian.user.mapper.UserMapper;
 import com.shiqian.user.service.impl.UserServiceImpl;
@@ -15,6 +18,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
+
+import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -31,6 +37,8 @@ class UserServiceSecurityTest {
     private PasswordEncoder passwordEncoder;
     @Mock
     private TokenSessionService tokenSessionService;
+    @Mock
+    private RbacService rbacService;
 
     private JwtUtil jwtUtil;
     private UserServiceImpl userService;
@@ -42,7 +50,12 @@ class UserServiceSecurityTest {
                 "test-only-jwt-key-with-at-least-thirty-two-bytes");
         ReflectionTestUtils.setField(jwtUtil, "accessTokenExpiration", 7_200_000L);
         ReflectionTestUtils.setField(jwtUtil, "refreshTokenExpiration", 604_800_000L);
-        userService = new UserServiceImpl(userMapper, passwordEncoder, jwtUtil, tokenSessionService);
+        userService = new UserServiceImpl(
+                userMapper,
+                passwordEncoder,
+                jwtUtil,
+                tokenSessionService,
+                rbacService);
     }
 
     @Test
@@ -50,6 +63,10 @@ class UserServiceSecurityTest {
         String oldRefresh = jwtUtil.generateRefreshToken(2L, "alice", "ADMIN", 4L);
         User current = user(2L, "alice", "USER", 4L);
         when(userMapper.selectById(2L)).thenReturn(current);
+        when(rbacService.getAuthoritySnapshot(2L))
+                .thenReturn(new AuthoritySnapshot(
+                        Set.of("USER"),
+                        Set.of("resource:read")));
 
         LoginVO result = userService.refresh(oldRefresh);
 
@@ -61,6 +78,52 @@ class UserServiceSecurityTest {
                 oldRefresh, 2L, jwtUtil.getJti(oldRefresh));
         verify(tokenSessionService).storeRefreshToken(
                 result.getRefreshToken(), 2L, 4L);
+    }
+
+    @Test
+    void registrationShouldPersistUserAndAssignDefaultDatabaseRole() {
+        RegisterDTO dto = new RegisterDTO();
+        dto.setUsername("new-user");
+        dto.setPassword("plain-password");
+        dto.setNickname("新用户");
+        when(passwordEncoder.encode("plain-password")).thenReturn("encoded-password");
+        when(userMapper.insert(any(User.class))).thenAnswer(invocation -> {
+            User user = invocation.getArgument(0);
+            user.setId(12L);
+            return 1;
+        });
+
+        userService.register(dto);
+
+        verify(rbacService).assignDefaultRole(12L);
+        verify(passwordEncoder).encode("plain-password");
+    }
+
+    @Test
+    void loginShouldReturnCurrentDatabaseRolesAndPermissions() {
+        LoginDTO dto = new LoginDTO();
+        dto.setUsername("alice");
+        dto.setPassword("plain-password");
+        User current = user(2L, "alice", "ADMIN", 4L);
+        current.setPassword("encoded-password");
+        when(userMapper.selectOne(any())).thenReturn(current);
+        when(passwordEncoder.matches("plain-password", "encoded-password"))
+                .thenReturn(true);
+        when(rbacService.getAuthoritySnapshot(2L))
+                .thenReturn(new AuthoritySnapshot(
+                        Set.of("USER", "ADMIN"),
+                        Set.of("resource:read", "resource:audit")));
+
+        LoginVO result = userService.login(dto);
+
+        assertEquals("ADMIN", result.getRole());
+        assertEquals(Set.of("USER", "ADMIN"), result.getRoles());
+        assertEquals(Set.of("resource:read", "resource:audit"),
+                result.getPermissions());
+        verify(tokenSessionService).storeRefreshToken(
+                result.getRefreshToken(),
+                2L,
+                4L);
     }
 
     @Test
@@ -76,17 +139,12 @@ class UserServiceSecurityTest {
 
     @Test
     void roleChangeMustIncrementVersionAndRevokeSessions() {
-        User target = user(2L, "alice", "ADMIN", 8L);
-        when(userMapper.selectById(2L)).thenReturn(target);
-        when(userMapper.selectCount(any())).thenReturn(2L);
-
         userService.updateUserRole(2L, "USER", 1L);
 
-        assertEquals("USER", target.getRole());
-        assertEquals(9L, target.getTokenVersion());
-        verify(tokenSessionService).syncUserVersion(2L, 9L);
-        verify(tokenSessionService).revokeAll(2L);
-        verify(userMapper).updateById(target);
+        verify(rbacService).replaceUserRolesByCodes(
+                2L,
+                List.of("USER"),
+                1L);
     }
 
     @Test
@@ -128,7 +186,6 @@ class UserServiceSecurityTest {
         user.setId(id);
         user.setUsername(username);
         user.setNickname(username);
-        user.setRole(role);
         user.setStatus(1);
         user.setDeleted(0);
         user.setTokenVersion(tokenVersion);

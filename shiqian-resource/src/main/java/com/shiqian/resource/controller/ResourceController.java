@@ -76,7 +76,7 @@ public class ResourceController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String sort,
             @RequestParam(required = false) String scene) {
-        Page<Resource> result = "ADMIN".equals(SecurityUtil.getCurrentRole())
+        Page<Resource> result = SecurityUtil.hasAuthority("resource:audit")
                 ? resourceService.pageResources(page, size, categoryId, keyword, sort, scene)
                 : resourceService.pagePublishedResources(page, size, categoryId, keyword, sort, scene);
         return Result.ok(result);
@@ -154,7 +154,8 @@ public class ResourceController {
             return true;
         }
         Long userId = SecurityUtil.getCurrentUserId();
-        return resource.getUserId().equals(userId) || "ADMIN".equals(SecurityUtil.getCurrentRole());
+        return resource.getUserId().equals(userId)
+                || SecurityUtil.hasAuthority("resource:audit");
     }
 
     @Operation(summary = "更新资源")

@@ -47,6 +47,10 @@ public class SecurityConfig {
                     HttpMethod.POST,
                     "/internal/users/public-profiles/batch"
                 ).permitAll()
+                .requestMatchers(
+                    HttpMethod.GET,
+                    "/internal/users/*/authorities"
+                ).permitAll()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter,

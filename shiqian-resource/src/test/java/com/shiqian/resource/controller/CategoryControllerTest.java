@@ -41,6 +41,7 @@ public class CategoryControllerTest extends BaseResourceTest {
 
     @BeforeEach
     void setUpToken() {
+        stubAdminAuthorities(1L);
         adminToken = jwtUtil.generateAccessToken(1L, "admin", "ADMIN");
     }
 

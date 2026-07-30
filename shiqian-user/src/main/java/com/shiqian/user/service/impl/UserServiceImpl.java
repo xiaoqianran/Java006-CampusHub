@@ -13,8 +13,9 @@ import com.shiqian.user.entity.User;
 import com.shiqian.user.mapper.UserMapper;
 import com.shiqian.user.service.UserService;
 import com.shiqian.user.service.TokenSessionService;
+import com.shiqian.user.service.RbacService;
+import com.shiqian.common.security.AuthoritySnapshot;
 import com.shiqian.common.security.JwtUtil;
-import com.shiqian.common.security.RoleEnum;
 import com.shiqian.common.user.PublicUserProfile;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +28,7 @@ import io.jsonwebtoken.Claims;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -39,6 +41,7 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final TokenSessionService tokenSessionService;
+    private final RbacService rbacService;
 
     @Override
     public boolean checkDatabaseConnection() {
@@ -76,11 +79,11 @@ public class UserServiceImpl implements UserService {
                 : registerDTO.getUsername());
         user.setEmail(registerDTO.getEmail());
         user.setPhone(registerDTO.getPhone());
-        user.setRole(RoleEnum.USER.name());
         user.setStatus(1);
         user.setTokenVersion(0L);
 
         userMapper.insert(user);
+        rbacService.assignDefaultRole(user.getId());
     }
 
     private boolean checkUsernameExists(String username) {
@@ -231,7 +234,7 @@ public class UserServiceImpl implements UserService {
         if (user == null || user.getDeleted() == 1) {
             throw new BusinessException(404, "用户不存在");
         }
-        return toUserInfoVO(user);
+        return toUserInfoVO(user, rbacService.getAuthoritySnapshot(userId));
     }
 
     @Override
@@ -280,12 +283,20 @@ public class UserServiceImpl implements UserService {
         wrapper.orderByDesc("create_time");
         Page<User> userPage = userMapper.selectPage(pageParam, wrapper);
 
+        Map<Long, Set<String>> rolesByUser = rbacService.getRoleCodesByUserIds(
+                userPage.getRecords().stream().map(User::getId).toList());
         Page<UserInfoVO> result = new Page<>(userPage.getCurrent(), userPage.getSize(), userPage.getTotal());
-        result.setRecords(userPage.getRecords().stream().map(this::toUserInfoVO).toList());
+        result.setRecords(userPage.getRecords().stream()
+                .map(user -> toUserInfoVO(
+                        user,
+                        new AuthoritySnapshot(
+                                rolesByUser.getOrDefault(user.getId(), Set.of()),
+                                Set.of())))
+                .toList());
         return result;
     }
 
-    private UserInfoVO toUserInfoVO(User user) {
+    private UserInfoVO toUserInfoVO(User user, AuthoritySnapshot snapshot) {
         UserInfoVO vo = new UserInfoVO();
         vo.setUserId(user.getId());
         vo.setUsername(user.getUsername());
@@ -293,7 +304,9 @@ public class UserServiceImpl implements UserService {
         vo.setEmail(user.getEmail());
         vo.setPhone(user.getPhone());
         vo.setAvatar(user.getAvatar());
-        vo.setRole(user.getRole());
+        vo.setRole(toCompatibilityRole(snapshot));
+        vo.setRoles(copyOf(snapshot.getRoles()));
+        vo.setPermissions(copyOf(snapshot.getPermissions()));
         vo.setStatus(user.getStatus());
         vo.setCreateTime(user.getCreateTime());
         return vo;
@@ -317,14 +330,8 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(404, "用户不存在");
         }
 
-        // 防止禁用最后一个管理员
-        if (status == 0 && "ADMIN".equals(user.getRole())) {
-            long adminCount = userMapper.selectCount(
-                new QueryWrapper<User>().eq("role", "ADMIN").eq("status", 1).eq("deleted", 0)
-            );
-            if (adminCount <= 1) {
-                throw new BusinessException(400, "至少保留一个启用的管理员账号");
-            }
+        if (status == 0) {
+            rbacService.assertCanDisableUser(targetUserId);
         }
 
         user.setStatus(status);
@@ -348,33 +355,24 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(400, "角色只能是 USER 或 ADMIN");
         }
 
-        User user = userMapper.selectById(targetUserId);
-        if (user == null || user.getDeleted() == 1) {
-            throw new BusinessException(404, "用户不存在");
-        }
-
-        // 防止降级最后一个管理员
-        if ("ADMIN".equals(user.getRole()) && !"ADMIN".equals(newRole)) {
-            long adminCount = userMapper.selectCount(
-                new QueryWrapper<User>().eq("role", "ADMIN").eq("status", 1).eq("deleted", 0)
-            );
-            if (adminCount <= 1) {
-                throw new BusinessException(400, "至少保留一个启用的管理员账号");
-            }
-        }
-
-        user.setRole(newRole);
-        invalidateUserTokens(user);
-        userMapper.updateById(user);
+        rbacService.replaceUserRolesByCodes(
+                targetUserId,
+                List.of(newRole),
+                operatorId);
         log.info("管理员{} 将用户{} 的角色修改为 {}", operatorId, targetUserId, newRole);
     }
 
     private LoginVO issueTokenPair(User user) {
+        AuthoritySnapshot snapshot = rbacService.getAuthoritySnapshot(user.getId());
+        if (snapshot.getRoles() == null || snapshot.getRoles().isEmpty()) {
+            throw new BusinessException(403, "用户未分配有效角色");
+        }
+        String compatibilityRole = toCompatibilityRole(snapshot);
         Long tokenVersion = normalizeTokenVersion(user.getTokenVersion());
         String accessToken = jwtUtil.generateAccessToken(
-                user.getId(), user.getUsername(), user.getRole(), tokenVersion);
+                user.getId(), user.getUsername(), compatibilityRole, tokenVersion);
         String refreshToken = jwtUtil.generateRefreshToken(
-                user.getId(), user.getUsername(), user.getRole(), tokenVersion);
+                user.getId(), user.getUsername(), compatibilityRole, tokenVersion);
         tokenSessionService.storeRefreshToken(refreshToken, user.getId(), tokenVersion);
 
         LoginVO loginVO = new LoginVO();
@@ -383,8 +381,25 @@ public class UserServiceImpl implements UserService {
         loginVO.setUserId(user.getId());
         loginVO.setUsername(user.getUsername());
         loginVO.setNickname(user.getNickname());
-        loginVO.setRole(user.getRole());
+        loginVO.setRole(compatibilityRole);
+        loginVO.setRoles(copyOf(snapshot.getRoles()));
+        loginVO.setPermissions(copyOf(snapshot.getPermissions()));
         return loginVO;
+    }
+
+    private String toCompatibilityRole(AuthoritySnapshot snapshot) {
+        Set<String> roles = snapshot != null && snapshot.getRoles() != null
+                ? snapshot.getRoles()
+                : Set.of();
+        return roles.contains("SUPER_ADMIN") || roles.contains("ADMIN")
+                ? "ADMIN"
+                : "USER";
+    }
+
+    private Set<String> copyOf(Set<String> values) {
+        return values == null
+                ? Set.of()
+                : new LinkedHashSet<>(values);
     }
 
     private void invalidateUserTokens(User user) {

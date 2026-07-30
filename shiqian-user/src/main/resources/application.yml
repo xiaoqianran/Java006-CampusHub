@@ -20,6 +20,9 @@ campushub:
   internal:
     service-key: ${INTERNAL_SERVICE_KEY:}
 
+rbac:
+  authority-cache-ttl: ${RBAC_AUTHORITY_CACHE_TTL:24h}
+
 mybatis-plus:
   mapper-locations: classpath*:mapper/**/*.xml
   configuration:

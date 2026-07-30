@@ -8,10 +8,10 @@ BEGIN
         SELECT 1
         FROM information_schema.COLUMNS
         WHERE TABLE_SCHEMA = 'shiqian_user'
-          AND TABLE_NAME = 't_user'
+          AND TABLE_NAME = 'sys_user'
           AND COLUMN_NAME = 'token_version'
     ) THEN
-        ALTER TABLE `t_user`
+        ALTER TABLE `sys_user`
             ADD COLUMN `token_version` BIGINT NOT NULL DEFAULT 0
                 COMMENT '令牌安全版本' AFTER `status`;
     END IF;

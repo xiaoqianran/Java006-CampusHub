@@ -568,7 +568,8 @@ public class ResourceServiceImpl implements ResourceService {
         if (resource == null || userId == null) {
             return false;
         }
-        return userId.equals(resource.getUserId()) || "ADMIN".equals(SecurityUtil.getCurrentRole());
+        return userId.equals(resource.getUserId())
+                || SecurityUtil.hasAuthority("resource:audit");
     }
 
     private void enrichAttachments(List<Resource> resources) {

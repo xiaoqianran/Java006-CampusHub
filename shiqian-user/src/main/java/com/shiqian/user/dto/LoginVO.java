@@ -2,6 +2,8 @@ package com.shiqian.user.dto;
 
 import lombok.Data;
 
+import java.util.Set;
+
 @Data
 public class LoginVO {
 
@@ -16,4 +18,8 @@ public class LoginVO {
     private String nickname;
 
     private String role;
+
+    private Set<String> roles;
+
+    private Set<String> permissions;
 }

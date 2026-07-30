@@ -1,11 +1,14 @@
 package com.shiqian.resource.client;
 
 import com.shiqian.common.result.Result;
+import com.shiqian.common.security.AuthoritySnapshot;
 import com.shiqian.common.user.BatchUserProfileRequest;
 import com.shiqian.common.user.PublicUserProfile;
 import com.shiqian.resource.config.UserClientFeignConfig;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.List;
@@ -22,4 +25,7 @@ public interface UserPublicProfileClient {
     @PostMapping("/public-profiles/batch")
     Result<List<PublicUserProfile>> getPublicProfiles(
             @RequestBody BatchUserProfileRequest request);
+
+    @GetMapping("/{userId}/authorities")
+    Result<AuthoritySnapshot> getAuthorities(@PathVariable("userId") Long userId);
 }

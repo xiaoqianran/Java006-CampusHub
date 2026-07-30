@@ -10,7 +10,7 @@ CREATE DATABASE IF NOT EXISTS `shiqian_resource`
 
 USE `shiqian_user`;
 
-CREATE TABLE IF NOT EXISTS `t_user` (
+CREATE TABLE IF NOT EXISTS `sys_user` (
     `id` BIGINT AUTO_INCREMENT COMMENT '主键',
     `username` VARCHAR(50) NOT NULL COMMENT '登录用户名',
     `password` VARCHAR(200) NOT NULL COMMENT 'BCrypt加密后的密码',
@@ -18,8 +18,8 @@ CREATE TABLE IF NOT EXISTS `t_user` (
     `email` VARCHAR(100) DEFAULT NULL COMMENT '邮箱',
     `phone` VARCHAR(20) DEFAULT NULL COMMENT '手机号',
     `avatar` VARCHAR(500) DEFAULT NULL COMMENT '头像URL',
-    `role` VARCHAR(20) NOT NULL DEFAULT 'USER' COMMENT '角色（USER/ADMIN）',
     `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态（0=禁用, 1=正常）',
+    `token_version` BIGINT NOT NULL DEFAULT 0 COMMENT '令牌安全版本',
     `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除（0=正常, 1=已删除）',
@@ -31,18 +31,23 @@ CREATE TABLE IF NOT EXISTS `t_user` (
   COLLATE=utf8mb4_unicode_ci
   COMMENT='用户表';
 
-INSERT INTO `t_user` (`id`, `username`, `password`, `nickname`, `email`, `phone`, `role`, `status`, `deleted`)
+INSERT INTO `sys_user`
+    (`id`, `username`, `password`, `nickname`, `email`, `phone`, `status`, `token_version`, `deleted`)
 VALUES
-    (1, 'admin', '$2a$10$oAFwmKHtlJ/E4CZPrRJqFe/m94IQs5ZDN.VaQR4HYfB6EeoJS/HCS', '管理员', 'admin@example.com', '13800138000', 'ADMIN', 1, 0),
-    (2, 'student01', '$2a$10$oAFwmKHtlJ/E4CZPrRJqFe/m94IQs5ZDN.VaQR4HYfB6EeoJS/HCS', '学生一号', 'student01@example.com', '13800138001', 'USER', 1, 0)
+    (1, 'admin', '$2a$10$oAFwmKHtlJ/E4CZPrRJqFe/m94IQs5ZDN.VaQR4HYfB6EeoJS/HCS', '管理员', 'admin@example.com', '13800138000', 1, 0, 0),
+    (2, 'student01', '$2a$10$oAFwmKHtlJ/E4CZPrRJqFe/m94IQs5ZDN.VaQR4HYfB6EeoJS/HCS', '学生一号', 'student01@example.com', '13800138001', 1, 0, 0)
 ON DUPLICATE KEY UPDATE
     `password` = VALUES(`password`),
     `nickname` = VALUES(`nickname`),
     `email` = VALUES(`email`),
     `phone` = VALUES(`phone`),
-    `role` = VALUES(`role`),
     `status` = VALUES(`status`),
     `deleted` = 0;
+
+INSERT IGNORE INTO `sys_user_role` (`user_id`, `role_id`)
+VALUES
+    (1, 3),
+    (2, 1);
 
 USE `shiqian_resource`;
 

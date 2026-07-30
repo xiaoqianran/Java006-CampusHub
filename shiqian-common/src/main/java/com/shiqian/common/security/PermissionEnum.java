@@ -15,7 +15,8 @@ public enum PermissionEnum {
     RESOURCE_UPDATE("resource:update", "资源更新"),
     RESOURCE_DELETE("resource:delete", "资源删除"),
     RESOURCE_AUDIT("resource:audit", "资源审核"),
-    USER_MANAGE("user:manage", "用户管理");
+    USER_MANAGE("user:manage", "用户管理"),
+    RBAC_MANAGE("rbac:manage", "角色权限管理");
 
     private final String code;
     private final String description;

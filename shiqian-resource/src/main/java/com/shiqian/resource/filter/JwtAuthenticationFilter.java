@@ -2,9 +2,9 @@ package com.shiqian.resource.filter;
 
 import com.shiqian.common.security.JwtUtil;
 import com.shiqian.common.security.LoginUser;
-import com.shiqian.common.security.PermissionEnum;
-import com.shiqian.common.security.RolePermissionMapping;
+import com.shiqian.common.security.AuthoritySnapshot;
 import com.shiqian.resource.security.AccessTokenVersionVerifier;
+import com.shiqian.resource.security.UserAuthorityProvider;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -21,7 +21,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * JWT 认证过滤器
@@ -33,6 +32,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final AccessTokenVersionVerifier tokenVersionVerifier;
+    private final UserAuthorityProvider userAuthorityProvider;
 
     private static final String AUTHORIZATION_HEADER = "Authorization";
     private static final String BEARER_PREFIX = "Bearer ";
@@ -51,15 +51,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     String username = claims.get("username", String.class);
                     String role = claims.get("role", String.class);
 
+                    AuthoritySnapshot snapshot =
+                            userAuthorityProvider.getAuthorities(userId);
+                    List<SimpleGrantedAuthority> authorities =
+                            snapshot.asGrantedAuthorities().stream()
+                                    .map(SimpleGrantedAuthority::new)
+                                    .toList();
+                    if (userId == null || !StringUtils.hasText(username)
+                            || authorities.isEmpty()) {
+                        filterChain.doFilter(request, response);
+                        return;
+                    }
+
                     LoginUser loginUser = new LoginUser(userId, username, role);
-
-                    List<PermissionEnum> permissions = RolePermissionMapping.getPermissions(role);
-                    List<SimpleGrantedAuthority> authorities = permissions.stream()
-                            .map(p -> new SimpleGrantedAuthority(p.getCode()))
-                            .collect(Collectors.toList());
-                    authorities.add(new SimpleGrantedAuthority(
-                            "ROLE_" + (role != null ? role : "USER")));
-
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(
                                     loginUser, null, authorities);
