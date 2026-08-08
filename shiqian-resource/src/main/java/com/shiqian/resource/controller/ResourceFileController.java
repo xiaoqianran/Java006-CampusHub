@@ -40,6 +40,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.util.UriUtils;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -225,7 +226,8 @@ public class ResourceFileController {
                     break;
                 }
             }
-        } catch (ZipException error) {
+        } catch (ZipException | EOFException error) {
+            // 损坏包、截断流（EOFException）统一按客户端错误返回，避免 500。
             return Result.fail(400, "ZIP 文件已损坏或格式不正确");
         }
         return Result.ok(new ArchivePreviewVO(entries, totalEntries, truncated));
