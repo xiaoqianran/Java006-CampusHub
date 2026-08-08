@@ -62,3 +62,7 @@ coverage/
 __pycache__/
 *.py[cod]
 jimeng_gallery*.jsonl
+
+# code-review-graph local index
+.code-review-graph/
+
