@@ -343,15 +343,41 @@ public class ResourceControllerTest extends BaseResourceTest {
     }
 
     @Test
-    public void testAdminCannotDeleteOtherUserResource() throws Exception {
+    public void testAdminCanSoftDeleteOtherUserResource() throws Exception {
         Category category = createCategory("测试分类");
-        Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "管理员不能删除测试"));
+        Resource resource = resourceService.createResource(
+                1L, buildCreateDto(category.getId(), "管理员软删他人资源测试"));
 
+        // 具备 resource:audit 的管理员可将他人资源软删进回收站
         mockMvc.perform(delete("/api/resource/{id}", resource.getId())
                         .header("Authorization", "Bearer " + adminToken))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value(403))
-                .andExpect(jsonPath("$.message").value("无权删除该资源"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        mockMvc.perform(get("/api/resource/{id}", resource.getId())
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(404));
+
+        mockMvc.perform(get("/api/resource/recycle-bin")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .param("page", "1")
+                        .param("size", "20")
+                        .param("keyword", "管理员软删他人资源测试"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.records[0].id").value(resource.getId()));
+    }
+
+    @Test
+    public void testGuestCannotDeleteOtherUserResource() throws Exception {
+        Category category = createCategory("测试分类");
+        Resource resource = resourceService.createResource(
+                1L, buildCreateDto(category.getId(), "访客不可删测试"));
+
+        mockMvc.perform(delete("/api/resource/{id}", resource.getId())
+                        .header("Authorization", "Bearer " + guestToken))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -440,7 +466,7 @@ public class ResourceControllerTest extends BaseResourceTest {
     @Test
     public void testAddFavoriteSuccess() throws Exception {
         Category category = createCategory("测试分类");
-        Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "收藏测试"));
+        Resource resource = createPublishedResource(1L, category.getId(), "收藏测试");
 
         mockMvc.perform(post("/api/resource/{id}/favorite", resource.getId())
                         .header("Authorization", "Bearer " + userToken))
@@ -455,9 +481,21 @@ public class ResourceControllerTest extends BaseResourceTest {
     }
 
     @Test
+    public void testAddFavoritePendingResourceShouldFail() throws Exception {
+        Category category = createCategory("测试分类");
+        Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "待审不可收藏"));
+
+        mockMvc.perform(post("/api/resource/{id}/favorite", resource.getId())
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
+                .andExpect(jsonPath("$.message").value("只能收藏已发布的资源"));
+    }
+
+    @Test
     public void testAddFavoriteDuplicate() throws Exception {
         Category category = createCategory("测试分类");
-        Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "收藏测试"));
+        Resource resource = createPublishedResource(1L, category.getId(), "收藏测试");
 
         mockMvc.perform(post("/api/resource/{id}/favorite", resource.getId())
                         .header("Authorization", "Bearer " + userToken))
@@ -473,7 +511,7 @@ public class ResourceControllerTest extends BaseResourceTest {
     @Test
     public void testRemoveFavoriteSuccess() throws Exception {
         Category category = createCategory("测试分类");
-        Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "收藏测试"));
+        Resource resource = createPublishedResource(1L, category.getId(), "收藏测试");
 
         mockMvc.perform(post("/api/resource/{id}/favorite", resource.getId())
                         .header("Authorization", "Bearer " + userToken))
@@ -563,7 +601,24 @@ public class ResourceControllerTest extends BaseResourceTest {
                         .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400))
-                .andExpect(jsonPath("$.message").value("只有待修改资源可以重新提交"));
+                .andExpect(jsonPath("$.message").value("只有待修改或已拒绝的资源可以重新提交"));
+    }
+
+    @Test
+    public void testResubmitRejectedResourceSuccess() throws Exception {
+        Category category = createCategory("测试分类");
+        Resource resource = resourceService.createResource(1L, buildCreateDto(category.getId(), "拒绝后重提"));
+        resourceService.reviewResource(resource.getId(), 3, "内容不符合规范", 2L);
+
+        mockMvc.perform(put("/api/resource/{id}/resubmit", resource.getId())
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        mockMvc.perform(get("/api/resource/{id}", resource.getId())
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value(0));
     }
 
     @Test
@@ -648,6 +703,12 @@ public class ResourceControllerTest extends BaseResourceTest {
         dto.setFileSize(1024L);
         dto.setFileType("application/pdf");
         return dto;
+    }
+
+    private Resource createPublishedResource(Long ownerId, Long categoryId, String title) {
+        Resource resource = resourceService.createResource(ownerId, buildCreateDto(categoryId, title));
+        resourceService.reviewResource(resource.getId(), 1, null, 2L);
+        return resourceService.getResourceById(resource.getId());
     }
 
     private Category createCategory(String name) {

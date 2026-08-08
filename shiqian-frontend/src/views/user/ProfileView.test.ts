@@ -2,6 +2,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { shallowMount } from '@vue/test-utils'
 import ProfileView from './ProfileView.vue'
 
+const mocks = vi.hoisted(() => ({
+  updateProfile: vi.fn().mockResolvedValue(undefined),
+  loadCurrentUser: vi.fn().mockResolvedValue(undefined),
+  changePassword: vi.fn().mockResolvedValue(undefined),
+  push: vi.fn()
+}))
+
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: mocks.push })
+}))
+
 // Mock the app store module (minimal, focused)
 vi.mock('@/stores/app', () => {
   const currentUser = {
@@ -17,8 +28,9 @@ vi.mock('@/stores/app', () => {
   return {
     useAppStore: () => ({
       currentUser,
-      updateProfile: vi.fn().mockResolvedValue(undefined),
-      loadCurrentUser: vi.fn().mockResolvedValue(undefined)
+      updateProfile: mocks.updateProfile,
+      loadCurrentUser: mocks.loadCurrentUser,
+      changePassword: mocks.changePassword
     })
   }
 })
@@ -41,12 +53,12 @@ describe('ProfileView', () => {
     expect(wrapper.text()).toContain('手机')
     expect(wrapper.html()).toContain('头像 URL')  // label prop on form-item stub
     expect(wrapper.text()).toContain('头像预览')
+    expect(wrapper.text()).toContain('修改密码')
 
     // Disabled field labels (may be in form-item props for stubs) - check via html fallback
     const pHtml = wrapper.html()
     expect(pHtml.includes('用户名') || pHtml.includes('el-form-item')).toBe(true)
     expect(pHtml.includes('角色') || pHtml.includes('el-form-item')).toBe(true)
-    // (values passed via props to stubs; we assert labels instead of stub inner text)
   })
 
   it('renders the three action buttons (save, reset, refresh)', () => {
@@ -58,32 +70,28 @@ describe('ProfileView', () => {
     expect(buttonTexts.some((t) => t.includes('保存修改'))).toBe(true)
     expect(buttonTexts.some((t) => t.includes('重置表单'))).toBe(true)
     expect(buttonTexts.some((t) => t.includes('刷新最新资料'))).toBe(true)
+    expect(buttonTexts.some((t) => t.includes('确认修改密码'))).toBe(true)
   })
 
   it('exposes and can invoke saveProfile (covers save button handler logic)', async () => {
     const wrapper = shallowMount(ProfileView)
 
-    // The saveProfile method exists on the component instance (covers the @click binding path)
     const vm = wrapper.vm as any
     expect(typeof vm.saveProfile).toBe('function')
 
-    // Directly invoke (simulates the save button interaction in a shallow environment)
-    // This exercises the submitting flag, payload shaping and store call
     await vm.saveProfile()
     await wrapper.vm.$nextTick()
 
-    // No throw = success for this focused unit of behavior
+    expect(mocks.updateProfile).toHaveBeenCalled()
     expect(wrapper.exists()).toBe(true)
   })
 
   it('allows basic form interaction without crashing (nickname input stub exists)', async () => {
     const wrapper = shallowMount(ProfileView)
 
-    // Verify the nickname input stub renders (v-model wiring is internal to Vue)
     const nicknameInput = wrapper.find('el-input[placeholder="请输入昵称"]')
     expect(nicknameInput.exists()).toBe(true)
 
-    // Trigger a click on it (basic interaction smoke test)
     await nicknameInput.trigger('click')
     expect(wrapper.exists()).toBe(true)
   })
@@ -93,7 +101,6 @@ describe('ProfileView', () => {
     const vm = wrapper.vm as any
 
     expect(typeof vm.resetForm).toBe('function')
-    // resetForm is internal but safe to call (covers the reset button handler)
     vm.resetForm()
   })
 
@@ -111,7 +118,6 @@ describe('ProfileView', () => {
     const wrapper = shallowMount(ProfileView)
     const vm = wrapper.vm as any
 
-    // Set some values
     vm.form.nickname = '新昵称'
     vm.form.email = 'new@mail.com'
     vm.form.phone = '13900139000'
@@ -119,8 +125,12 @@ describe('ProfileView', () => {
 
     await vm.saveProfile()
 
-    // The mocked updateProfile should have been called (we can inspect calls in real test with better mock)
-    expect(wrapper.exists()).toBe(true)
+    expect(mocks.updateProfile).toHaveBeenCalledWith({
+      nickname: '新昵称',
+      email: 'new@mail.com',
+      phone: '13900139000',
+      avatar: 'https://example.com/a.png'
+    })
   })
 
   it('refreshProfile calls store.loadCurrentUser', async () => {
@@ -128,15 +138,43 @@ describe('ProfileView', () => {
     const vm = wrapper.vm as any
 
     await vm.refreshProfile()
-    expect(wrapper.exists()).toBe(true)
+    expect(mocks.loadCurrentUser).toHaveBeenCalled()
+  })
+
+  it('savePassword calls changePassword and navigates to login', async () => {
+    const wrapper = shallowMount(ProfileView)
+    const vm = wrapper.vm as any
+
+    vm.passwordForm.oldPassword = 'old-pass-1'
+    vm.passwordForm.newPassword = 'new-pass-1'
+    vm.passwordForm.confirmPassword = 'new-pass-1'
+
+    await vm.savePassword()
+
+    expect(mocks.changePassword).toHaveBeenCalledWith({
+      oldPassword: 'old-pass-1',
+      newPassword: 'new-pass-1'
+    })
+    expect(mocks.push).toHaveBeenCalledWith('/login')
+  })
+
+  it('savePassword rejects mismatched confirmation without calling store', async () => {
+    const wrapper = shallowMount(ProfileView)
+    const vm = wrapper.vm as any
+
+    vm.passwordForm.oldPassword = 'old-pass-1'
+    vm.passwordForm.newPassword = 'new-pass-1'
+    vm.passwordForm.confirmPassword = 'different'
+
+    await vm.savePassword()
+
+    expect(mocks.changePassword).not.toHaveBeenCalled()
   })
 
   it('form is reactive to currentUser changes via watcher', async () => {
     const wrapper = shallowMount(ProfileView)
     const vm = wrapper.vm as any
 
-    // Simulate external user data update
-    // (in real shallow test with better mock we would spy, here we just ensure no crash)
     await wrapper.vm.$nextTick()
     expect(typeof vm.form).toBe('object')
   })

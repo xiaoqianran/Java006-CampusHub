@@ -128,7 +128,13 @@ async function saveProfile() {
         <template #default="{ row }">
           <el-button size="small" @click="$router.push(`/detail/${row.id}`)">查看</el-button>
           <el-button size="small" type="primary" plain @click="$router.push(`/resource/${row.id}/edit`)">编辑</el-button>
-          <el-button v-if="row.status === '待修改'" size="small" type="success" plain @click="resubmit(row.id)">重新提交</el-button>
+          <el-button
+            v-if="row.status === '待修改' || row.status === '已拒绝'"
+            size="small"
+            type="success"
+            plain
+            @click="resubmit(row.id)"
+          >重新提交</el-button>
           <el-button size="small" type="danger" plain @click="remove(row.id)">删除</el-button>
         </template>
       </el-table-column>

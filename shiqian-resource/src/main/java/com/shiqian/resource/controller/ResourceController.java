@@ -239,7 +239,7 @@ public class ResourceController {
         return Result.ok(rolledBack.getVersion());
     }
 
-    @Operation(summary = "重新提交待修改资源")
+    @Operation(summary = "重新提交待修改或已拒绝的资源进入审核")
     @SecurityRequirement(name = "bearerAuth")
     @PutMapping("/{id}/resubmit")
     @PreAuthorize("hasAuthority('resource:update')")

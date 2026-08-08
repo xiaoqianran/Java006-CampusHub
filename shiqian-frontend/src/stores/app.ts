@@ -833,7 +833,9 @@ export const useAppStore = defineStore('app', () => {
     resourcesLoadedAt.clear()
     favoritesLoadedAt.clear()
     myResourcesLoadedAt.clear()
+    // 登录响应不含邮箱/手机/头像等完整资料，立刻拉 /me 补齐会话资料。
     await Promise.allSettled([
+      loadCurrentUser({ force: true }),
       loadFavorites({}, { force: true }),
       loadMyResources({}, { force: true })
     ])
@@ -852,7 +854,32 @@ export const useAppStore = defineStore('app', () => {
     await login(payload.username, payload.password)
   }
 
-  function logout() {
+  async function logout() {
+    // 服务端撤销 access + 全部 refresh，避免本地清 token 后令牌仍可被盗用。
+    try {
+      await request<void>('/api/user/logout', { method: 'POST' })
+    } catch {
+      // 网络或已过期时仍清理本地态
+    }
+    clearTokens()
+    logged.value = false
+    currentUser.value = null
+    favoriteIds.value = []
+    myResourceIds.value = []
+    currentUserLoadedAt = 0
+    resourcesLoadedAt.clear()
+    favoritesLoadedAt.clear()
+    myResourcesLoadedAt.clear()
+    favoriteStateLoadedAt.clear()
+    setRole('student')
+  }
+
+  async function changePassword(payload: { oldPassword: string; newPassword: string }) {
+    await request<void>('/api/user/me/password', {
+      method: 'PUT',
+      body: jsonBody(payload)
+    })
+    // 改密后后端会使全部令牌失效，本地必须退出并要求重新登录。
     clearTokens()
     logged.value = false
     currentUser.value = null
@@ -1111,6 +1138,12 @@ export const useAppStore = defineStore('app', () => {
 
     const item = getResource(id)
     if (item) {
+      // 作者修改已发布内容后后端会重新进审
+      if (item.status === '已发布') {
+        item.status = '待审核'
+        item.reviewReason = undefined
+        item.offlineReason = undefined
+      }
       item.title = payload.title
       item.cat = categoryNames[0] || '未分类'
       item.categoryId = categoryIds[0]
@@ -1377,6 +1410,7 @@ export const useAppStore = defineStore('app', () => {
     register,
     refresh,
     logout,
+    changePassword,
     setCategory,
     resetFilters,
     loadHomeData,

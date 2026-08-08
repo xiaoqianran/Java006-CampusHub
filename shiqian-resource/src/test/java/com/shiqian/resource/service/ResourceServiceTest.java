@@ -2,6 +2,7 @@ package com.shiqian.resource.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shiqian.common.exception.BusinessException;
+import com.shiqian.common.security.LoginUser;
 import com.shiqian.resource.BaseResourceTest;
 import com.shiqian.resource.document.ResourceDocument;
 import com.shiqian.resource.dto.AttachmentCreateDTO;
@@ -11,9 +12,13 @@ import com.shiqian.resource.dto.ResourceUpdateDTO;
 import java.util.List;
 import com.shiqian.resource.entity.Category;
 import com.shiqian.resource.entity.Resource;
+import com.shiqian.resource.mapper.ResourceMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
@@ -38,6 +43,9 @@ public class ResourceServiceTest extends BaseResourceTest {
 
     @Autowired
     private CategoryService categoryService;
+
+    @Autowired
+    private ResourceMapper resourceMapper;
 
     private final Map<Long, ResourceDocument> esDocs = new HashMap<>();
 
@@ -384,6 +392,67 @@ public class ResourceServiceTest extends BaseResourceTest {
         assertEquals("新标题", updated.getTitle());
         assertEquals("新摘要", updated.getSummary());
         assertEquals(2, updated.getVersion());
+        // 待审资源编辑后仍保持待审
+        assertEquals(0, updated.getStatus());
+    }
+
+    @Test
+    public void testOwnerUpdatePublishedResourceRequiresReaudit() {
+        Category category = createCategory("测试分类");
+        Resource resource = createResource("已发布后修改", category.getId());
+        resourceService.reviewResource(resource.getId(), 1, null, 2L);
+        // 直接查库，避开 @Cacheable + transactionAware 在单测事务内的脏读
+        assertEquals(1, resourceMapper.selectById(resource.getId()).getStatus());
+
+        ResourceUpdateDTO dto = new ResourceUpdateDTO();
+        dto.setTitle("作者修改后的标题");
+        dto.setSummary("新摘要");
+        dto.setContentMarkdown("# 改写正文\n\n需要重新审核。");
+        dto.setCategoryId(category.getId());
+        dto.setFileUrl("http://example.com/new.pdf");
+        dto.setFileSize(2048L);
+        dto.setFileType("application/pdf");
+
+        resourceService.updateResource(1L, resource.getId(), dto);
+
+        Resource updated = resourceMapper.selectById(resource.getId());
+        assertEquals("作者修改后的标题", updated.getTitle());
+        assertEquals(0, updated.getStatus());
+        assertNull(updated.getReviewReason());
+        assertNull(updated.getReviewerId());
+    }
+
+    @Test
+    public void testAdminUpdatePublishedResourceKeepsPublishedStatus() {
+        Category category = createCategory("测试分类");
+        Resource resource = createResource("管理员勘误", category.getId());
+        resourceService.reviewResource(resource.getId(), 1, null, 2L);
+
+        ResourceUpdateDTO dto = new ResourceUpdateDTO();
+        dto.setTitle("管理员紧急修正");
+        dto.setSummary("勘误摘要");
+        dto.setContentMarkdown("# 勘误\n\n不改变发布态。");
+        dto.setCategoryId(category.getId());
+        dto.setFileUrl("http://example.com/new.pdf");
+        dto.setFileSize(2048L);
+        dto.setFileType("application/pdf");
+
+        LoginUser admin = new LoginUser(2L, "admin", "ADMIN");
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(
+                        admin,
+                        null,
+                        List.of(new SimpleGrantedAuthority("resource:audit"))));
+        try {
+            // 管理员 userId=2 代改，保留已发布
+            resourceService.updateResource(2L, resource.getId(), dto);
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+
+        Resource updated = resourceMapper.selectById(resource.getId());
+        assertEquals("管理员紧急修正", updated.getTitle());
+        assertEquals(1, updated.getStatus());
     }
 
     @Test
@@ -463,9 +532,34 @@ public class ResourceServiceTest extends BaseResourceTest {
         Category category = createCategory("测试分类");
         Resource resource = createResource("他人资源", category.getId());
 
+        // 无 SecurityContext / 无 resource:audit 时，非作者不可软删
         BusinessException exception = assertThrows(BusinessException.class,
                 () -> resourceService.deleteResource(2L, resource.getId()));
         assertEquals("无权删除该资源", exception.getMessage());
+    }
+
+    @Test
+    public void testAdminWithAuditAuthorityCanSoftDeleteOtherUserResource() {
+        Category category = createCategory("测试分类");
+        Resource resource = createResource("待管理员软删资源", category.getId());
+        Long id = resource.getId();
+
+        LoginUser admin = new LoginUser(2L, "admin", "ADMIN");
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(
+                        admin,
+                        null,
+                        List.of(new SimpleGrantedAuthority("resource:audit"))));
+        try {
+            resourceService.deleteResource(2L, id);
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+
+        assertNull(resourceService.getResourceById(id));
+        Page<Resource> recyclePage = resourceService.pageRecycleResources(1, 10, "待管理员软删资源");
+        assertEquals(1, recyclePage.getRecords().size());
+        assertEquals(id, recyclePage.getRecords().get(0).getId());
     }
 
     @Test
@@ -611,9 +705,9 @@ public class ResourceServiceTest extends BaseResourceTest {
     }
 
     @Test
-    public void testResubmitRejectedResourceSuccess() {
+    public void testResubmitNeedsChangesResourceSuccess() {
         Category category = createCategory("测试分类");
-        Resource resource = createResource("已驳回资源", category.getId());
+        Resource resource = createResource("待修改资源", category.getId());
         resourceService.auditResource(resource.getId(), 2, 2L);
 
         resourceService.resubmitResource(1L, resource.getId());
@@ -623,13 +717,26 @@ public class ResourceServiceTest extends BaseResourceTest {
     }
 
     @Test
-    public void testResubmitOnlyRejectedResource() {
+    public void testResubmitRejectedResourceSuccess() {
+        Category category = createCategory("测试分类");
+        Resource resource = createResource("已拒绝资源", category.getId());
+        resourceService.reviewResource(resource.getId(), 3, "内容不符合规范", 2L);
+
+        resourceService.resubmitResource(1L, resource.getId());
+
+        Resource updated = resourceService.getResourceById(resource.getId());
+        assertEquals(0, updated.getStatus());
+        assertNull(updated.getReviewReason());
+    }
+
+    @Test
+    public void testResubmitOnlyNeedsChangesOrRejectedResource() {
         Category category = createCategory("测试分类");
         Resource resource = createResource("待审核资源", category.getId());
 
         BusinessException exception = assertThrows(BusinessException.class,
                 () -> resourceService.resubmitResource(1L, resource.getId()));
-        assertEquals("只有待修改资源可以重新提交", exception.getMessage());
+        assertEquals("只有待修改或已拒绝的资源可以重新提交", exception.getMessage());
     }
 
     @Test

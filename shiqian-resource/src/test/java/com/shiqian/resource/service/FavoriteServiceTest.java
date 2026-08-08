@@ -26,7 +26,7 @@ public class FavoriteServiceTest extends BaseResourceTest {
     @Test
     public void testAddFavoriteSuccess() {
         Category category = createCategory("测试分类");
-        Resource resource = createResource("测试资源", category.getId());
+        Resource resource = createPublishedResource("测试资源", category.getId());
 
         favoriteService.addFavorite(1L, resource.getId());
 
@@ -41,9 +41,20 @@ public class FavoriteServiceTest extends BaseResourceTest {
     }
 
     @Test
+    public void testAddFavoriteRejectsPendingResource() {
+        Category category = createCategory("测试分类");
+        Resource pending = createPendingResource("待审资源", category.getId());
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> favoriteService.addFavorite(1L, pending.getId()));
+        assertEquals("只能收藏已发布的资源", exception.getMessage());
+        assertFalse(favoriteService.isFavorited(1L, pending.getId()));
+    }
+
+    @Test
     public void testAddFavoriteDuplicate() {
         Category category = createCategory("测试分类");
-        Resource resource = createResource("测试资源", category.getId());
+        Resource resource = createPublishedResource("测试资源", category.getId());
 
         favoriteService.addFavorite(1L, resource.getId());
 
@@ -55,7 +66,7 @@ public class FavoriteServiceTest extends BaseResourceTest {
     @Test
     public void testRemoveFavoriteSuccess() {
         Category category = createCategory("测试分类");
-        Resource resource = createResource("测试资源", category.getId());
+        Resource resource = createPublishedResource("测试资源", category.getId());
 
         favoriteService.addFavorite(1L, resource.getId());
         assertTrue(favoriteService.isFavorited(1L, resource.getId()));
@@ -67,7 +78,7 @@ public class FavoriteServiceTest extends BaseResourceTest {
     @Test
     public void testRemoveFavoriteNotFavorited() {
         Category category = createCategory("测试分类");
-        Resource resource = createResource("测试资源", category.getId());
+        Resource resource = createPublishedResource("测试资源", category.getId());
 
         BusinessException exception = assertThrows(BusinessException.class,
                 () -> favoriteService.removeFavorite(1L, resource.getId()));
@@ -77,9 +88,21 @@ public class FavoriteServiceTest extends BaseResourceTest {
     @Test
     public void testIsFavoritedFalse() {
         Category category = createCategory("测试分类");
-        Resource resource = createResource("测试资源", category.getId());
+        Resource resource = createPublishedResource("测试资源", category.getId());
 
         assertFalse(favoriteService.isFavorited(1L, resource.getId()));
+    }
+
+    @Test
+    public void testPageFavoritesHidesUnpublishedResources() {
+        Category category = createCategory("测试分类");
+        Resource published = createPublishedResource("已发布收藏", category.getId());
+        favoriteService.addFavorite(1L, published.getId());
+
+        // 下架后列表不再返回该资源
+        resourceService.reviewResource(published.getId(), 4, "违规下架", 2L);
+        var page = favoriteService.pageFavorites(1L, 1, 10, "newest");
+        assertTrue(page.getRecords().stream().noneMatch(r -> r.getId().equals(published.getId())));
     }
 
     private Category createCategory(String name) {
@@ -92,7 +115,7 @@ public class FavoriteServiceTest extends BaseResourceTest {
         return category;
     }
 
-    private Resource createResource(String title, Long categoryId) {
+    private Resource createPendingResource(String title, Long categoryId) {
         ResourceCreateDTO dto = new ResourceCreateDTO();
         dto.setTitle(title);
         dto.setCategoryId(categoryId);
@@ -100,5 +123,14 @@ public class FavoriteServiceTest extends BaseResourceTest {
         dto.setFileSize(1024L);
         dto.setFileType("application/pdf");
         return resourceService.createResource(1L, dto);
+    }
+
+    private Resource createPublishedResource(String title, Long categoryId) {
+        Resource resource = createPendingResource(title, categoryId);
+        resourceService.reviewResource(resource.getId(), 1, null, 2L);
+        Resource refreshed = resourceService.getResourceById(resource.getId());
+        assertNotNull(refreshed);
+        assertEquals(1, refreshed.getStatus());
+        return refreshed;
     }
 }

@@ -86,6 +86,22 @@ async function restoreOnline(id: number, title: string) {
     }
   }
 }
+
+async function softDeleteResource(id: number, title: string) {
+  try {
+    await ElMessageBox.confirm(
+      `将「${title}」移入回收站？用户端将不可见，可在回收站恢复或永久删除。`,
+      '移入回收站',
+      { type: 'warning', confirmButtonText: '移入回收站' }
+    )
+    await store.removeResource(id)
+    ElMessage.success('已移入回收站')
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(error instanceof Error ? error.message : '删除失败')
+    }
+  }
+}
 </script>
 
 <template>
@@ -125,12 +141,13 @@ async function restoreOnline(id: number, title: string) {
       <el-table-column label="下架原因" min-width="180">
         <template #default="{ row }"><span class="sub">{{ row.offlineReason || '—' }}</span></template>
       </el-table-column>
-      <el-table-column label="操作" width="250">
+      <el-table-column label="操作" width="320">
         <template #default="{ row }">
           <el-button size="small" @click="$router.push(`/detail/${row.id}`)">预览</el-button>
           <el-button size="small" type="primary" plain @click="$router.push(`/resource/${row.id}/edit`)">编辑</el-button>
           <el-button v-if="row.status === '已发布'" size="small" type="danger" plain @click="takeDownResource(row.id, row.title)">下架</el-button>
           <el-button v-else size="small" type="success" plain @click="restoreOnline(row.id, row.title)">恢复发布</el-button>
+          <el-button size="small" type="danger" plain @click="softDeleteResource(row.id, row.title)">回收站</el-button>
         </template>
       </el-table-column>
     </el-table>

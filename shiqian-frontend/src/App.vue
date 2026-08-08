@@ -36,9 +36,9 @@ function isLinkActive(path: string) {
   return route.path === path
 }
 
-function handlePersonalCommand(command: string) {
+async function handlePersonalCommand(command: string) {
   if (command === 'logout') {
-    store.logout()
+    await store.logout()
     router.push('/home')
     return
   }

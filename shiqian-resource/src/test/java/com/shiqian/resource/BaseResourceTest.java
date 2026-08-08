@@ -9,6 +9,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.test.context.ActiveProfiles;
 import com.shiqian.resource.security.AccessTokenVersionVerifier;
 import com.shiqian.resource.security.UserAuthorityProvider;
@@ -51,6 +52,9 @@ public abstract class BaseResourceTest {
     @Autowired(required = false)
     protected CacheManager cacheManager;
 
+    @Autowired(required = false)
+    protected RedisConnectionFactory redisConnectionFactory;
+
     @BeforeEach
     void allowCurrentTestTokens() {
         when(accessTokenVersionVerifier.isCurrent(any(Claims.class))).thenReturn(true);
@@ -58,8 +62,21 @@ public abstract class BaseResourceTest {
         stubAdminAuthorities(2L);
         when(userAuthorityProvider.getAuthorities(eq(3L)))
                 .thenReturn(new AuthoritySnapshot(Set.of("GUEST"), Set.of()));
+        // transactionAware 缓存 + H2 回滚会导致按 id 的 Redis 缓存跨用例脏读，每测前清空测试库。
+        flushRedisTestDatabase();
         clearCache(CacheNames.RESOURCE_DETAIL);
         clearCache(CacheNames.CATEGORY_TREE);
+    }
+
+    private void flushRedisTestDatabase() {
+        if (redisConnectionFactory == null) {
+            return;
+        }
+        try (var connection = redisConnectionFactory.getConnection()) {
+            connection.serverCommands().flushDb();
+        } catch (Exception ignored) {
+            // Redis 不可用时退回 CacheManager.clear
+        }
     }
 
     protected void stubUserAuthorities(Long userId) {

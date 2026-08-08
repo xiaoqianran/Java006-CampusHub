@@ -1,17 +1,26 @@
 <script setup lang="ts">
 import { reactive, ref, watch, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { UserFilled } from '@element-plus/icons-vue'
 import { useAppStore } from '@/stores/app'
 
 const store = useAppStore()
+const router = useRouter()
 const submitting = ref(false)
+const passwordSubmitting = ref(false)
 
 const form = reactive({
   nickname: '',
   email: '',
   phone: '',
   avatar: ''
+})
+
+const passwordForm = reactive({
+  oldPassword: '',
+  newPassword: '',
+  confirmPassword: ''
 })
 
 function resetForm() {
@@ -27,6 +36,12 @@ function resetForm() {
     form.phone = ''
     form.avatar = ''
   }
+}
+
+function resetPasswordForm() {
+  passwordForm.oldPassword = ''
+  passwordForm.newPassword = ''
+  passwordForm.confirmPassword = ''
 }
 
 onMounted(() => {
@@ -60,6 +75,40 @@ async function refreshProfile() {
     ElMessage.success('资料已刷新')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '刷新失败')
+  }
+}
+
+async function savePassword() {
+  if (!passwordForm.oldPassword || !passwordForm.newPassword) {
+    ElMessage.warning('请填写原密码和新密码')
+    return
+  }
+  if (passwordForm.newPassword.length < 6 || passwordForm.newPassword.length > 32) {
+    ElMessage.warning('新密码长度需在 6-32 位之间')
+    return
+  }
+  if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+    ElMessage.warning('两次输入的新密码不一致')
+    return
+  }
+  if (passwordForm.oldPassword === passwordForm.newPassword) {
+    ElMessage.warning('新密码不能与原密码相同')
+    return
+  }
+
+  passwordSubmitting.value = true
+  try {
+    await store.changePassword({
+      oldPassword: passwordForm.oldPassword,
+      newPassword: passwordForm.newPassword
+    })
+    resetPasswordForm()
+    ElMessage.success('密码已修改，请使用新密码重新登录')
+    await router.push('/login')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '修改密码失败')
+  } finally {
+    passwordSubmitting.value = false
   }
 }
 </script>
@@ -148,6 +197,52 @@ async function refreshProfile() {
       </el-form>
     </el-card>
 
+    <el-card class="form-card password-card" shadow="never">
+      <template #header>
+        <div>
+          <span>修改密码</span>
+          <p class="sub" style="margin: 4px 0 0; font-size: 12px; font-weight: normal;">
+            修改成功后全部登录会话将失效，需使用新密码重新登录。
+          </p>
+        </div>
+      </template>
+      <el-form :model="passwordForm" label-position="top" style="max-width: 420px">
+        <el-form-item label="原密码">
+          <el-input
+            v-model="passwordForm.oldPassword"
+            type="password"
+            show-password
+            placeholder="请输入当前密码"
+            autocomplete="current-password"
+          />
+        </el-form-item>
+        <el-form-item label="新密码">
+          <el-input
+            v-model="passwordForm.newPassword"
+            type="password"
+            show-password
+            placeholder="6-32 位新密码"
+            autocomplete="new-password"
+          />
+        </el-form-item>
+        <el-form-item label="确认新密码">
+          <el-input
+            v-model="passwordForm.confirmPassword"
+            type="password"
+            show-password
+            placeholder="再次输入新密码"
+            autocomplete="new-password"
+          />
+        </el-form-item>
+        <div class="form-actions">
+          <el-button type="primary" :loading="passwordSubmitting" @click="savePassword">
+            确认修改密码
+          </el-button>
+          <el-button @click="resetPasswordForm" :disabled="passwordSubmitting">清空</el-button>
+        </div>
+      </el-form>
+    </el-card>
+
     <el-alert
       type="info"
       :closable="false"
@@ -176,5 +271,8 @@ async function refreshProfile() {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+}
+.password-card {
+  margin-top: 16px;
 }
 </style>

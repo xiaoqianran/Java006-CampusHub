@@ -105,4 +105,41 @@ describe('app store - critical recent methods', () => {
     })
     expect(store.searchResultTotal).toBe(2)
   })
+
+  it('logout calls server revoke endpoint then clears local session', async () => {
+    localStorage.setItem('shiqian_access_token', 'access-x')
+    localStorage.setItem('shiqian_refresh_token', 'refresh-x')
+    const store = useAppStore()
+    store.logged = true
+    store.currentUser = { userId: 1, username: 'u', nickname: 'n', role: 'USER' } as any
+    store.favoriteIds = [9]
+    store.myResourceIds = [3]
+
+    await store.logout()
+
+    expect(vi.mocked(request)).toHaveBeenCalledWith('/api/user/logout', { method: 'POST' })
+    expect(store.logged).toBe(false)
+    expect(store.currentUser).toBeNull()
+    expect(store.favoriteIds).toEqual([])
+    expect(localStorage.getItem('shiqian_access_token')).toBeNull()
+  })
+
+  it('changePassword hits password API and clears session tokens', async () => {
+    localStorage.setItem('shiqian_access_token', 'access-x')
+    localStorage.setItem('shiqian_refresh_token', 'refresh-x')
+    const store = useAppStore()
+    store.logged = true
+    store.currentUser = { userId: 1, username: 'u', nickname: 'n', role: 'USER' } as any
+
+    await store.changePassword({ oldPassword: 'old-pass', newPassword: 'new-pass-1' })
+
+    expect(vi.mocked(request)).toHaveBeenCalledWith('/api/user/me/password', {
+      method: 'PUT',
+      body: expect.stringContaining('old-pass')
+    })
+    expect(store.logged).toBe(false)
+    expect(store.currentUser).toBeNull()
+    expect(localStorage.getItem('shiqian_access_token')).toBeNull()
+    expect(localStorage.getItem('shiqian_refresh_token')).toBeNull()
+  })
 })

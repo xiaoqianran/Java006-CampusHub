@@ -231,7 +231,12 @@ public class ResourceServiceImpl implements ResourceService {
         resource.setVersion(existing.getVersion() + 1);
         resource.setDownloadCount(existing.getDownloadCount());
         resource.setViewCount(existing.getViewCount());
-        resource.setStatus(existing.getStatus());
+        // 作者修改已发布内容必须重新进审；管理员代改可保留原状态（紧急勘误）。
+        boolean ownerEdit = existing.getUserId() != null && existing.getUserId().equals(userId);
+        boolean reauditPublished = ownerEdit
+                && existing.getStatus() != null
+                && existing.getStatus() == STATUS_PUBLISHED;
+        resource.setStatus(reauditPublished ? STATUS_PENDING : existing.getStatus());
         resource.setContentScene(normalizeContentScene(
                 dto.getContentScene(),
                 StringUtils.hasText(existing.getContentScene()) ? existing.getContentScene() : "SHARE"));
@@ -260,6 +265,17 @@ public class ResourceServiceImpl implements ResourceService {
         }
 
         resourceMapper.updateById(resource);
+        if (reauditPublished) {
+            // updateById 默认可能忽略 null；显式清空审核痕迹并回到待审。
+            UpdateWrapper<Resource> reaudit = new UpdateWrapper<>();
+            reaudit.eq("id", id)
+                    .set("status", STATUS_PENDING)
+                    .set("review_reason", null)
+                    .set("reviewer_id", null)
+                    .set("review_time", null)
+                    .set("offline_reason", null);
+            resourceMapper.update(null, reaudit);
+        }
 
         // 如果提供了 attachments（含空列表表示清空），则替换 t_resource_attachment 中的记录
         if (dto.getAttachments() != null) {
@@ -273,8 +289,8 @@ public class ResourceServiceImpl implements ResourceService {
                 OutboxEventType.RESOURCE_UPDATED,
                 id,
                 ResourceEventPayload.resource(id));
-        log.info("资源更新成功: id={}, title={}, version={}, attachmentsProvided={}", 
-                 id, resource.getTitle(), resource.getVersion(), dto.getAttachments() != null);
+        log.info("资源更新成功: id={}, title={}, version={}, reaudit={}, attachmentsProvided={}",
+                id, resource.getTitle(), resource.getVersion(), reauditPublished, dto.getAttachments() != null);
     }
 
     @Override
@@ -285,7 +301,10 @@ public class ResourceServiceImpl implements ResourceService {
         if (existing == null || existing.getDeleted() == 1) {
             throw new BusinessException("资源不存在");
         }
-        if (!existing.getUserId().equals(userId)) {
+        // 作者可删自己的；具备 resource:audit 的管理员可软删任意资源进入回收站。
+        boolean owner = existing.getUserId() != null && existing.getUserId().equals(userId);
+        boolean auditor = SecurityUtil.hasAuthority("resource:audit");
+        if (!owner && !auditor) {
             throw new BusinessException(403, "无权删除该资源");
         }
         resourceMapper.deleteById(id);
@@ -293,7 +312,7 @@ public class ResourceServiceImpl implements ResourceService {
                 OutboxEventType.RESOURCE_DELETED,
                 id,
                 ResourceEventPayload.resource(id));
-        log.info("资源删除成功: id={}, userId={}", id, userId);
+        log.info("资源删除成功: id={}, userId={}, admin={}", id, userId, !owner && auditor);
     }
 
     @Override
@@ -422,14 +441,18 @@ public class ResourceServiceImpl implements ResourceService {
         if (!canModify(existing, userId)) {
             throw new BusinessException(403, "无权重新提交该资源");
         }
-        if (existing.getStatus() == null || existing.getStatus() != STATUS_NEEDS_CHANGES) {
-            throw new BusinessException("只有待修改资源可以重新提交");
+        // 待修改 + 已拒绝均可重新进入审核队列；已发布/待审/下架不允许误触重提。
+        Integer status = existing.getStatus();
+        if (status == null
+                || (status != STATUS_NEEDS_CHANGES && status != STATUS_REJECTED)) {
+            throw new BusinessException("只有待修改或已拒绝的资源可以重新提交");
         }
 
         UpdateWrapper<Resource> update = new UpdateWrapper<>();
         update.eq("id", resourceId)
                 .set("status", STATUS_PENDING)
                 .set("review_reason", null)
+                .set("offline_reason", null)
                 .set("reviewer_id", null)
                 .set("review_time", null);
         resourceMapper.update(null, update);
@@ -438,7 +461,7 @@ public class ResourceServiceImpl implements ResourceService {
                 OutboxEventType.RESOURCE_UPDATED,
                 resourceId,
                 ResourceEventPayload.resource(resourceId));
-        log.info("资源重新提交成功: id={}, userId={}", resourceId, userId);
+        log.info("资源重新提交成功: id={}, userId={}, fromStatus={}", resourceId, userId, status);
     }
 
     @Override

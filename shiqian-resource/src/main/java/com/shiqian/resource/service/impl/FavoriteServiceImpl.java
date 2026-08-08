@@ -29,12 +29,18 @@ public class FavoriteServiceImpl implements FavoriteService {
     private final ResourceMapper resourceMapper;
     private final AuthorEnrichmentService authorEnrichmentService;
 
+    private static final int STATUS_PUBLISHED = 1;
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void addFavorite(Long userId, Long resourceId) {
         Resource resource = resourceMapper.selectById(resourceId);
         if (resource == null || resource.getDeleted() == 1) {
             throw new BusinessException("资源不存在");
+        }
+        // 校园广场仅允许收藏已发布资源，避免待审/下架/拒绝内容进入「我的收藏」。
+        if (resource.getStatus() == null || resource.getStatus() != STATUS_PUBLISHED) {
+            throw new BusinessException("只能收藏已发布的资源");
         }
         if (isFavorited(userId, resourceId)) {
             throw new BusinessException("已收藏该资源");
@@ -87,6 +93,8 @@ public class FavoriteServiceImpl implements FavoriteService {
 
         Map<Long, Resource> resourceMap = resourceMapper.selectBatchIds(resourceIds).stream()
                 .filter(resource -> resource.getDeleted() == null || resource.getDeleted() == 0)
+                // 列表侧也只展示仍处于已发布状态的资源，避免已下架/删除后幽灵卡片。
+                .filter(resource -> resource.getStatus() != null && resource.getStatus() == STATUS_PUBLISHED)
                 .collect(Collectors.toMap(Resource::getId, Function.identity()));
         List<Resource> recs = resourceIds.stream()
                 .map(resourceMap::get)
@@ -101,9 +109,8 @@ public class FavoriteServiceImpl implements FavoriteService {
                 if (hotB != hotA) return Long.compare(hotB, hotA);
                 return Long.compare(b.getId() != null ? b.getId() : 0L, a.getId() != null ? a.getId() : 0L);
             });
-        } else {
-            recs.sort((a, b) -> Long.compare(b.getId() != null ? b.getId() : 0L, a.getId() != null ? a.getId() : 0L));
         }
+        // 默认 newest：保留 favorite.create_time 降序（resourceIds 已是该顺序），不再按资源 id 重排。
         result.setRecords(recs);
         return result;
     }
