@@ -98,10 +98,24 @@ public class FavoriteServiceTest extends BaseResourceTest {
         Resource published = createPublishedResource("已发布收藏", category.getId());
         favoriteService.addFavorite(1L, published.getId());
 
-        // 下架后列表不再返回该资源
+        // 下架后列表不再返回该资源，且收藏行被清理
         resourceService.reviewResource(published.getId(), 4, "违规下架", 2L);
         var page = favoriteService.pageFavorites(1L, 1, 10, "newest");
         assertTrue(page.getRecords().stream().noneMatch(r -> r.getId().equals(published.getId())));
+        assertEquals(0, page.getTotal());
+        assertFalse(favoriteService.isFavorited(1L, published.getId()));
+    }
+
+    @Test
+    public void testSoftDeleteResourceClearsFavorites() {
+        Category category = createCategory("测试分类");
+        Resource published = createPublishedResource("软删收藏", category.getId());
+        favoriteService.addFavorite(1L, published.getId());
+        assertTrue(favoriteService.isFavorited(1L, published.getId()));
+
+        resourceService.deleteResource(1L, published.getId());
+        assertFalse(favoriteService.isFavorited(1L, published.getId()));
+        assertEquals(0, favoriteService.pageFavorites(1L, 1, 10, "newest").getTotal());
     }
 
     private Category createCategory(String name) {

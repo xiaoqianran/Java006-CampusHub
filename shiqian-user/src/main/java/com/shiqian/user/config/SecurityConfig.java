@@ -5,10 +5,13 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
@@ -35,7 +38,8 @@ public class SecurityConfig {
                     "/api/user/login",
                     "/api/user/refresh",
                     "/api/user/health",
-                    "/actuator/**",
+                    "/actuator/health",
+                    "/actuator/health/**",
                     "/doc.html",
                     "/webjars/**",
                     "/v3/api-docs/**",
@@ -60,15 +64,24 @@ public class SecurityConfig {
                     response.setContentType("application/json;charset=UTF-8");
                     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                     response.getWriter().write(
-                        "{\"code\":401,\"message\":\"未登录或 token 已过期\",\"data\":null}"
+                        "{\"code\":401,\"message\":\"未登录或 token 已过期\",\"data\":null,\"success\":false}"
                     );
                 })
                 .accessDeniedHandler((request, response, accessDeniedException) -> {
+                    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+                    boolean anonymous = auth == null
+                            || !auth.isAuthenticated()
+                            || auth instanceof AnonymousAuthenticationToken;
                     response.setContentType("application/json;charset=UTF-8");
-                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                    response.getWriter().write(
-                        "{\"code\":403,\"message\":\"无权限访问\",\"data\":null}"
-                    );
+                    if (anonymous) {
+                        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                        response.getWriter().write(
+                                "{\"code\":401,\"message\":\"未登录或 token 已过期\",\"data\":null,\"success\":false}");
+                    } else {
+                        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                        response.getWriter().write(
+                                "{\"code\":403,\"message\":\"无权限访问\",\"data\":null,\"success\":false}");
+                    }
                 })
             );
 

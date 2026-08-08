@@ -315,6 +315,9 @@ public class ResourceServiceImpl implements ResourceService {
             throw new BusinessException(403, "无权删除该资源");
         }
         resourceMapper.deleteById(id);
+        // 软删后清理收藏，避免「我的收藏」出现幽灵 total/空页。
+        favoriteMapper.delete(
+                new QueryWrapper<com.shiqian.resource.entity.Favorite>().eq("resource_id", id));
         outboxService.append(
                 OutboxEventType.RESOURCE_DELETED,
                 id,
@@ -407,6 +410,11 @@ public class ResourceServiceImpl implements ResourceService {
             update.set("published_time", now);
         }
         resourceMapper.update(null, update);
+        if (status == STATUS_OFFLINE) {
+            // 下架后清理收藏，列表 total 与可见记录保持一致。
+            favoriteMapper.delete(
+                    new QueryWrapper<com.shiqian.resource.entity.Favorite>().eq("resource_id", resourceId));
+        }
 
         String action = switch (status) {
             case STATUS_PUBLISHED -> "RESOURCE_APPROVE";

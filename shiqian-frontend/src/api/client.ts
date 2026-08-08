@@ -93,8 +93,8 @@ function buildUrl(path: string, query?: Record<string, unknown>) {
 }
 
 function isAuthErrorStatus(status: number, code?: number | null) {
-  // 401：标准未认证；403 且业务码 401：兼容部分中间层映射
-  return status === 401 || code === 401
+  // 401：标准未认证；部分链路可能把未登录映射成 403 + 业务码 401
+  return status === 401 || code === 401 || (status === 403 && code === 401)
 }
 
 export async function request<T>(path: string, options: RequestInit & { query?: Record<string, unknown> } = {}) {
