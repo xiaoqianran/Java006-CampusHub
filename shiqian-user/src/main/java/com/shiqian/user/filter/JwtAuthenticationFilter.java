@@ -3,6 +3,7 @@ package com.shiqian.user.filter;
 import com.shiqian.common.security.JwtUtil;
 import com.shiqian.common.security.LoginUser;
 import com.shiqian.common.security.AuthoritySnapshot;
+import com.shiqian.common.security.TokenParseResult;
 import com.shiqian.user.service.RbacService;
 import com.shiqian.user.service.TokenSessionService;
 import io.jsonwebtoken.Claims;
@@ -20,6 +21,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Slf4j
@@ -42,34 +44,48 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         if (StringUtils.hasText(token)) {
             try {
-                Claims claims = jwtUtil.parseToken(token);
-                if (claims != null && tokenSessionService.isCurrentAccessToken(claims)) {
-                    Long userId = jwtUtil.getLongClaim(claims, "userId");
-                    String username = claims.get("username", String.class);
-                    String role = claims.get("role", String.class);
-
-                    AuthoritySnapshot snapshot =
-                            rbacService.getAuthoritySnapshot(userId);
-                    List<SimpleGrantedAuthority> authorities =
-                            snapshot.asGrantedAuthorities().stream()
-                                    .map(SimpleGrantedAuthority::new)
-                                    .toList();
-                    if (userId == null || !StringUtils.hasText(username)
-                            || authorities.isEmpty()) {
-                        filterChain.doFilter(request, response);
+                TokenParseResult parsed = jwtUtil.parseTokenResult(token);
+                if (!parsed.isSuccess()) {
+                    // 与网关一致：过期立即 401 便于前端 refresh；非法令牌按匿名继续。
+                    if (parsed.failure() == TokenParseResult.Failure.EXPIRED) {
+                        writeUnauthorized(response, parsed.failure());
                         return;
                     }
-
-                    LoginUser loginUser = new LoginUser(userId, username, role);
-                    UsernamePasswordAuthenticationToken authentication =
-                            new UsernamePasswordAuthenticationToken(
-                                    loginUser,
-                                    null,
-                                    authorities
-                            );
-
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                    filterChain.doFilter(request, response);
+                    return;
                 }
+                Claims claims = parsed.claims();
+                if (!tokenSessionService.isCurrentAccessToken(claims)) {
+                    // 黑名单 / 版本失效 / 非 ACCESS：拒绝。
+                    writeUnauthorized(response, TokenParseResult.Failure.INVALID);
+                    return;
+                }
+
+                Long userId = jwtUtil.getLongClaim(claims, "userId");
+                String username = claims.get("username", String.class);
+                String role = claims.get("role", String.class);
+
+                AuthoritySnapshot snapshot =
+                        rbacService.getAuthoritySnapshot(userId);
+                List<SimpleGrantedAuthority> authorities =
+                        snapshot.asGrantedAuthorities().stream()
+                                .map(SimpleGrantedAuthority::new)
+                                .toList();
+                if (userId == null || !StringUtils.hasText(username)
+                        || authorities.isEmpty()) {
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
+                LoginUser loginUser = new LoginUser(userId, username, role);
+                UsernamePasswordAuthenticationToken authentication =
+                        new UsernamePasswordAuthenticationToken(
+                                loginUser,
+                                null,
+                                authorities
+                        );
+
+                SecurityContextHolder.getContext().setAuthentication(authentication);
             } catch (Exception e) {
                 log.error("Failed to process JWT token: {}", e.getMessage());
             }
@@ -84,5 +100,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return header.substring(BEARER_PREFIX.length());
         }
         return null;
+    }
+
+    private void writeUnauthorized(HttpServletResponse response, TokenParseResult.Failure failure)
+            throws IOException {
+        TokenParseResult.Failure reason = failure != null
+                ? failure
+                : TokenParseResult.Failure.INVALID;
+        String body = "{\"code\":401,\"message\":\"" + escapeJson(reason.message())
+                + "\",\"data\":{\"reason\":\"" + reason.code()
+                + "\"},\"success\":false}";
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write(body);
+    }
+
+    private static String escapeJson(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 }

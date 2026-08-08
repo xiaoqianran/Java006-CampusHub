@@ -147,9 +147,16 @@ CampusHub shows solid Phase-1–9 engineering: JWT access/refresh with Redis ver
 - Suggestion: 默认 `springdoc`/`knife4j` 关闭，仅 `local` profile 打开。
 - Status: fixed
 
+### Issue 21 -- Severity: bug
+- File: resource/user `JwtAuthenticationFilter`
+- Description: 服务侧过滤器仍用 `parseToken`（失败一律 null），对 **EXPIRED / 黑名单 / 非 ACCESS** 静默匿名继续。网关已改为 401，但直连服务或可选鉴权路径时前端拿不到 `token_expired`，refresh 不触发。
+- Suggestion: 使用 `parseTokenResult`；EXPIRED 与 `!isCurrent` 立即 401 并带 `reason`；仅 INVALID 按匿名放行。
+- Status: fixed
+
 ## Fix log
 
 - 2026-08-09: Issues 1–15 addressed in commits `7718f29`, `d565b58`, and follow-up (actuator, favorites cleanup, anonymous 401).
 - 2026-08-09: Issues 16–17 — public-path expired JWT → 401 + drop jimeng gateway route; expand ClientIp/rate-limit/Jimeng/gateway/frontend auth tests.
 - 2026-08-09: Issues 18–20 — favorite cleanup on leave-published, ZIP scan cap, swagger off by default.
+- 2026-08-09: Issue 21 — service JWT filters align with gateway expired/stale 401 semantics + unit tests.
 - code-review-graph v2.3.7 indexed; MCP healthy (30 tools).
