@@ -129,8 +129,27 @@ CampusHub shows solid Phase-1–9 engineering: JWT access/refresh with Redis ver
 - Suggestion: 从 gateway 路由中移除 jimeng，仅允许直连 resource 本机端口。
 - Status: fixed
 
+### Issue 18 -- Severity: bug
+- File: /workspace/shiqian-resource/src/main/java/com/shiqian/resource/service/impl/ResourceServiceImpl.java
+- Description: 收藏清理仅覆盖「下架 / 软删 / 永久删除」。作者改已发布内容回待审、管理员拒绝/退回已发布资源时，`t_favorite` 残留；`isFavorited` 仍可能为 true，与「我的收藏」列表（仅已发布）不一致。
+- Suggestion: 任何离开已发布态的路径统一 `clearFavorites`；`isFavorited` 仅对已发布资源返回 true。
+- Status: fixed
+
+### Issue 19 -- Severity: suggestion
+- File: /workspace/shiqian-resource/src/main/java/com/shiqian/resource/controller/ResourceFileController.java
+- Description: ZIP 目录预览会遍历压缩包全部 entry，即便只展示 limit 条，恶意超多 entry 可造成 CPU/内存压力。
+- Suggestion: 增加扫描上限 `max-archive-preview-scan-entries`，达到后标记 truncated 并停止。
+- Status: fixed
+
+### Issue 20 -- Severity: suggestion
+- File: application.yml (user/resource)
+- Description: Knife4j/SpringDoc 默认在所有环境启用且 Security 放行，生产暴露完整 API 面利于侦察。
+- Suggestion: 默认 `springdoc`/`knife4j` 关闭，仅 `local` profile 打开。
+- Status: fixed
+
 ## Fix log
 
 - 2026-08-09: Issues 1–15 addressed in commits `7718f29`, `d565b58`, and follow-up (actuator, favorites cleanup, anonymous 401).
 - 2026-08-09: Issues 16–17 — public-path expired JWT → 401 + drop jimeng gateway route; expand ClientIp/rate-limit/Jimeng/gateway/frontend auth tests.
+- 2026-08-09: Issues 18–20 — favorite cleanup on leave-published, ZIP scan cap, swagger off by default.
 - code-review-graph v2.3.7 indexed; MCP healthy (30 tools).

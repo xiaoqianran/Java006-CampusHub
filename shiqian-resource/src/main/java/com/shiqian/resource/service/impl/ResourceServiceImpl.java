@@ -279,6 +279,8 @@ public class ResourceServiceImpl implements ResourceService {
                     .set("review_time", null)
                     .set("offline_reason", null);
             resourceMapper.update(null, reaudit);
+            // 离开已发布态时清理收藏，与下架/软删保持一致，避免 isFavorited 幽灵状态。
+            clearFavorites(id);
         }
 
         // 如果提供了 attachments（含空列表表示清空），则替换 t_resource_attachment 中的记录
@@ -316,8 +318,7 @@ public class ResourceServiceImpl implements ResourceService {
         }
         resourceMapper.deleteById(id);
         // 软删后清理收藏，避免「我的收藏」出现幽灵 total/空页。
-        favoriteMapper.delete(
-                new QueryWrapper<com.shiqian.resource.entity.Favorite>().eq("resource_id", id));
+        clearFavorites(id);
         outboxService.append(
                 OutboxEventType.RESOURCE_DELETED,
                 id,
@@ -410,10 +411,9 @@ public class ResourceServiceImpl implements ResourceService {
             update.set("published_time", now);
         }
         resourceMapper.update(null, update);
-        if (status == STATUS_OFFLINE) {
-            // 下架后清理收藏，列表 total 与可见记录保持一致。
-            favoriteMapper.delete(
-                    new QueryWrapper<com.shiqian.resource.entity.Favorite>().eq("resource_id", resourceId));
+        // 任何非已发布终态都清理收藏（下架/拒绝/退回），与列表 SQL 过滤语义一致。
+        if (status != STATUS_PUBLISHED) {
+            clearFavorites(resourceId);
         }
 
         String action = switch (status) {
@@ -817,8 +817,7 @@ public class ResourceServiceImpl implements ResourceService {
                 new QueryWrapper<ResourceAttachment>().eq("resource_id", id));
         taxonomyService.removeResourceRelations(id);
         resourceVersionService.deleteVersions(id);
-        favoriteMapper.delete(
-                new QueryWrapper<com.shiqian.resource.entity.Favorite>().eq("resource_id", id));
+        clearFavorites(id);
         int rows = resourceMapper.physicalDeleteById(id);
         if (rows == 0) {
             throw new BusinessException("资源不存在");
@@ -895,5 +894,13 @@ public class ResourceServiceImpl implements ResourceService {
         resource.setFileType(StringUtils.hasText(primary.getMimeType())
                 ? primary.getMimeType()
                 : primary.getFileType());
+    }
+
+    private void clearFavorites(Long resourceId) {
+        if (resourceId == null) {
+            return;
+        }
+        favoriteMapper.delete(
+                new QueryWrapper<com.shiqian.resource.entity.Favorite>().eq("resource_id", resourceId));
     }
 }

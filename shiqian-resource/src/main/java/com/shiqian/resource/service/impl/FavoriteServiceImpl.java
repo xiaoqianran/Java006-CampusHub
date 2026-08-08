@@ -71,6 +71,14 @@ public class FavoriteServiceImpl implements FavoriteService {
 
     @Override
     public boolean isFavorited(Long userId, Long resourceId) {
+        // 与列表一致：仅已发布资源算「已收藏」，防止历史脏行或未清理行造成幽灵状态。
+        Resource resource = resourceMapper.selectById(resourceId);
+        if (resource == null
+                || (resource.getDeleted() != null && resource.getDeleted() == 1)
+                || resource.getStatus() == null
+                || resource.getStatus() != STATUS_PUBLISHED) {
+            return false;
+        }
         QueryWrapper<Favorite> wrapper = new QueryWrapper<>();
         wrapper.eq("user_id", userId);
         wrapper.eq("resource_id", resourceId);

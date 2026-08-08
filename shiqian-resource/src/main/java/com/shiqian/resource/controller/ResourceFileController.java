@@ -83,6 +83,10 @@ public class ResourceFileController {
     @Value("${resource.upload.max-archive-preview-entries:500}")
     private int maxArchiveEntries;
 
+    /** ZIP 条目扫描上限，防止超大/恶意压缩包拖垮预览接口。 */
+    @Value("${resource.upload.max-archive-preview-scan-entries:2000}")
+    private int maxArchiveScanEntries;
+
     @Operation(summary = "批量上传资源附件")
     @SecurityRequirement(name = "bearerAuth")
     @PostMapping
@@ -193,6 +197,7 @@ public class ResourceFileController {
         }
 
         int limit = Math.max(1, maxArchiveEntries);
+        int scanCap = Math.max(limit, maxArchiveScanEntries);
         List<ArchivePreviewVO.Entry> entries = new ArrayList<>();
         int totalEntries = 0;
         boolean truncated = false;
@@ -214,6 +219,11 @@ public class ResourceFileController {
                     truncated = true;
                 }
                 zip.closeEntry();
+                // 达到扫描上限即停止，避免 ZIP entry 炸弹消耗 CPU/内存。
+                if (totalEntries >= scanCap) {
+                    truncated = true;
+                    break;
+                }
             }
         } catch (ZipException error) {
             return Result.fail(400, "ZIP 文件已损坏或格式不正确");

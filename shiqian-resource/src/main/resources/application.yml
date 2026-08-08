@@ -137,7 +137,18 @@ resource:
     max-user-storage: 1073741824
     max-text-preview-bytes: 524288
     max-archive-preview-entries: 500
+    max-archive-preview-scan-entries: 2000
     allowed-extensions: pdf,doc,docx,xls,xlsx,ppt,pptx,txt,md,jpg,jpeg,png,gif,webp,zip,rar,7z,java,py,js,ts,vue,c,cpp,h,go,rs,sql,json,xml,yaml,yml,html,css,sh
+
+# 生产默认关闭 API 文档，避免接口面泄露；local profile 再打开。
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:false}
+  swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:false}
+knife4j:
+  enable: ${SPRINGDOC_ENABLED:false}
+  production: ${KNIFE4J_PRODUCTION:true}
 
 jimeng:
   ingest:

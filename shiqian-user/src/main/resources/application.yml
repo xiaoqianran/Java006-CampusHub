@@ -53,3 +53,13 @@ platform:
   rate-limit:
     enabled: ${RATE_LIMIT_ENABLED:true}
     fail-open: ${RATE_LIMIT_FAIL_OPEN:false}
+
+# 生产默认关闭 API 文档，避免接口面泄露；local profile 再打开。
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:false}
+  swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:false}
+knife4j:
+  enable: ${SPRINGDOC_ENABLED:false}
+  production: ${KNIFE4J_PRODUCTION:true}

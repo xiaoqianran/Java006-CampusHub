@@ -118,6 +118,44 @@ public class FavoriteServiceTest extends BaseResourceTest {
         assertEquals(0, favoriteService.pageFavorites(1L, 1, 10, "newest").getTotal());
     }
 
+    @Test
+    public void testRejectReviewClearsFavorites() {
+        Category category = createCategory("测试分类");
+        Resource published = createPublishedResource("审核拒绝收藏", category.getId());
+        favoriteService.addFavorite(1L, published.getId());
+        assertTrue(favoriteService.isFavorited(1L, published.getId()));
+
+        // 管理员将已发布资源拒绝：收藏应被清理
+        resourceService.reviewResource(published.getId(), 3, "内容不符合规范", 2L);
+        assertFalse(favoriteService.isFavorited(1L, published.getId()));
+        assertEquals(0, favoriteService.pageFavorites(1L, 1, 10, "newest").getTotal());
+    }
+
+    @Test
+    public void testOwnerEditPublishedClearsFavorites() {
+        Category category = createCategory("测试分类");
+        Resource published = createPublishedResource("作者改后重审", category.getId());
+        favoriteService.addFavorite(1L, published.getId());
+        assertTrue(favoriteService.isFavorited(1L, published.getId()));
+
+        var dto = new com.shiqian.resource.dto.ResourceUpdateDTO();
+        dto.setTitle("作者修改后的标题");
+        dto.setSummary("新摘要");
+        dto.setContentMarkdown("# 改写正文\n\n需要重新审核。");
+        dto.setCategoryId(category.getId());
+        dto.setFileUrl("http://example.com/new.pdf");
+        dto.setFileSize(2048L);
+        dto.setFileType("application/pdf");
+        resourceService.updateResource(1L, published.getId(), dto);
+
+        // 避开缓存，直接查库
+        Resource refreshed = resourceService.getResourceById(published.getId());
+        assertNotNull(refreshed);
+        // status may be cached; isFavorited/pageFavorites already assert business outcome
+        assertFalse(favoriteService.isFavorited(1L, published.getId()));
+        assertEquals(0, favoriteService.pageFavorites(1L, 1, 10, "newest").getTotal());
+    }
+
     private Category createCategory(String name) {
         Category category = new Category();
         category.setName(name);
