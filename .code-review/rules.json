@@ -1,0 +1,24 @@
+{
+  "filters": {
+    "exclude": ["**/*.lock", "**/*.min.js", "**/*.map"],
+    "include": ["**/*.ts", "**/*.js", "**/*.go", "**/*.java", "**/*.py"]
+  },
+  "rules": [
+    {
+      "path": "**/*.ts",
+      "rule": "Check for any types and proper null handling. Verify TypeScript best practices."
+    },
+    {
+      "path": "**/*mapper*.xml",
+      "rule": "Check SQL for injection risks (use parameterized queries) and missing closing tags."
+    },
+    {
+      "path": "**/*.go",
+      "rule": "Check for proper error handling (no ignored errors) and goroutine leaks."
+    },
+    {
+      "path": "**/*.py",
+      "rule": "Check for type hints, proper exception handling, and security issues (eval, exec, shell injection)."
+    }
+  ]
+}

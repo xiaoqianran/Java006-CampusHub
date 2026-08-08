@@ -48,6 +48,15 @@ public class SecurityConfig {
             .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                // 受保护资源 GET 必须先于通配 permitAll，否则过期 JWT 会变成 403 而非 401。
+                .requestMatchers(HttpMethod.GET,
+                        "/api/resource/mine",
+                        "/api/resource/favorites",
+                        "/api/resource/recycle-bin",
+                        "/api/resource/*/favorite",
+                        "/api/resource/*/versions",
+                        "/api/resource/*/versions/**",
+                        "/api/resource/index/**").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/resource/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/resource/*/download").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/resource/*/view").permitAll()

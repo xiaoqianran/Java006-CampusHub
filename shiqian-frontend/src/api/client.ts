@@ -15,6 +15,17 @@ export interface PageResult<T> {
 const runtimeConfig = window.__SHIQIAN_CONFIG__ || {}
 const API_BASE = runtimeConfig.apiBaseUrl || import.meta.env.VITE_API_BASE_URL || ''
 let refreshInFlight: Promise<{ accessToken: string; refreshToken: string }> | null = null
+let authFailureHandler: (() => void) | null = null
+
+/** 由 Pinia store 注册：token 失效时同步清空登录态。 */
+export function setAuthFailureHandler(handler: (() => void) | null) {
+  authFailureHandler = handler
+}
+
+function notifyAuthFailure() {
+  clearTokens()
+  authFailureHandler?.()
+}
 
 export function buildApiUrl(path: string, query?: Record<string, unknown>) {
   if (/^https?:\/\//.test(path)) {
@@ -81,6 +92,11 @@ function buildUrl(path: string, query?: Record<string, unknown>) {
   return /^https?:\/\//.test(API_BASE) ? url.href : url.pathname + url.search
 }
 
+function isAuthErrorStatus(status: number, code?: number | null) {
+  // 401：标准未认证；403 且业务码 401：兼容部分中间层映射
+  return status === 401 || code === 401
+}
+
 export async function request<T>(path: string, options: RequestInit & { query?: Record<string, unknown> } = {}) {
   const doRequest = async (useToken: string): Promise<{ response: Response; result: Result<T> | null }> => {
     const headers = new Headers(options.headers)
@@ -102,7 +118,7 @@ export async function request<T>(path: string, options: RequestInit & { query?: 
   let { response, result } = await doRequest(token)
 
   // 401 时尝试用 refreshToken 刷新一次（非破坏性）
-  const isAuthError = response.status === 401 || (result && result.code === 401)
+  const isAuthError = isAuthErrorStatus(response.status, result?.code)
   if (isAuthError && getRefreshToken()) {
     try {
       await refreshAccessToken()
@@ -111,7 +127,7 @@ export async function request<T>(path: string, options: RequestInit & { query?: 
       response = retry.response
       result = retry.result
     } catch {
-      clearTokens()
+      notifyAuthFailure()
       throw new Error('登录已过期，请重新登录')
     }
   }
@@ -185,13 +201,18 @@ export async function uploadRequest<T>(
 ) {
   let token = getAccessToken()
   let response = await uploadOnce<T>(path, body, token, options)
-  const isAuthError = response.status === 401 || response.result?.code === 401
+  const isAuthError = isAuthErrorStatus(response.status, response.result?.code)
 
   if (isAuthError && getRefreshToken() && !options.signal?.aborted) {
-    await refreshAccessToken()
-    token = getAccessToken()
-    options.onProgress?.(0)
-    response = await uploadOnce<T>(path, body, token, options)
+    try {
+      await refreshAccessToken()
+      token = getAccessToken()
+      options.onProgress?.(0)
+      response = await uploadOnce<T>(path, body, token, options)
+    } catch {
+      notifyAuthFailure()
+      throw new Error('登录已过期，请重新登录')
+    }
   }
 
   if (response.status < 200 || response.status >= 300) {

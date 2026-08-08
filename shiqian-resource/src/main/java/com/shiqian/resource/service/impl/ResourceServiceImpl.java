@@ -123,6 +123,10 @@ public class ResourceServiceImpl implements ResourceService {
         // 第二阶段：保存附件（使用辅助方法，支持空列表清空）
         if (dto.getAttachments() != null) {
             syncAttachments(userId, resource.getId(), dto.getAttachments());
+        } else if (StringUtils.hasText(resource.getFileUrl())) {
+            // 仅传 legacy fileUrl 时也要绑定对象存储，避免 TEMPORARY 被清理后链接失效。
+            storedObjectService.bindResourceFiles(
+                    userId, resource.getId(), java.util.List.of(resource.getFileUrl()));
         }
         taxonomyService.sync(resource.getId(), taxonomy);
         // 新主键不应存在历史快照；若测试库或人工修复后留下孤儿记录，先清理再建 v1。
@@ -280,6 +284,9 @@ public class ResourceServiceImpl implements ResourceService {
         // 如果提供了 attachments（含空列表表示清空），则替换 t_resource_attachment 中的记录
         if (dto.getAttachments() != null) {
             syncAttachments(existing.getUserId(), id, dto.getAttachments());
+        } else if (StringUtils.hasText(resource.getFileUrl())) {
+            storedObjectService.bindResourceFiles(
+                    existing.getUserId(), id, java.util.List.of(resource.getFileUrl()));
         }
         taxonomyService.sync(id, taxonomy);
         Resource updated = resourceMapper.selectById(id);
@@ -447,6 +454,15 @@ public class ResourceServiceImpl implements ResourceService {
                 || (status != STATUS_NEEDS_CHANGES && status != STATUS_REJECTED)) {
             throw new BusinessException("只有待修改或已拒绝的资源可以重新提交");
         }
+
+        // 敏感词库更新后，重提必须重新过自动审核。
+        validateContent(
+                userId,
+                resourceId,
+                existing.getTitle(),
+                existing.getSummary(),
+                existing.getContentMarkdown(),
+                existing.getTags());
 
         UpdateWrapper<Resource> update = new UpdateWrapper<>();
         update.eq("id", resourceId)

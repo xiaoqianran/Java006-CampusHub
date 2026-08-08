@@ -184,7 +184,7 @@ public class ResourceController {
             return true;
         }
         Long userId = SecurityUtil.getCurrentUserId();
-        return resource.getUserId().equals(userId)
+        return java.util.Objects.equals(resource.getUserId(), userId)
                 || SecurityUtil.hasAuthority("resource:audit");
     }
 
@@ -308,6 +308,7 @@ public class ResourceController {
     @Operation(summary = "收藏资源")
     @SecurityRequirement(name = "bearerAuth")
     @PostMapping("/{id}/favorite")
+    @PreAuthorize("hasAuthority('resource:favorite')")
     @DistributedRateLimit(name = "resource:favorite", limit = 30, windowSeconds = 60, keyMode = RateLimitKeyMode.USER)
     public Result<Void> addFavorite(@PathVariable @Positive Long id) {
         Long userId = SecurityUtil.getCurrentUserId();
@@ -321,6 +322,7 @@ public class ResourceController {
     @Operation(summary = "取消收藏")
     @SecurityRequirement(name = "bearerAuth")
     @DeleteMapping("/{id}/favorite")
+    @PreAuthorize("hasAuthority('resource:favorite')")
     public Result<Void> removeFavorite(@PathVariable @Positive Long id) {
         Long userId = SecurityUtil.getCurrentUserId();
         if (userId == null) {
@@ -333,6 +335,7 @@ public class ResourceController {
     @Operation(summary = "查询是否已收藏")
     @SecurityRequirement(name = "bearerAuth")
     @GetMapping("/{id}/favorite")
+    @PreAuthorize("hasAuthority('resource:favorite')")
     public Result<Boolean> isFavorited(@PathVariable @Positive Long id) {
         Long userId = SecurityUtil.getCurrentUserId();
         if (userId == null) {
@@ -424,10 +427,6 @@ public class ResourceController {
     }
 
     private String clientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (org.springframework.util.StringUtils.hasText(forwarded)) {
-            return forwarded.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
+        return com.shiqian.common.security.ClientIpResolver.resolve(request);
     }
 }

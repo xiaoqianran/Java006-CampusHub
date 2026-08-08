@@ -1,6 +1,15 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { clearTokens, jsonBody, refreshAccessToken, request, setTokens, uploadRequest, type PageResult } from '@/api/client'
+import {
+  clearTokens,
+  jsonBody,
+  refreshAccessToken,
+  request,
+  setAuthFailureHandler,
+  setTokens,
+  uploadRequest,
+  type PageResult
+} from '@/api/client'
 
 export type Role = 'student' | 'admin'
 export type ResourceStatus = '已发布' | '待审核' | '待修改' | '已拒绝' | '已下架'
@@ -344,6 +353,16 @@ export const useAppStore = defineStore('app', () => {
   const searchResultIds = ref<number[] | null>(null)
   const searchResultTotal = ref(0)
   const searchLoading = ref(false)
+
+  // token 刷新失败时同步清会话，避免 UI 仍显示已登录。
+  setAuthFailureHandler(() => {
+    logged.value = false
+    currentUser.value = null
+    favoriteIds.value = []
+    myResourceIds.value = []
+    role.value = 'student'
+    localStorage.setItem('shiqian_role', 'student')
+  })
 
   let categoriesLoadedAt = 0
   let categoriesInFlight: Promise<void> | null = null

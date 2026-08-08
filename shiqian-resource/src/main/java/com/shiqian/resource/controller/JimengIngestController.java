@@ -114,20 +114,15 @@ public class JimengIngestController {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "即梦同步令牌无效");
         }
 
-        String remote = request.getRemoteAddr();
-        if ("127.0.0.1".equals(remote)
-                || "::1".equals(remote)
-                || "0:0:0:0:0:0:0:1".equals(remote)
-                || "localhost".equalsIgnoreCase(remote)) {
-            return;
+        // 经网关/反代的请求带有转发头：即使 peer 是 loopback 也一律拒绝。
+        if (StringUtils.hasText(request.getHeader("X-Forwarded-For"))
+                || StringUtils.hasText(request.getHeader("X-Real-IP"))
+                || StringUtils.hasText(request.getHeader("Forwarded"))) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "即梦同步接口仅允许本机直连");
         }
-        // 网关反代时优先看 X-Forwarded-For 的第一段
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (StringUtils.hasText(forwarded)) {
-            String first = forwarded.split(",")[0].trim();
-            if ("127.0.0.1".equals(first) || "::1".equals(first)) {
-                return;
-            }
+        // 仅信任直连对端，禁止用可伪造的 X-Forwarded-For 冒充本机。
+        if (com.shiqian.common.security.ClientIpResolver.isDirectLoopback(request)) {
+            return;
         }
         throw new ResponseStatusException(HttpStatus.FORBIDDEN, "即梦同步接口仅允许本机访问");
     }

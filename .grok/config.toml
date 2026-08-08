@@ -1,0 +1,11 @@
+# Project MCP servers (shared with team when committed)
+
+[mcp_servers.code-review]
+command = "npx"
+args = ["-y", "@shareworker/code-review-mcp@latest"]
+startup_timeout_sec = 120
+tool_timeout_sec = 600
+enabled = true
+
+[mcp_servers.code-review.env]
+NODE_OPTIONS = "--no-warnings"

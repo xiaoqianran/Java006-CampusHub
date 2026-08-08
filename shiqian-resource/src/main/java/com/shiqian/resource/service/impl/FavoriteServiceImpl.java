@@ -1,6 +1,7 @@
 package com.shiqian.resource.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shiqian.common.exception.BusinessException;
 import com.shiqian.resource.entity.Favorite;
@@ -11,14 +12,9 @@ import com.shiqian.resource.service.FavoriteService;
 import com.shiqian.resource.service.AuthorEnrichmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -43,12 +39,19 @@ public class FavoriteServiceImpl implements FavoriteService {
             throw new BusinessException("只能收藏已发布的资源");
         }
         if (isFavorited(userId, resourceId)) {
-            throw new BusinessException("已收藏该资源");
+            // 幂等：重复收藏视为成功，避免并发双击报模糊约束错误。
+            return;
         }
         Favorite favorite = new Favorite();
         favorite.setUserId(userId);
         favorite.setResourceId(resourceId);
-        favoriteMapper.insert(favorite);
+        try {
+            favoriteMapper.insert(favorite);
+        } catch (DataIntegrityViolationException duplicate) {
+            // 并发下唯一键冲突：视为已收藏成功。
+            log.info("用户收藏资源并发幂等: userId={}, resourceId={}", userId, resourceId);
+            return;
+        }
         log.info("用户收藏资源成功: userId={}, resourceId={}", userId, resourceId);
     }
 
@@ -76,42 +79,14 @@ public class FavoriteServiceImpl implements FavoriteService {
 
     @Override
     public Page<Resource> pageFavorites(Long userId, Integer page, Integer size, String sort) {
-        Page<Favorite> favoritePage = new Page<>(page, size);
-        QueryWrapper<Favorite> wrapper = new QueryWrapper<>();
-        wrapper.eq("user_id", userId);
-        wrapper.orderByDesc("create_time");
-        Page<Favorite> favorites = favoriteMapper.selectPage(favoritePage, wrapper);
+        Page<Resource> pageParam = new Page<>(page, size);
+        IPage<Resource> queryResult = "hottest".equals(sort)
+                ? favoriteMapper.selectPublishedFavoritesPageByHot(pageParam, userId)
+                : favoriteMapper.selectPublishedFavoritesPage(pageParam, userId);
 
-        Page<Resource> result = new Page<>(favorites.getCurrent(), favorites.getSize(), favorites.getTotal());
-        List<Long> resourceIds = favorites.getRecords().stream()
-                .map(Favorite::getResourceId)
-                .toList();
-        if (resourceIds.isEmpty()) {
-            result.setRecords(Collections.emptyList());
-            return result;
-        }
-
-        Map<Long, Resource> resourceMap = resourceMapper.selectBatchIds(resourceIds).stream()
-                .filter(resource -> resource.getDeleted() == null || resource.getDeleted() == 0)
-                // 列表侧也只展示仍处于已发布状态的资源，避免已下架/删除后幽灵卡片。
-                .filter(resource -> resource.getStatus() != null && resource.getStatus() == STATUS_PUBLISHED)
-                .collect(Collectors.toMap(Resource::getId, Function.identity()));
-        List<Resource> recs = resourceIds.stream()
-                .map(resourceMap::get)
-                .filter(resource -> resource != null)
-                .collect(Collectors.toList());
-        authorEnrichmentService.enrich(recs);
-
-        if ("hottest".equals(sort)) {
-            recs.sort((a, b) -> {
-                long hotB = (b.getDownloadCount() != null ? b.getDownloadCount() : 0L) + (b.getViewCount() != null ? b.getViewCount() : 0L);
-                long hotA = (a.getDownloadCount() != null ? a.getDownloadCount() : 0L) + (a.getViewCount() != null ? a.getViewCount() : 0L);
-                if (hotB != hotA) return Long.compare(hotB, hotA);
-                return Long.compare(b.getId() != null ? b.getId() : 0L, a.getId() != null ? a.getId() : 0L);
-            });
-        }
-        // 默认 newest：保留 favorite.create_time 降序（resourceIds 已是该顺序），不再按资源 id 重排。
-        result.setRecords(recs);
+        Page<Resource> result = new Page<>(queryResult.getCurrent(), queryResult.getSize(), queryResult.getTotal());
+        result.setRecords(queryResult.getRecords());
+        authorEnrichmentService.enrich(result.getRecords());
         return result;
     }
 }

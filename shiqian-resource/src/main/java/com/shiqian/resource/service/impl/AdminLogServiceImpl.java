@@ -74,11 +74,7 @@ public class AdminLogServiceImpl implements AdminLogService {
     }
 
     private String resolveClientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
+        return com.shiqian.common.security.ClientIpResolver.resolve(request);
     }
 
     private String formatParameters(Map<String, String[]> parameters) {

@@ -196,6 +196,51 @@ class JwtGlobalAuthFilterTest {
     }
 
     @Test
+    void shouldRequireAuthForMineFavoritesAndRecycle() {
+        MockServerWebExchange mine = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/resource/mine"));
+        filter.filter(mine, chain -> Mono.empty()).block();
+        assertEquals(401, mine.getResponse().getStatusCode().value());
+
+        MockServerWebExchange favorites = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/resource/favorites"));
+        filter.filter(favorites, chain -> Mono.empty()).block();
+        assertEquals(401, favorites.getResponse().getStatusCode().value());
+
+        MockServerWebExchange recycle = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/resource/recycle-bin"));
+        filter.filter(recycle, chain -> Mono.empty()).block();
+        assertEquals(401, recycle.getResponse().getStatusCode().value());
+    }
+
+    @Test
+    void shouldPassPublicResourceDetailWithoutToken() {
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/resource/42"));
+        AtomicReference<ServerWebExchange> captured = new AtomicReference<>();
+        filter.filter(exchange, chainExchange -> {
+            captured.set(chainExchange);
+            return Mono.empty();
+        }).block();
+        assertNull(exchange.getResponse().getStatusCode());
+        assertNotNull(captured.get());
+    }
+
+    @Test
+    void shouldInjectIdentityOnPublicResourceWhenTokenPresent() {
+        String token = jwtUtil.generateAccessToken(1L, "testuser", "USER");
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/resource/42")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token));
+        AtomicReference<ServerWebExchange> captured = new AtomicReference<>();
+        filter.filter(exchange, chainExchange -> {
+            captured.set(chainExchange);
+            return Mono.empty();
+        }).block();
+        assertEquals("1", captured.get().getRequest().getHeaders().getFirst("X-User-Id"));
+    }
+
+    @Test
     void shouldRunBeforeDefaultFilters() {
         assertTrue(filter.getOrder() < 0);
     }

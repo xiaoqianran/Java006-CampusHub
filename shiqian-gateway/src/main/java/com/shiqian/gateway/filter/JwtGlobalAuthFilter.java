@@ -50,24 +50,28 @@ public class JwtGlobalAuthFilter implements GlobalFilter, Ordered {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         ServerWebExchange sanitizedExchange = stripClientIdentityHeaders(exchange);
-        if (isPublicRequest(sanitizedExchange)) {
+        boolean publicRequest = isPublicRequest(sanitizedExchange);
+        String token = extractToken(sanitizedExchange);
+
+        // 公开接口无 token 直接放行；有 token 时仍校验并注入身份，供可选鉴权接口使用。
+        if (publicRequest && !StringUtils.hasText(token)) {
             return chain.filter(sanitizedExchange);
         }
-
-        String token = extractToken(sanitizedExchange);
-        if (!StringUtils.hasText(token)) {
+        if (!publicRequest && !StringUtils.hasText(token)) {
             return unauthorized(sanitizedExchange);
         }
 
         Claims claims = jwtUtil.parseToken(token);
         if (claims == null) {
-            return unauthorized(sanitizedExchange);
+            return publicRequest ? chain.filter(sanitizedExchange) : unauthorized(sanitizedExchange);
         }
 
         return tokenVersionVerifier.isCurrent(claims)
                 .flatMap(current -> {
                     if (!current) {
-                        return unauthorized(sanitizedExchange);
+                        return publicRequest
+                                ? chain.filter(sanitizedExchange)
+                                : unauthorized(sanitizedExchange);
                     }
                     Long userId = jwtUtil.getLongClaim(claims, "userId");
                     ServerWebExchange authenticatedExchange = sanitizedExchange.mutate()
@@ -78,7 +82,9 @@ public class JwtGlobalAuthFilter implements GlobalFilter, Ordered {
                             .build();
                     return chain.filter(authenticatedExchange);
                 })
-                .onErrorResume(error -> unauthorized(sanitizedExchange));
+                .onErrorResume(error -> publicRequest
+                        ? chain.filter(sanitizedExchange)
+                        : unauthorized(sanitizedExchange));
     }
 
     @Override
@@ -92,10 +98,11 @@ public class JwtGlobalAuthFilter implements GlobalFilter, Ordered {
         }
         String path = exchange.getRequest().getURI().getPath();
         HttpMethod method = exchange.getRequest().getMethod();
+        if (HttpMethod.GET.equals(method) && isPublicResourceGet(path)) {
+            return true;
+        }
         if (HttpMethod.GET.equals(method)
-                && (path.startsWith("/api/resource")
-                || path.startsWith("/api/category")
-                || path.startsWith("/api/tag"))) {
+                && (path.startsWith("/api/category") || path.startsWith("/api/tag"))) {
             return true;
         }
         if (HttpMethod.POST.equals(method)
@@ -108,6 +115,26 @@ public class JwtGlobalAuthFilter implements GlobalFilter, Ordered {
         }
         List<String> effective = (whitelist != null && !whitelist.isEmpty()) ? whitelist : DEFAULT_WHITELIST;
         return effective.stream().anyMatch(path::startsWith);
+    }
+
+    /**
+     * 仅匿名可读的资源 GET：列表、搜索、详情、附件；不含 mine/favorites/recycle/versions 等。
+     */
+    private boolean isPublicResourceGet(String path) {
+        if (!path.startsWith("/api/resource")) {
+            return false;
+        }
+        if (path.equals("/api/resource") || path.startsWith("/api/resource?")) {
+            return true;
+        }
+        if (path.equals("/api/resource/search") || path.startsWith("/api/resource/search?")) {
+            return true;
+        }
+        if (path.startsWith("/api/resource/files/")) {
+            return true;
+        }
+        // /api/resource/{numericId} 详情
+        return path.matches("/api/resource/\\d+");
     }
 
     private String extractToken(ServerWebExchange exchange) {

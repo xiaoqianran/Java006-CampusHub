@@ -493,7 +493,7 @@ public class ResourceControllerTest extends BaseResourceTest {
     }
 
     @Test
-    public void testAddFavoriteDuplicate() throws Exception {
+    public void testAddFavoriteDuplicateIsIdempotent() throws Exception {
         Category category = createCategory("测试分类");
         Resource resource = createPublishedResource(1L, category.getId(), "收藏测试");
 
@@ -501,11 +501,11 @@ public class ResourceControllerTest extends BaseResourceTest {
                         .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isOk());
 
+        // 重复收藏幂等成功
         mockMvc.perform(post("/api/resource/{id}/favorite", resource.getId())
                         .header("Authorization", "Bearer " + userToken))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value(400))
-                .andExpect(jsonPath("$.message").value("已收藏该资源"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
     }
 
     @Test

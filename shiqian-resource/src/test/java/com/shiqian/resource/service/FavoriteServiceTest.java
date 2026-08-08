@@ -52,15 +52,14 @@ public class FavoriteServiceTest extends BaseResourceTest {
     }
 
     @Test
-    public void testAddFavoriteDuplicate() {
+    public void testAddFavoriteDuplicateIsIdempotent() {
         Category category = createCategory("测试分类");
         Resource resource = createPublishedResource("测试资源", category.getId());
 
         favoriteService.addFavorite(1L, resource.getId());
-
-        BusinessException exception = assertThrows(BusinessException.class,
-                () -> favoriteService.addFavorite(1L, resource.getId()));
-        assertEquals("已收藏该资源", exception.getMessage());
+        // 重复收藏应幂等成功，不再抛「已收藏」
+        favoriteService.addFavorite(1L, resource.getId());
+        assertTrue(favoriteService.isFavorited(1L, resource.getId()));
     }
 
     @Test

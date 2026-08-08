@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "code-review": {
+      "command": "npx",
+      "args": ["-y", "@shareworker/code-review-mcp@latest"],
+      "env": {
+        "NODE_OPTIONS": "--no-warnings"
+      }
+    }
+  }
+}

@@ -1,6 +1,7 @@
 package com.shiqian.common.ratelimit;
 
 import com.shiqian.common.exception.BusinessException;
+import com.shiqian.common.security.ClientIpResolver;
 import com.shiqian.common.security.SecurityUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -86,11 +87,7 @@ public class DistributedRateLimitAspect {
     private String clientIp() {
         if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
             HttpServletRequest request = attributes.getRequest();
-            String forwarded = request.getHeader("X-Forwarded-For");
-            if (forwarded != null && !forwarded.isBlank()) {
-                return forwarded.split(",")[0].trim();
-            }
-            return request.getRemoteAddr();
+            return ClientIpResolver.resolve(request);
         }
         return "unknown";
     }
