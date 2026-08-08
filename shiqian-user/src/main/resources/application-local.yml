@@ -8,3 +8,12 @@ spring:
 
 server:
   address: ${INTERNAL_SERVER_ADDRESS:127.0.0.1}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    prometheus:
+      enabled: true

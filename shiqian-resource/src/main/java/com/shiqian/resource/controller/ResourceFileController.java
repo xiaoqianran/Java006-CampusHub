@@ -10,6 +10,7 @@ import com.shiqian.resource.dto.FileUploadVO;
 import com.shiqian.resource.dto.SignedFileUrlVO;
 import com.shiqian.resource.dto.TextFilePreviewVO;
 import com.shiqian.resource.entity.StoredObject;
+import com.shiqian.resource.mapper.ResourceMapper;
 import com.shiqian.resource.monitoring.ResourceBusinessMetrics;
 import com.shiqian.resource.service.StoredObjectService;
 import com.shiqian.resource.storage.StoredObjectAccess;
@@ -68,6 +69,7 @@ public class ResourceFileController {
     private final StoredObjectService storedObjectService;
     private final ResourceStorageProperties storageProperties;
     private final ResourceBusinessMetrics businessMetrics;
+    private final ResourceMapper resourceMapper;
 
     @Value("${resource.upload-dir:uploads/resources}")
     private String legacyUploadDir;
@@ -221,6 +223,7 @@ public class ResourceFileController {
 
     /**
      * 兼容历史本地文件 URL；新上传文件不会再暴露用户目录或磁盘路径。
+     * 访问控制：已发布资源引用 / 文件所有者目录 / 审核员。
      */
     @Operation(summary = "访问历史本地资源附件")
     @GetMapping("/**")
@@ -231,9 +234,16 @@ public class ResourceFileController {
         String uri = request.getRequestURI();
         String filename = uri.startsWith(prefix) ? uri.substring(prefix.length()) : "";
         filename = UriUtils.decode(filename, StandardCharsets.UTF_8);
+        if (filename.startsWith("object/")
+                || filename.startsWith("preview/")) {
+            return ResponseEntity.notFound().build();
+        }
         Path target = resolveLegacyFile(filename);
         if (target == null) {
             return ResponseEntity.notFound().build();
+        }
+        if (!canAccessLegacyRelativePath(filename)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
         UrlResource resource = new UrlResource(target.toUri());
         MediaType mediaType = MediaTypeFactory.getMediaType(target.getFileName().toString())
@@ -262,6 +272,9 @@ public class ResourceFileController {
                     metadata.getFileSize() == null ? 0L : metadata.getFileSize(),
                     metadata.getExtension());
         }
+        if (!canAccessLegacyRelativePath(relativePath)) {
+            return null;
+        }
         Path target = resolveLegacyFile(relativePath);
         if (target == null) {
             return null;
@@ -285,6 +298,28 @@ public class ResourceFileController {
             return null;
         }
         return target;
+    }
+
+    /**
+     * 历史路径形态多为 {userId}/filename；仅所有者、审核员或已发布资源引用可访问。
+     */
+    private boolean canAccessLegacyRelativePath(String relativePath) {
+        if (!StringUtils.hasText(relativePath)) {
+            return false;
+        }
+        if (SecurityUtil.hasAuthority("resource:audit")) {
+            return true;
+        }
+        Long userId = SecurityUtil.getCurrentUserId();
+        int slash = relativePath.indexOf('/');
+        if (userId != null && slash > 0) {
+            String ownerSegment = relativePath.substring(0, slash);
+            if (String.valueOf(userId).equals(ownerSegment)) {
+                return true;
+            }
+        }
+        String fileUrl = "/api/resource/files/" + relativePath;
+        return resourceMapper.isPublishedFileUrl(fileUrl);
     }
 
     private String fileExtension(String name) {

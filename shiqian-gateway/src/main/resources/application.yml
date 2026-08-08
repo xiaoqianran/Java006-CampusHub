@@ -39,17 +39,18 @@ gateway:
       - /api/user/login
       - /api/user/refresh
       - /api/user/health
-      - /api/jimeng
-      - /actuator
+      - /actuator/health
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        include: health
   endpoint:
+    health:
+      show-details: when_authorized
     prometheus:
-      enabled: true
+      enabled: false
   metrics:
     tags:
       application: shiqian-gateway

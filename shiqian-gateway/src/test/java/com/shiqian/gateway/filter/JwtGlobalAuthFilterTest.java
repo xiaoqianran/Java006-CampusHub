@@ -42,7 +42,7 @@ class JwtGlobalAuthFilterTest {
         when(tokenVersionVerifier.isCurrent(any())).thenReturn(Mono.just(true));
         filter = new JwtGlobalAuthFilter(jwtUtil, tokenVersionVerifier);
         ReflectionTestUtils.setField(filter, "whitelist",
-                List.of("/api/user/register", "/api/user/login", "/api/user/refresh", "/api/user/health", "/actuator"));
+                List.of("/api/user/register", "/api/user/login", "/api/user/refresh", "/api/user/health", "/actuator/health"));
     }
 
     @Test
@@ -83,9 +83,9 @@ class JwtGlobalAuthFilterTest {
     }
 
     @Test
-    void shouldPassActuatorSubPathWithoutToken() {
+    void shouldPassActuatorHealthWithoutToken() {
         MockServerWebExchange exchange = MockServerWebExchange.from(
-                MockServerHttpRequest.get("/actuator/prometheus"));
+                MockServerHttpRequest.get("/actuator/health"));
         AtomicReference<ServerWebExchange> captured = new AtomicReference<>();
 
         filter.filter(exchange, chainExchange -> {
@@ -95,6 +95,14 @@ class JwtGlobalAuthFilterTest {
 
         assertNull(exchange.getResponse().getStatusCode());
         assertNotNull(captured.get());
+    }
+
+    @Test
+    void shouldRejectActuatorPrometheusWithoutToken() {
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/actuator/prometheus"));
+        filter.filter(exchange, chain -> Mono.empty()).block();
+        assertEquals(401, exchange.getResponse().getStatusCode().value());
     }
 
     @Test

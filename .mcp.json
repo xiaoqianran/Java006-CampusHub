@@ -2,10 +2,21 @@
   "mcpServers": {
     "code-review": {
       "command": "npx",
-      "args": ["-y", "@shareworker/code-review-mcp@latest"],
+      "args": [
+        "-y",
+        "@shareworker/code-review-mcp@latest"
+      ],
       "env": {
         "NODE_OPTIONS": "--no-warnings"
       }
+    },
+    "code-review-graph": {
+      "command": "code-review-graph",
+      "args": [
+        "serve",
+        "--repo",
+        "/workspace"
+      ]
     }
   }
 }

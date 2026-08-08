@@ -1,6 +1,7 @@
 package com.shiqian.gateway.filter;
 
 import com.shiqian.common.security.JwtUtil;
+import com.shiqian.common.security.TokenParseResult;
 import com.shiqian.gateway.security.ReactiveTokenVersionVerifier;
 import io.jsonwebtoken.Claims;
 import org.springframework.beans.factory.annotation.Value;
@@ -39,7 +40,7 @@ public class JwtGlobalAuthFilter implements GlobalFilter, Ordered {
             "/api/user/login",
             "/api/user/refresh",
             "/api/user/health",
-            "/actuator"
+            "/actuator/health"
     );
 
     public JwtGlobalAuthFilter(JwtUtil jwtUtil, ReactiveTokenVersionVerifier tokenVersionVerifier) {
@@ -58,20 +59,23 @@ public class JwtGlobalAuthFilter implements GlobalFilter, Ordered {
             return chain.filter(sanitizedExchange);
         }
         if (!publicRequest && !StringUtils.hasText(token)) {
-            return unauthorized(sanitizedExchange);
+            return unauthorized(sanitizedExchange, TokenParseResult.Failure.INVALID);
         }
 
-        Claims claims = jwtUtil.parseToken(token);
-        if (claims == null) {
-            return publicRequest ? chain.filter(sanitizedExchange) : unauthorized(sanitizedExchange);
+        TokenParseResult parsed = jwtUtil.parseTokenResult(token);
+        if (!parsed.isSuccess()) {
+            return publicRequest
+                    ? chain.filter(sanitizedExchange)
+                    : unauthorized(sanitizedExchange, parsed.failure());
         }
+        Claims claims = parsed.claims();
 
         return tokenVersionVerifier.isCurrent(claims)
                 .flatMap(current -> {
                     if (!current) {
                         return publicRequest
                                 ? chain.filter(sanitizedExchange)
-                                : unauthorized(sanitizedExchange);
+                                : unauthorized(sanitizedExchange, TokenParseResult.Failure.INVALID);
                     }
                     Long userId = jwtUtil.getLongClaim(claims, "userId");
                     ServerWebExchange authenticatedExchange = sanitizedExchange.mutate()
@@ -84,7 +88,7 @@ public class JwtGlobalAuthFilter implements GlobalFilter, Ordered {
                 })
                 .onErrorResume(error -> publicRequest
                         ? chain.filter(sanitizedExchange)
-                        : unauthorized(sanitizedExchange));
+                        : unauthorized(sanitizedExchange, TokenParseResult.Failure.INVALID));
     }
 
     @Override
@@ -110,9 +114,7 @@ public class JwtGlobalAuthFilter implements GlobalFilter, Ordered {
                 || path.matches("/api/resource/\\d+/view"))) {
             return true;
         }
-        if (path.startsWith("/api/jimeng")) {
-            return true;
-        }
+        // 即梦同步仅允许本机直连 resource 服务，不再作为网关公开路径。
         List<String> effective = (whitelist != null && !whitelist.isEmpty()) ? whitelist : DEFAULT_WHITELIST;
         return effective.stream().anyMatch(path::startsWith);
     }
@@ -155,12 +157,23 @@ public class JwtGlobalAuthFilter implements GlobalFilter, Ordered {
                 .build();
     }
 
-    private Mono<Void> unauthorized(ServerWebExchange exchange) {
-        byte[] bytes = "{\"code\":401,\"message\":\"未登录或 token 已过期\",\"data\":null}"
-                .getBytes(StandardCharsets.UTF_8);
+    private Mono<Void> unauthorized(ServerWebExchange exchange, TokenParseResult.Failure failure) {
+        TokenParseResult.Failure reason = failure != null
+                ? failure
+                : TokenParseResult.Failure.INVALID;
+        String body = "{\"code\":401,\"message\":\"" + escapeJson(reason.message())
+                + "\",\"data\":{\"reason\":\"" + reason.code() + "\"},\"success\":false}";
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
         exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
         DataBuffer buffer = exchange.getResponse().bufferFactory().wrap(bytes);
         return exchange.getResponse().writeWith(Mono.just(buffer));
+    }
+
+    private static String escapeJson(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 }

@@ -21,3 +21,12 @@ spring:
 
 server:
   address: ${GATEWAY_SERVER_ADDRESS:0.0.0.0}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    prometheus:
+      enabled: true

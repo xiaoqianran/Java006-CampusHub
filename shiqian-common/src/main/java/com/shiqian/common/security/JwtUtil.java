@@ -77,24 +77,32 @@ public class JwtUtil {
     }
 
     public Claims parseToken(String token) {
+        return parseTokenResult(token).claims();
+    }
+
+    /**
+     * 带失败原因的解析：区分过期与篡改/非法。
+     */
+    public TokenParseResult parseTokenResult(String token) {
         try {
-            return Jwts.parser()
+            Claims claims = Jwts.parser()
                     .verifyWith(getSigningKey())
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
+            return TokenParseResult.success(claims);
         } catch (ExpiredJwtException e) {
             log.warn("JWT token expired: {}", e.getMessage());
-            return null;
+            return TokenParseResult.failure(TokenParseResult.Failure.EXPIRED);
         } catch (MalformedJwtException e) {
             log.warn("JWT token malformed: {}", e.getMessage());
-            return null;
+            return TokenParseResult.failure(TokenParseResult.Failure.INVALID);
         } catch (io.jsonwebtoken.security.SecurityException e) {
             log.warn("JWT token signature invalid: {}", e.getMessage());
-            return null;
+            return TokenParseResult.failure(TokenParseResult.Failure.INVALID);
         } catch (IllegalArgumentException e) {
             log.warn("JWT token invalid argument: {}", e.getMessage());
-            return null;
+            return TokenParseResult.failure(TokenParseResult.Failure.INVALID);
         }
     }
 

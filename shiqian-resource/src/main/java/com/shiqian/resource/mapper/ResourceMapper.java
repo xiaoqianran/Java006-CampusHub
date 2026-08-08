@@ -85,4 +85,26 @@ public interface ResourceMapper extends BaseMapper<Resource> {
             @Param("id") Long id,
             @Param("viewDelta") long viewDelta,
             @Param("downloadDelta") long downloadDelta);
+
+    /**
+     * 历史本地附件是否被「已发布」资源引用（含主文件 URL 与附件表）。
+     */
+    @Select("""
+            SELECT COUNT(1) > 0
+            FROM (
+                SELECT 1
+                FROM t_resource r
+                WHERE r.deleted = 0
+                  AND r.status = 1
+                  AND r.file_url = #{fileUrl}
+                UNION ALL
+                SELECT 1
+                FROM t_resource_attachment a
+                INNER JOIN t_resource r ON r.id = a.resource_id
+                WHERE r.deleted = 0
+                  AND r.status = 1
+                  AND a.file_url = #{fileUrl}
+            ) t
+            """)
+    boolean isPublishedFileUrl(@Param("fileUrl") String fileUrl);
 }

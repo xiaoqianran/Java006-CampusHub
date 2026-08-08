@@ -207,13 +207,14 @@ public class ResourceControllerTest extends BaseResourceTest {
     @Test
     public void testPageResourcesSuccess() throws Exception {
         Category category = createCategory("测试分类");
-        createResource("资源A", category.getId());
-        createResource("资源B", category.getId());
+        createResource("资源A-分页自测", category.getId());
+        createResource("资源B-分页自测", category.getId());
 
         mockMvc.perform(get("/api/resource")
                         .header("Authorization", "Bearer " + adminToken)
                         .param("page", "1")
-                        .param("size", "10"))
+                        .param("size", "10")
+                        .param("keyword", "分页自测"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.total").value(2));

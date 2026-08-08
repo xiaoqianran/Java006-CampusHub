@@ -26,4 +26,4 @@ gateway:
       - /api/user/login
       - /api/user/refresh
       - /api/user/health
-      - /actuator
+      - /actuator/health

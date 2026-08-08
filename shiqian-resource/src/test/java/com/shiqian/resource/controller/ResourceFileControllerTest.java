@@ -234,6 +234,7 @@ public class ResourceFileControllerTest extends BaseResourceTest {
                 StandardCharsets.UTF_8);
 
         mockMvc.perform(get("/api/resource/files/preview/text")
+                        .header("Authorization", "Bearer " + userToken)
                         .param("path", "1/preview.md"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
@@ -253,6 +254,7 @@ public class ResourceFileControllerTest extends BaseResourceTest {
         }
 
         mockMvc.perform(get("/api/resource/files/preview/archive")
+                        .header("Authorization", "Bearer " + userToken)
                         .param("path", "1/preview.zip"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
@@ -266,10 +268,18 @@ public class ResourceFileControllerTest extends BaseResourceTest {
         Files.write(previewDirectory.resolve("preview.pdf"), "%PDF-test".getBytes(StandardCharsets.UTF_8));
 
         mockMvc.perform(get("/api/resource/files/1/preview.pdf")
+                        .header("Authorization", "Bearer " + userToken)
                         .param("inline", "true"))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, startsWith("inline")))
                 .andExpect(content().contentType(MediaType.APPLICATION_PDF));
+    }
+
+    @Test
+    public void testLegacyFileDeniedWithoutOwnershipOrPublished() throws Exception {
+        Files.write(previewDirectory.resolve("secret.txt"), "secret".getBytes(StandardCharsets.UTF_8));
+        mockMvc.perform(get("/api/resource/files/1/secret.txt"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
