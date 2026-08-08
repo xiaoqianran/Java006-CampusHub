@@ -65,6 +65,30 @@ class JimengIngestControllerTest {
     }
 
     @Test
+    void rejectsLoopbackPeerWhenForwardedHeadersPresent() {
+        MockHttpServletRequest request = authorizedRequest("127.0.0.1");
+        request.addHeader("X-Forwarded-For", "203.0.113.10");
+
+        ResponseStatusException error = assertThrows(
+                ResponseStatusException.class,
+                () -> controller.batch(request, new JimengBatchRequest()));
+
+        assertEquals(403, error.getStatusCode().value());
+    }
+
+    @Test
+    void rejectsLoopbackPeerWhenXRealIpPresent() {
+        MockHttpServletRequest request = authorizedRequest("127.0.0.1");
+        request.addHeader("X-Real-IP", "203.0.113.10");
+
+        ResponseStatusException error = assertThrows(
+                ResponseStatusException.class,
+                () -> controller.batch(request, new JimengBatchRequest()));
+
+        assertEquals(403, error.getStatusCode().value());
+    }
+
+    @Test
     void remainsClosedWhenServerTokenIsMissing() {
         ReflectionTestUtils.setField(controller, "ingestToken", "too-short");
 

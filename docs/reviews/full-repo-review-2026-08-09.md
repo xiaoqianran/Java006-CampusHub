@@ -117,7 +117,20 @@ CampusHub shows solid Phase-1–9 engineering: JWT access/refresh with Redis ver
 - **Frontend** single-flights refresh, maps reaudit on published edit, forces `/me` for admin route role checks (not trusting only localStorage role), and pairs logout/password-change with server-side token invalidation.
 
 
+### Issue 16 -- Severity: bug
+- File: /workspace/shiqian-gateway/src/main/java/com/shiqian/gateway/filter/JwtGlobalAuthFilter.java
+- Description: 公开 GET（资源详情/搜索等）在携带 **已过期** access token 时原先按匿名放行；前端 `localStorage` 仍认为已登录，不会触发 refresh，可选鉴权接口以匿名视角返回数据。版本失效/黑名单 token 同样被静默降级为匿名。
+- Suggestion: 公开路径上 EXPIRED → 401（`token_expired`）以便 SPA refresh；解析成功但 `isCurrent=false` 同样 401；仅 INVALID（篡改/垃圾）继续匿名放行。
+- Status: fixed
+
+### Issue 17 -- Severity: suggestion
+- File: /workspace/shiqian-gateway/src/main/resources/application.yml
+- Description: 网关仍将 `/api/jimeng/**` 路由到 resource。即梦接口虽有本机直连校验，但公网网关路由扩大了攻击面与误配风险。
+- Suggestion: 从 gateway 路由中移除 jimeng，仅允许直连 resource 本机端口。
+- Status: fixed
+
 ## Fix log
 
 - 2026-08-09: Issues 1–15 addressed in commits `7718f29`, `d565b58`, and follow-up (actuator, favorites cleanup, anonymous 401).
+- 2026-08-09: Issues 16–17 — public-path expired JWT → 401 + drop jimeng gateway route; expand ClientIp/rate-limit/Jimeng/gateway/frontend auth tests.
 - code-review-graph v2.3.7 indexed; MCP healthy (30 tools).

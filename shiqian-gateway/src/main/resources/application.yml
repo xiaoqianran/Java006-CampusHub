@@ -25,7 +25,8 @@ spring:
         - id: shiqian-resource
           uri: lb://shiqian-resource
           predicates:
-            - Path=/api/resource/**,/api/category/**,/api/tag/**,/api/admin/**,/api/jimeng/**
+            # 即梦同步仅允许直连 resource 本机端口，不经由公网网关暴露。
+            - Path=/api/resource/**,/api/category/**,/api/tag/**,/api/admin/**
 
 jwt:
   secret: ${JWT_SECRET}

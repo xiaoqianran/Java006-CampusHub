@@ -12,7 +12,7 @@ spring:
         - id: shiqian-resource
           uri: http://localhost:8082
           predicates:
-            - Path=/api/resource/**,/api/category/**,/api/tag/**,/api/admin/**,/api/jimeng/**
+            - Path=/api/resource/**,/api/category/**,/api/tag/**,/api/admin/**
 
 jwt:
   secret: test-secret-key-must-be-at-least-256-bits-long

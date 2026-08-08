@@ -64,18 +64,21 @@ public class JwtGlobalAuthFilter implements GlobalFilter, Ordered {
 
         TokenParseResult parsed = jwtUtil.parseTokenResult(token);
         if (!parsed.isSuccess()) {
-            return publicRequest
-                    ? chain.filter(sanitizedExchange)
-                    : unauthorized(sanitizedExchange, parsed.failure());
+            // 公开接口：过期令牌返回 401，便于前端 refresh；非法/篡改令牌按匿名放行。
+            if (publicRequest) {
+                return parsed.failure() == TokenParseResult.Failure.EXPIRED
+                        ? unauthorized(sanitizedExchange, parsed.failure())
+                        : chain.filter(sanitizedExchange);
+            }
+            return unauthorized(sanitizedExchange, parsed.failure());
         }
         Claims claims = parsed.claims();
 
         return tokenVersionVerifier.isCurrent(claims)
                 .flatMap(current -> {
                     if (!current) {
-                        return publicRequest
-                                ? chain.filter(sanitizedExchange)
-                                : unauthorized(sanitizedExchange, TokenParseResult.Failure.INVALID);
+                        // 版本失效/黑名单/非 ACCESS：公开路径也返回 401，避免 UI 仍显示登录态却以匿名身份访问。
+                        return unauthorized(sanitizedExchange, TokenParseResult.Failure.INVALID);
                     }
                     Long userId = jwtUtil.getLongClaim(claims, "userId");
                     ServerWebExchange authenticatedExchange = sanitizedExchange.mutate()

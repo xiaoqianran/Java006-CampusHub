@@ -183,6 +183,58 @@ class JwtGlobalAuthFilterTest {
     }
 
     @Test
+    void shouldRejectExpiredTokenOnPublicResourceSoClientCanRefresh() {
+        ReflectionTestUtils.setField(jwtUtil, "accessTokenExpiration", 1L);
+        String token = jwtUtil.generateAccessToken(1L, "testuser", "USER");
+        try {
+            Thread.sleep(5L);
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+        }
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/resource/42")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token));
+
+        filter.filter(exchange, chain -> Mono.empty()).block();
+
+        assertEquals(401, exchange.getResponse().getStatusCode().value());
+        // body should expose machine-readable expired reason
+        String body = exchange.getResponse().getBodyAsString().block();
+        assertNotNull(body);
+        assertTrue(body.contains("token_expired"));
+    }
+
+    @Test
+    void shouldPassPublicResourceWithInvalidTokenAsAnonymous() {
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/resource/42")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer not-a-jwt"));
+        AtomicReference<ServerWebExchange> captured = new AtomicReference<>();
+
+        filter.filter(exchange, chainExchange -> {
+            captured.set(chainExchange);
+            return Mono.empty();
+        }).block();
+
+        assertNull(exchange.getResponse().getStatusCode());
+        assertNotNull(captured.get());
+        assertNull(captured.get().getRequest().getHeaders().getFirst("X-User-Id"));
+    }
+
+    @Test
+    void shouldRejectStaleAccessTokenEvenOnPublicPath() {
+        String token = jwtUtil.generateAccessToken(1L, "testuser", "USER");
+        when(tokenVersionVerifier.isCurrent(any())).thenReturn(Mono.just(false));
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/resource/42")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token));
+
+        filter.filter(exchange, chain -> Mono.empty()).block();
+
+        assertEquals(401, exchange.getResponse().getStatusCode().value());
+    }
+
+    @Test
     void shouldStripSpoofedIdentityHeaders() {
         String token = jwtUtil.generateAccessToken(1L, "testuser", "USER");
         MockServerWebExchange exchange = MockServerWebExchange.from(
