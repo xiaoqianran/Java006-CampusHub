@@ -12,12 +12,22 @@ vi.mock('vue-router', () => ({
   useRouter: () => ({ push: mocks.push })
 }))
 
-// Minimal store mock focused on what PublishView uses for attachments + submit
-vi.mock('@/stores/app', () => ({
-  useAppStore: () => ({
-    logged: true,
+// Minimal store mocks focused on what PublishView uses for attachments + submit
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => ({
+    logged: true
+  })
+}))
+
+vi.mock('@/stores/catalog', () => ({
+  useCatalogStore: () => ({
     categories: ['编程', '数学'],
-    loadCategories: vi.fn().mockResolvedValue(undefined),
+    loadCategories: vi.fn().mockResolvedValue(undefined)
+  })
+}))
+
+vi.mock('@/stores/resource', () => ({
+  useResourceStore: () => ({
     uploadFiles: vi.fn().mockResolvedValue([]),
     submitResource: mocks.submitResource,
     loadMyResources: vi.fn().mockResolvedValue(undefined)

@@ -3,13 +3,16 @@ import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { StarFilled, Star, View, Download, User, CopyDocument } from '@element-plus/icons-vue'
-import { contentSceneLabel, type ResourceItem, useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
+import { useResourceStore } from '@/stores/resource'
+import { contentSceneLabel, type ResourceItem } from '@/stores/types'
 import { buildApiUrl } from '@/api/client'
 
 const props = defineProps<{ item: ResourceItem }>()
-const store = useAppStore()
+const auth = useAuthStore()
+const resource = useResourceStore()
 const router = useRouter()
-const favorite = computed(() => store.isFavorite(props.item.id))
+const favorite = computed(() => resource.isFavorite(props.item.id))
 const isGallery = computed(() => props.item.scene === 'GALLERY')
 /** 图链失效时置 false，整块图区不渲染 */
 const imageVisible = ref(true)
@@ -100,13 +103,13 @@ function hideBrokenImage() {
 
 async function toggleFavorite(event: MouseEvent) {
   event.stopPropagation()
-  if (!store.logged) {
+  if (!auth.logged) {
     ElMessage.warning('请先登录')
     router.push('/login')
     return
   }
   try {
-    await store.toggleFavorite(props.item.id)
+    await resource.toggleFavorite(props.item.id)
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '收藏操作失败')
   }

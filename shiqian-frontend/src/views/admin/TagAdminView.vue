@@ -2,9 +2,10 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AdminLayout from '@/components/AdminLayout.vue'
-import { useAppStore, type TagApiItem } from '@/stores/app'
+import { useCatalogStore } from '@/stores/catalog'
+import type { TagApiItem } from '@/stores/types'
 
-const store = useAppStore()
+const catalog = useCatalogStore()
 const keyword = ref('')
 const loading = ref(false)
 const dialogVisible = ref(false)
@@ -14,8 +15,8 @@ const tagName = ref('')
 const filteredTags = computed(() => {
   const text = keyword.value.trim().toLowerCase()
   return text
-    ? store.tags.filter(tag => tag.name.toLowerCase().includes(text))
-    : store.tags
+    ? catalog.tags.filter(tag => tag.name.toLowerCase().includes(text))
+    : catalog.tags
 })
 
 onMounted(() => {
@@ -25,7 +26,7 @@ onMounted(() => {
 async function refresh() {
   loading.value = true
   try {
-    await store.loadTags()
+    await catalog.loadTags()
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '标签加载失败')
   } finally {
@@ -53,10 +54,10 @@ async function saveTag() {
   }
   try {
     if (editing.value) {
-      await store.updateTag(editing.value.id, name)
+      await catalog.updateTag(editing.value.id, name)
       ElMessage.success('标签已更新，关联资源索引将自动同步')
     } else {
-      await store.createTag(name)
+      await catalog.createTag(name)
       ElMessage.success('标签已创建')
     }
     dialogVisible.value = false
@@ -72,7 +73,7 @@ async function removeTag(tag: TagApiItem) {
       '删除标签',
       { type: 'warning', confirmButtonText: '删除' }
     )
-    await store.deleteTag(tag.id)
+    await catalog.deleteTag(tag.id)
     ElMessage.success('标签及其资源关联已删除')
   } catch (error) {
     if (error === 'cancel' || error === 'close') return

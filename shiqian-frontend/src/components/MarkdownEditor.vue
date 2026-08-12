@@ -16,7 +16,8 @@ import { computed } from 'vue'
 import { MdEditor, ToolbarNames } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 import { ElMessage } from 'element-plus'
-import { useAppStore, type UploadedFileItem } from '@/stores/app'
+import { useResourceStore } from '@/stores/resource'
+import type { UploadedFileItem } from '@/stores/types'
 
 const props = defineProps<{
   modelValue: string
@@ -31,7 +32,7 @@ const modelValue = computed({
   set: (val: string) => emit('update:modelValue', val)
 })
 
-const store = useAppStore()
+const resource = useResourceStore()
 
 // 根据系统当前主题自动切换编辑器主题
 const theme = computed(() => {
@@ -54,7 +55,7 @@ async function handleUploadImg(files: File[], callback: (urls: string[]) => void
 
   // 使用现有 store.uploadFiles 上传到 /api/resource/files，返回远程 fileUrl（而非 blob）
   try {
-    const uploaded: UploadedFileItem[] = await store.uploadFiles(files)
+    const uploaded: UploadedFileItem[] = await resource.uploadFiles(files)
     const urls = uploaded.map(item => item.fileUrl)
     callback(urls)
   } catch (error: unknown) {

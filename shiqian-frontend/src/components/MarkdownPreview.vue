@@ -15,7 +15,7 @@
 import { computed } from 'vue'
 import { MdPreview } from 'md-editor-v3'
 import 'md-editor-v3/lib/preview.css'
-import { useAppStore } from '@/stores/app'
+import { useUiStore } from '@/stores/ui'
 
 const props = defineProps<{
   modelValue: string
@@ -23,8 +23,8 @@ const props = defineProps<{
   previewTheme?: string
 }>()
 
-const store = useAppStore()
-const theme = computed(() => (store.isDark ? 'dark' : 'light'))
+const ui = useUiStore()
+const theme = computed(() => (ui.isDark ? 'dark' : 'light'))
 </script>
 
 <style scoped>

@@ -2,10 +2,10 @@
 import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
-import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
-const store = useAppStore()
+const auth = useAuthStore()
 const submitting = ref(false)
 const form = reactive({ username: '', nickname: '', email: '', phone: '', password: '', confirmPassword: '' })
 
@@ -26,7 +26,7 @@ async function register() {
   }
   submitting.value = true
   try {
-    await store.register({
+    await auth.register({
       username,
       password: form.password,
       nickname: optionalValue(form.nickname),

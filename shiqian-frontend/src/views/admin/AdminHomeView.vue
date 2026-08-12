@@ -2,19 +2,22 @@
 import { computed, onMounted } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
 import StatusTag from '@/components/StatusTag.vue'
-import { contentSceneLabel, useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
+import { useResourceStore } from '@/stores/resource'
+import { contentSceneLabel } from '@/stores/types'
 
-const store = useAppStore()
+const auth = useAuthStore()
+const resource = useResourceStore()
 
 const greeting = computed(() => {
-  const u = store.currentUser
+  const u = auth.currentUser
   return u?.nickname || u?.username || '管理员'
 })
 
-const recentPending = computed(() => store.pendingResources.slice(0, 5))
+const recentPending = computed(() => resource.pendingResources.slice(0, 5))
 
 onMounted(() => {
-  store.loadHomeData().catch(() => undefined)
+  resource.loadHomeData().catch(() => undefined)
 })
 
 </script>
@@ -28,10 +31,10 @@ onMounted(() => {
       </div>
     </div>
     <section class="stat-grid">
-      <div class="stat-card"><b>{{ store.pendingResources.length }}</b><span class="sub">待审核</span></div>
-      <div class="stat-card"><b>{{ store.publishedResources.length }}</b><span class="sub">已发布</span></div>
-      <div class="stat-card"><b>{{ store.needsChangesResources.length }}</b><span class="sub">待作者修改</span></div>
-      <div class="stat-card"><b>{{ store.offlineResources.length }}</b><span class="sub">已下架</span></div>
+      <div class="stat-card"><b>{{ resource.pendingResources.length }}</b><span class="sub">待审核</span></div>
+      <div class="stat-card"><b>{{ resource.publishedResources.length }}</b><span class="sub">已发布</span></div>
+      <div class="stat-card"><b>{{ resource.needsChangesResources.length }}</b><span class="sub">待作者修改</span></div>
+      <div class="stat-card"><b>{{ resource.offlineResources.length }}</b><span class="sub">已下架</span></div>
     </section>
     <section class="section">
       <div class="page-title"><h1>最近待办</h1></div>
@@ -46,7 +49,7 @@ onMounted(() => {
           </template>
         </el-table-column>
       </el-table>
-      <div v-if="store.pendingResources.length === 0" class="sub" style="margin-top:8px;">暂无待审核资源 (status=0)。</div>
+      <div v-if="resource.pendingResources.length === 0" class="sub" style="margin-top:8px;">暂无待审核资源 (status=0)。</div>
     </section>
 
     <section class="section">

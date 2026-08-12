@@ -3,14 +3,14 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AdminLayout from '@/components/AdminLayout.vue'
 import StatusTag from '@/components/StatusTag.vue'
+import { useResourceStore } from '@/stores/resource'
 import {
   CONTENT_SCENES,
   contentSceneLabel,
-  useAppStore,
   type ContentSceneFilter
-} from '@/stores/app'
+} from '@/stores/types'
 
-const store = useAppStore()
+const resource = useResourceStore()
 
 const searchText = ref('')
 const statusFilter = ref<'全部' | '已发布' | '已下架'>('全部')
@@ -18,7 +18,7 @@ const sceneFilter = ref<ContentSceneFilter>('ALL')
 const sortBy = ref<'default' | 'views' | 'downloads' | 'time'>('default')
 
 const filteredAdminResources = computed(() => {
-  let list = store.managedResources
+  let list = resource.managedResources
   const text = searchText.value.trim().toLowerCase()
   if (text) {
     list = list.filter(r =>
@@ -49,7 +49,7 @@ const filteredAdminResources = computed(() => {
 })
 
 onMounted(() => {
-  store.loadResources().catch(() => undefined)
+  resource.loadResources().catch(() => undefined)
 })
 
 async function takeDownResource(id: number, title: string) {
@@ -66,7 +66,7 @@ async function takeDownResource(id: number, title: string) {
       inputValidator: input => Boolean(input.trim()) || '必须填写下架原因'
       }
     )
-    await store.takeDownResource(id, value)
+    await resource.takeDownResource(id, value)
     ElMessage.success('已下架')
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
@@ -78,7 +78,7 @@ async function takeDownResource(id: number, title: string) {
 async function restoreOnline(id: number, title: string) {
   try {
     await ElMessageBox.confirm(`确认重新发布「${title}」？`, '恢复发布', { type: 'info' })
-    await store.approveResource(id)
+    await resource.approveResource(id)
     ElMessage.success('资源已恢复发布')
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
@@ -94,7 +94,7 @@ async function softDeleteResource(id: number, title: string) {
       '移入回收站',
       { type: 'warning', confirmButtonText: '移入回收站' }
     )
-    await store.removeResource(id)
+    await resource.removeResource(id)
     ElMessage.success('已移入回收站')
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {

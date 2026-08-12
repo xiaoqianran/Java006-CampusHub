@@ -3,10 +3,11 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, ArrowRight } from '@element-plus/icons-vue'
 import ResourceCard from '@/components/ResourceCard.vue'
-import { CONTENT_SCENES, useAppStore, type ContentScene } from '@/stores/app'
+import { useResourceStore } from '@/stores/resource'
+import { CONTENT_SCENES, type ContentScene } from '@/stores/types'
 
 const router = useRouter()
-const store = useAppStore()
+const resource = useResourceStore()
 const homeKeyword = ref('')
 const resourceMode = ref<'newest' | 'hottest'>('newest')
 const scenePaths: Record<ContentScene, string> = {
@@ -17,15 +18,15 @@ const scenePaths: Record<ContentScene, string> = {
 
 const featuredResources = computed(() => {
   const resources = resourceMode.value === 'hottest'
-    ? [...store.publishedResources].sort((a, b) =>
+    ? [...resource.publishedResources].sort((a, b) =>
         ((b.downloads || 0) + (b.views || 0)) - ((a.downloads || 0) + (a.views || 0)) || b.id - a.id
       )
-    : [...store.publishedResources].sort((a, b) => b.id - a.id)
+    : [...resource.publishedResources].sort((a, b) => b.id - a.id)
   return resources.slice(0, 6)
 })
 
 onMounted(() => {
-  store.loadHomeData().catch(() => undefined)
+  resource.loadHomeData().catch(() => undefined)
 })
 
 function search() {
@@ -67,7 +68,7 @@ function viewAllResources() {
       </div>
       <el-button text type="primary" :icon="ArrowRight" @click="router.push('/explore')">发现全部内容</el-button>
     </div>
-    <div v-loading="store.loading" class="channel-shortcuts">
+    <div v-loading="resource.loading" class="channel-shortcuts">
       <button
         v-for="channel in CONTENT_SCENES"
         :key="channel.value"
@@ -95,7 +96,7 @@ function viewAllResources() {
         <el-radio-button value="hottest">热门内容</el-radio-button>
       </el-radio-group>
     </div>
-    <div v-loading="store.loading" class="resource-grid" style="min-height: 120px;">
+    <div v-loading="resource.loading" class="resource-grid" style="min-height: 120px;">
       <ResourceCard v-for="item in featuredResources" :key="`${resourceMode}-${item.id}`" :item="item" />
     </div>
     <div class="section-more">

@@ -5,16 +5,16 @@ import AdminLayout from '@/components/AdminLayout.vue'
 import AttachmentPreviewDialog from '@/components/AttachmentPreviewDialog.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import { buildApiUrl } from '@/api/client'
+import { useResourceStore } from '@/stores/resource'
 import {
   contentSceneLabel,
-  useAppStore,
   type ResourceAttachmentItem,
   type ResourceItem,
   type ResourceStatus
-} from '@/stores/app'
+} from '@/stores/types'
 
 const MarkdownPreview = defineAsyncComponent(() => import('@/components/MarkdownPreview.vue'))
-const store = useAppStore()
+const resource = useResourceStore()
 const searchText = ref('')
 const statusFilter = ref<'全部' | ResourceStatus>('待审核')
 const current = ref<ResourceItem | null>(null)
@@ -28,17 +28,17 @@ const previewAttachment = ref<ResourceAttachmentItem | null>(null)
 
 const auditResources = computed(() => {
   const text = searchText.value.trim().toLowerCase()
-  return store.resources
+  return resource.resources
     .filter(item => ['待审核', '待修改', '已拒绝'].includes(item.status))
     .filter(item => statusFilter.value === '全部' || item.status === statusFilter.value)
     .filter(item => !text || `${item.title}${item.author}${item.tags || ''}${item.desc}`.toLowerCase().includes(text))
     .sort((a, b) => b.id - a.id)
 })
 
-const pendingCount = computed(() => store.pendingResources.length)
+const pendingCount = computed(() => resource.pendingResources.length)
 
 onMounted(() => {
-  store.loadHomeData().catch(error => {
+  resource.loadHomeData().catch(error => {
     ElMessage.error(error instanceof Error ? error.message : '审核队列加载失败')
   })
 })
@@ -49,8 +49,8 @@ async function openDetail(row: ResourceItem) {
   detailVisible.value = true
   detailLoading.value = true
   try {
-    await store.loadResourceDetail(row.id, { includeFavorite: false })
-    current.value = store.getResource(row.id) || row
+    await resource.loadResourceDetail(row.id, { includeFavorite: false })
+    current.value = resource.getResource(row.id) || row
     reviewReason.value = current.value.reviewReason || ''
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '资源详情加载失败')
@@ -74,7 +74,7 @@ function downloadPreviewAttachment(attachment: { fileUrl: string }) {
 }
 
 function nextPendingId(excludeId: number) {
-  return store.pendingResources.find(item => item.id !== excludeId)?.id
+  return resource.pendingResources.find(item => item.id !== excludeId)?.id
 }
 
 async function decide(status: 1 | 2 | 3) {
@@ -90,18 +90,18 @@ async function decide(status: 1 | 2 | 3) {
   decisionLoading.value = true
   try {
     if (status === 1) {
-      await store.approveResource(currentId)
+      await resource.approveResource(currentId)
       ElMessage.success('审核通过，资源已发布')
     } else if (status === 2) {
-      await store.requestResourceChanges(currentId, reason)
+      await resource.requestResourceChanges(currentId, reason)
       ElMessage.warning('已退回作者修改')
     } else {
-      await store.rejectResource(currentId, reason)
+      await resource.rejectResource(currentId, reason)
       ElMessage.warning('资源已拒绝')
     }
 
     if (nextId) {
-      const next = store.getResource(nextId)
+      const next = resource.getResource(nextId)
       if (next) await openDetail(next)
     } else {
       detailVisible.value = false
@@ -127,7 +127,7 @@ async function batchApprove() {
       { type: 'warning' }
     )
     const results = await Promise.allSettled(
-      selectedRows.value.map(item => store.approveResource(item.id))
+      selectedRows.value.map(item => resource.approveResource(item.id))
     )
     const failed = results.filter(item => item.status === 'rejected').length
     if (failed) {

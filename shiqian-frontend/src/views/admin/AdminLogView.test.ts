@@ -3,12 +3,12 @@ import { shallowMount } from '@vue/test-utils'
 import { ref } from 'vue'
 import AdminLogView from './AdminLogView.vue'
 
-// Mock the app store (provide adminLogs + loadAdminLogs) - must be before import of SUT
-vi.mock('@/stores/app', () => {
+// Mock the admin store (provide adminLogs + loadAdminLogs) - must be before import of SUT
+vi.mock('@/stores/admin', () => {
   const adminLogs = ref([] as any[])
 
   return {
-    useAppStore: () => ({
+    useAdminStore: () => ({
       adminLogs,
       loadAdminLogs: vi.fn().mockResolvedValue({ total: 0, records: [] })
     })

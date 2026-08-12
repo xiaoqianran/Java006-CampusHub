@@ -3,9 +3,12 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import ResourceCard from '@/components/ResourceCard.vue'
-import { useAppStore, type ContentSceneFilter } from '@/stores/app'
+import { useCatalogStore } from '@/stores/catalog'
+import { useResourceStore } from '@/stores/resource'
+import type { ContentSceneFilter } from '@/stores/types'
 
-const store = useAppStore()
+const catalog = useCatalogStore()
+const resource = useResourceStore()
 const route = useRoute()
 const router = useRouter()
 const ready = ref(false)
@@ -40,9 +43,9 @@ const pageInfo = computed(() => {
 })
 
 function applyRouteFilters() {
-  store.keyword = queryValue(route.query.keyword)
-  store.activeScene = currentScene.value
-  store.sortMode = route.query.sort === 'hottest' ? 'hottest' : 'newest'
+  resource.keyword = queryValue(route.query.keyword)
+  resource.activeScene = currentScene.value
+  resource.sortMode = route.query.sort === 'hottest' ? 'hottest' : 'newest'
   const requestedPage = Number(queryValue(route.query.page))
   currentPage.value = Number.isInteger(requestedPage) && requestedPage > 0
     ? requestedPage
@@ -56,9 +59,9 @@ function applyRouteFilters() {
 
 function filterQuery() {
   const query: Record<string, string> = {}
-  const keyword = store.keyword.trim()
+  const keyword = resource.keyword.trim()
   if (keyword) query.keyword = keyword
-  if (store.sortMode === 'hottest') query.sort = 'hottest'
+  if (resource.sortMode === 'hottest') query.sort = 'hottest'
   if (selectedCategoryId.value) query.categoryId = String(selectedCategoryId.value)
   if (selectedTag.value) query.tag = selectedTag.value
   if (currentPage.value > 1) query.page = String(currentPage.value)
@@ -67,8 +70,8 @@ function filterQuery() {
 
 async function runSearch() {
   try {
-    await store.searchResources({
-      sort: store.sortMode,
+    await resource.searchResources({
+      sort: resource.sortMode,
       scene: currentScene.value,
       page: currentPage.value,
       size: PAGE_SIZE,
@@ -81,7 +84,7 @@ async function runSearch() {
 }
 
 function scheduleSearch() {
-  store.cancelResourceSearch()
+  resource.cancelResourceSearch()
   if (searchTimer) clearTimeout(searchTimer)
   searchTimer = setTimeout(() => {
     void runSearch()
@@ -89,8 +92,8 @@ function scheduleSearch() {
 }
 
 function resetFilters() {
-  store.keyword = ''
-  store.sortMode = 'newest'
+  resource.keyword = ''
+  resource.sortMode = 'newest'
   selectedCategoryId.value = undefined
   selectedTag.value = ''
   updateFilters()
@@ -114,8 +117,8 @@ onMounted(async () => {
   try {
     ready.value = true
     await Promise.all([
-      store.loadCategories(),
-      store.loadTags()
+      catalog.loadCategories(),
+      catalog.loadTags()
     ])
     await runSearch()
   } catch (error) {
@@ -130,8 +133,8 @@ watch(() => [route.path, route.query], () => {
 
 onUnmounted(() => {
   if (searchTimer) clearTimeout(searchTimer)
-  store.cancelResourceSearch()
-  store.activeScene = 'ALL'
+  resource.cancelResourceSearch()
+  resource.activeScene = 'ALL'
 })
 </script>
 
@@ -142,19 +145,19 @@ onUnmounted(() => {
         <h1>{{ pageInfo.title }}</h1>
         <p class="sub">{{ pageInfo.description }}</p>
       </div>
-      <span class="result-count">共 {{ store.searchResultTotal }} 个结果</span>
+      <span class="result-count">共 {{ resource.searchResultTotal }} 个结果</span>
     </div>
 
     <div class="filter-panel">
       <div class="toolbar">
         <el-input
-          v-model="store.keyword"
+          v-model="resource.keyword"
           clearable
           :placeholder="pageInfo.search"
           class="resource-search"
           @input="updateFilters"
         />
-        <el-select v-model="store.sortMode" class="sort-select" @change="updateFilters">
+        <el-select v-model="resource.sortMode" class="sort-select" @change="updateFilters">
           <el-option label="最新发布" value="newest" />
           <el-option label="热门优先" value="hottest" />
         </el-select>
@@ -167,7 +170,7 @@ onUnmounted(() => {
           @change="updateFilters"
         >
           <el-option
-            v-for="category in store.flatCategories"
+            v-for="category in catalog.flatCategories"
             :key="category.id"
             :label="category.name"
             :value="category.id"
@@ -182,7 +185,7 @@ onUnmounted(() => {
           @change="updateFilters"
         >
           <el-option
-            v-for="tag in store.tags"
+            v-for="tag in catalog.tags"
             :key="tag.id"
             :label="`# ${tag.name}`"
             :value="tag.name"
@@ -192,24 +195,24 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div v-loading="store.searchLoading" class="resource-results">
+    <div v-loading="resource.searchLoading" class="resource-results">
       <div
-        v-if="store.filteredResources.length"
+        v-if="resource.filteredResources.length"
         class="resource-grid"
         :class="{ 'gallery-grid': currentScene === 'GALLERY' }"
       >
-        <ResourceCard v-for="item in store.filteredResources" :key="item.id" :item="item" />
+        <ResourceCard v-for="item in resource.filteredResources" :key="item.id" :item="item" />
       </div>
-      <el-empty v-else-if="!store.searchLoading" description="暂无匹配内容" />
+      <el-empty v-else-if="!resource.searchLoading" description="暂无匹配内容" />
     </div>
     <el-pagination
-      v-if="store.searchResultTotal > PAGE_SIZE"
+      v-if="resource.searchResultTotal > PAGE_SIZE"
       class="content-pagination"
       background
       layout="prev, pager, next"
       :current-page="currentPage"
       :page-size="PAGE_SIZE"
-      :total="store.searchResultTotal"
+      :total="resource.searchResultTotal"
       @current-change="changePage"
     />
   </section>

@@ -2,15 +2,19 @@
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowDown, User, Setting, Sunny, Moon } from '@element-plus/icons-vue'
-import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
+import { useResourceStore } from '@/stores/resource'
+import { useUiStore } from '@/stores/ui'
 
 const route = useRoute()
 const router = useRouter()
-const store = useAppStore()
+const auth = useAuthStore()
+const resource = useResourceStore()
+const ui = useUiStore()
 
 onMounted(() => {
-  store.initTheme()
-  store.loadHomeData({ includePersonal: true }).catch(() => undefined)
+  ui.initTheme()
+  resource.loadHomeData({ includePersonal: true }).catch(() => undefined)
 })
 
 const primaryLinks = [
@@ -21,7 +25,7 @@ const primaryLinks = [
   { path: '/publish', label: '发布' }
 ]
 
-const canAccessAdmin = computed(() => store.currentUser?.role === 'ADMIN')
+const canAccessAdmin = computed(() => auth.currentUser?.role === 'ADMIN')
 const personalActive = computed(() => ['/mine', '/favorites', '/profile'].includes(route.path))
 
 function goLogin() {
@@ -38,7 +42,7 @@ function isLinkActive(path: string) {
 
 async function handlePersonalCommand(command: string) {
   if (command === 'logout') {
-    await store.logout()
+    await auth.logout()
     router.push('/home')
     return
   }
@@ -66,7 +70,7 @@ async function handlePersonalCommand(command: string) {
         </nav>
         <div class="nav-actions">
           <el-button v-if="canAccessAdmin" :icon="Setting" @click="goAdmin">管理端</el-button>
-          <el-button v-if="!store.logged" :icon="User" @click="goLogin">登录</el-button>
+          <el-button v-if="!auth.logged" :icon="User" @click="goLogin">登录</el-button>
           <el-dropdown v-else trigger="click" @command="handlePersonalCommand">
             <el-button :icon="User" :class="{ 'is-context-active': personalActive }">
               个人中心
@@ -83,10 +87,10 @@ async function handlePersonalCommand(command: string) {
           </el-dropdown>
 
           <el-button
-            :icon="store.isDark ? Sunny : Moon"
+            :icon="ui.isDark ? Sunny : Moon"
             circle
-            @click="store.toggleTheme"
-            :title="store.isDark ? '切换到浅色模式' : '切换到深色模式'"
+            @click="ui.toggleTheme"
+            :title="ui.isDark ? '切换到浅色模式' : '切换到深色模式'"
           />
         </div>
       </div>
