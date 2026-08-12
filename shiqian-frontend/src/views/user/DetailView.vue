@@ -6,21 +6,23 @@ import { ArrowLeft, Star, StarFilled, Download, View, User, CopyDocument } from 
 import StatusTag from '@/components/StatusTag.vue'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
 import AttachmentPreviewDialog from '@/components/AttachmentPreviewDialog.vue'
+import { useAuthStore } from '@/stores/auth'
+import { useResourceStore } from '@/stores/resource'
 import {
   contentSceneLabel,
-  useAppStore,
   type ResourceAttachmentItem,
   type ResourceVersionItem
-} from '@/stores/app'
+} from '@/stores/types'
 import { buildApiUrl } from '@/api/client'
 
 const route = useRoute()
 const router = useRouter()
-const store = useAppStore()
-const resource = computed(() => store.getResource(Number(route.params.id)))
+const auth = useAuthStore()
+const resourceStore = useResourceStore()
+const resource = computed(() => resourceStore.getResource(Number(route.params.id)))
 const related = computed(() => {
   if (!resource.value) return []
-  const others = store.publishedResources.filter(item => item.id !== resource.value!.id)
+  const others = resourceStore.publishedResources.filter(item => item.id !== resource.value!.id)
   const sameScene = others.filter(item => item.scene === resource.value!.scene)
   const otherScene = others.filter(item => item.scene !== resource.value!.scene)
   const currentAuthor = resource.value!.author
@@ -82,9 +84,9 @@ const compareVersions = computed(() =>
     .filter((item): item is ResourceVersionItem => Boolean(item))
 )
 const canManageVersions = computed(() => Boolean(
-  store.logged
+  auth.logged
   && resource.value
-  && (store.role === 'admin' || store.currentUser?.userId === resource.value.userId)
+  && (auth.role === 'admin' || auth.currentUser?.userId === resource.value.userId)
 ))
 
 watch(
@@ -98,11 +100,11 @@ onMounted(async () => {
   detailLoading.value = true
   try {
     await Promise.all([
-      store.loadResourceDetail(Number(route.params.id)),
-      store.logged ? store.loadCurrentUser().catch(() => undefined) : Promise.resolve()
+      resourceStore.loadResourceDetail(Number(route.params.id)),
+      auth.logged ? auth.loadCurrentUser().catch(() => undefined) : Promise.resolve()
     ])
     // 加载详情后立即记录一次浏览（支持未登录用户），乐观+1本地 views
-    store.incrementView(Number(route.params.id))
+    resourceStore.incrementView(Number(route.params.id))
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '资源加载失败')
   } finally {
@@ -115,7 +117,7 @@ async function openVersions() {
   versionDrawerVisible.value = true
   versionLoading.value = true
   try {
-    versions.value = await store.loadResourceVersions(resource.value.id)
+    versions.value = await resourceStore.loadResourceVersions(resource.value.id)
     compareVersionNumbers.value = versions.value
       .slice(0, 2)
       .map(item => item.versionNumber)
@@ -134,12 +136,12 @@ async function rollbackVersion(version: ResourceVersionItem) {
       '回滚资源版本',
       { type: 'warning', confirmButtonText: '确认回滚' }
     )
-    const nextVersion = await store.rollbackResourceVersion(
+    const nextVersion = await resourceStore.rollbackResourceVersion(
       resource.value.id,
       version.versionNumber,
       `从详情页回滚到版本 ${version.versionNumber}`
     )
-    versions.value = await store.loadResourceVersions(resource.value.id)
+    versions.value = await resourceStore.loadResourceVersions(resource.value.id)
     ElMessage.success(`已生成 v${nextVersion}`)
   } catch (error) {
     if (error === 'cancel' || error === 'close') return
@@ -148,14 +150,14 @@ async function rollbackVersion(version: ResourceVersionItem) {
 }
 
 async function toggleFavorite() {
-  if (!store.logged) {
+  if (!auth.logged) {
     ElMessage.warning('请先登录')
     router.push('/login')
     return
   }
   try {
     if (!resource.value) return
-    await store.toggleFavorite(resource.value.id)
+    await resourceStore.toggleFavorite(resource.value.id)
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '收藏操作失败')
   }
@@ -164,7 +166,7 @@ async function toggleFavorite() {
 async function download() {
   try {
     if (!resource.value) return
-    const vo = await store.downloadResource(resource.value.id)
+    const vo = await resourceStore.downloadResource(resource.value.id)
     // Prefer returned VO for latest primary (attachments already in resource)
     const fileUrl = (vo && vo.fileUrl) || primaryDownloadUrl()
     if (!fileUrl) {
@@ -282,8 +284,8 @@ function hideBrokenDetailImage(att: ResourceAttachmentItem) {
         <el-button v-if="isGallery && promptText" type="primary" plain :icon="CopyDocument" @click="copyPrompt">
           复制提示词
         </el-button>
-        <el-button :icon="store.isFavorite(resource.id) ? StarFilled : Star" @click="toggleFavorite">
-          {{ store.isFavorite(resource.id) ? '取消收藏' : '加入收藏' }}
+        <el-button :icon="resourceStore.isFavorite(resource.id) ? StarFilled : Star" @click="toggleFavorite">
+          {{ resourceStore.isFavorite(resource.id) ? '取消收藏' : '加入收藏' }}
         </el-button>
         <el-button v-if="canManageVersions" @click="openVersions">
           版本历史（当前 v{{ resource.version }}）

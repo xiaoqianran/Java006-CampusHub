@@ -2,10 +2,10 @@
 import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
-import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
-const store = useAppStore()
+const auth = useAuthStore()
 const submitting = ref(false)
 const form = reactive({ username: '', password: '' })
 
@@ -16,9 +16,9 @@ async function login() {
   }
   submitting.value = true
   try {
-    await store.login(form.username, form.password)
+    await auth.login(form.username, form.password)
     ElMessage.success({ message: '登录成功', duration: 800 })
-    const target = store.currentUser?.role === 'ADMIN' ? '/admin' : '/home'
+    const target = auth.currentUser?.role === 'ADMIN' ? '/admin' : '/home'
     router.push(target)
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '登录失败')

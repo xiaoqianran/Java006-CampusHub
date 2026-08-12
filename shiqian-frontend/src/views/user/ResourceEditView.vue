@@ -4,13 +4,14 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { UploadRawFile, UploadUserFile } from 'element-plus'
 import { Close, UploadFilled } from '@element-plus/icons-vue'
+import { useCatalogStore } from '@/stores/catalog'
+import { useResourceStore } from '@/stores/resource'
 import {
   CONTENT_SCENES,
-  useAppStore,
   type ContentScene,
   type UploadedFileItem,
   type ResourceAttachmentItem
-} from '@/stores/app'
+} from '@/stores/types'
 import MarkdownLiveEditor from '@/components/MarkdownLiveEditor.vue'
 import {
   MAX_RESOURCE_FILE_COUNT,
@@ -23,7 +24,8 @@ import {
 
 const route = useRoute()
 const router = useRouter()
-const store = useAppStore()
+const catalog = useCatalogStore()
+const resource = useResourceStore()
 
 const resourceId = computed(() => Number(route.params.id))
 const loading = ref(false)
@@ -83,32 +85,32 @@ watch(
 )
 
 function fillForm() {
-  const resource = store.getResource(resourceId.value)
-  if (!resource) return false
+  const item = resource.getResource(resourceId.value)
+  if (!item) return false
 
-  form.title = resource.title
-  form.cat = resource.categoryId ? resource.cat : ''
-  form.categories = resource.categoryNames?.length
-    ? [...resource.categoryNames]
-    : resource.categoryId ? [resource.cat] : []
-  form.scene = resource.scene
-  form.tags = resource.tags || ''
-  form.tagNames = resource.tagNames?.length
-    ? [...resource.tagNames]
-    : (resource.tags || '').split(/[,，]/).map(tag => tag.trim()).filter(Boolean)
-  form.summary = resource.summary || resource.desc || ''
-  form.contentMarkdown = resource.contentMarkdown || ''
+  form.title = item.title
+  form.cat = item.categoryId ? item.cat : ''
+  form.categories = item.categoryNames?.length
+    ? [...item.categoryNames]
+    : item.categoryId ? [item.cat] : []
+  form.scene = item.scene
+  form.tags = item.tags || ''
+  form.tagNames = item.tagNames?.length
+    ? [...item.tagNames]
+    : (item.tags || '').split(/[,，]/).map(tag => tag.trim()).filter(Boolean)
+  form.summary = item.summary || item.desc || ''
+  form.contentMarkdown = item.contentMarkdown || ''
 
   // 加载现有附件（支持多附件编辑）
-  if (resource.attachments && resource.attachments.length > 0) {
-    existingAttachments.value = [...resource.attachments]
-  } else if (resource.fileUrl) {
+  if (item.attachments && item.attachments.length > 0) {
+    existingAttachments.value = [...item.attachments]
+  } else if (item.fileUrl) {
     // legacy 单个文件兼容
     existingAttachments.value = [{
-      fileName: resource.title || 'legacy-file',
-      fileUrl: resource.fileUrl,
-      fileSize: resource.fileSize || 0,
-      fileType: resource.type
+      fileName: item.title || 'legacy-file',
+      fileUrl: item.fileUrl,
+      fileSize: item.fileSize || 0,
+      fileType: item.type
     } as ResourceAttachmentItem]
   } else {
     existingAttachments.value = []
@@ -125,8 +127,8 @@ onMounted(async () => {
 
   loading.value = true
   try {
-    await store.loadCategories()
-    await store.loadResourceDetail(resourceId.value)
+    await catalog.loadCategories()
+    await resource.loadResourceDetail(resourceId.value)
     if (!fillForm()) {
       ElMessage.error('资源不存在或无权访问')
       router.push('/mine')
@@ -210,7 +212,7 @@ async function performSelectedUpload() {
         uploadedFiles.value = [...uploadedFiles.value, uploadedFile]
       },
       worker: async (file, onProgress) => {
-        const response = await store.uploadFiles([file], {
+        const response = await resource.uploadFiles([file], {
           signal: uploadController?.signal,
           onProgress
         })
@@ -273,7 +275,7 @@ async function submit() {
       ...uploadedFiles.value
     ]
 
-    await store.updateResource(resourceId.value, {
+    await resource.updateResource(resourceId.value, {
       title: form.title,
       cat: form.cat || undefined,
       categories: form.categories,
@@ -332,7 +334,7 @@ async function submit() {
                 collapse-tags-tooltip
                 placeholder="最多选择 10 个分类"
               >
-                <el-option v-for="category in store.categories" :key="category" :label="category" :value="category" />
+                <el-option v-for="category in catalog.categories" :key="category" :label="category" :value="category" />
               </el-select>
             </el-form-item>
           </el-col>

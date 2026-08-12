@@ -2,21 +2,24 @@
 import { onMounted, ref, computed } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import StatusTag from '@/components/StatusTag.vue'
-import { contentSceneLabel, useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
+import { useResourceStore } from '@/stores/resource'
+import { contentSceneLabel } from '@/stores/types'
 
-const store = useAppStore()
+const auth = useAuthStore()
+const resource = useResourceStore()
 
 // 状态过滤（本地，复用 store.myResources 计算属性）
 const statusFilter = ref<'全部' | '待审核' | '已发布' | '待修改' | '已拒绝' | '已下架'>('全部')
 const filteredMyResources = computed(() =>
   statusFilter.value === '全部'
-    ? store.myResources
-    : store.myResources.filter(r => r.status === statusFilter.value)
+    ? resource.myResources
+    : resource.myResources.filter(r => r.status === statusFilter.value)
 )
 
 onMounted(() => {
-  if (!store.logged) return
-  store.loadMyResources().catch(error => {
+  if (!auth.logged) return
+  resource.loadMyResources().catch(error => {
     ElMessage.error(error instanceof Error ? error.message : '我的发布加载失败')
   })
 })
@@ -24,7 +27,7 @@ onMounted(() => {
 async function remove(id: number) {
   await ElMessageBox.confirm('确定删除这条发布记录吗？', '删除确认', { type: 'warning' })
   try {
-    await store.removeMyResource(id)
+    await resource.removeMyResource(id)
     ElMessage.success('已删除')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '删除失败')
@@ -34,7 +37,7 @@ async function remove(id: number) {
 async function resubmit(id: number) {
   try {
     await ElMessageBox.confirm('确认重新提交这条内容进入审核吗？', '重新提交', { type: 'warning' })
-    await store.resubmitResource(id)
+    await resource.resubmitResource(id)
     ElMessage.success('已重新提交审核')
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
@@ -44,14 +47,14 @@ async function resubmit(id: number) {
 }
 
 const profileForm = ref({
-  nickname: store.currentUser?.nickname || '',
-  email: store.currentUser?.email || '',
-  phone: store.currentUser?.phone || ''
+  nickname: auth.currentUser?.nickname || '',
+  email: auth.currentUser?.email || '',
+  phone: auth.currentUser?.phone || ''
 })
 
 async function saveProfile() {
   try {
-    await store.updateProfile(profileForm.value)
+    await auth.updateProfile(profileForm.value)
     ElMessage.success('资料已更新')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '更新失败')
@@ -66,7 +69,7 @@ async function saveProfile() {
         <h1>我的发布</h1>
         <p class="sub">查看博客、图片和资料的发布进度及审核意见。</p>
       </div>
-      <el-select v-model="store.sortMode" style="width: 140px" size="small">
+      <el-select v-model="resource.sortMode" style="width: 140px" size="small">
         <el-option label="最新" value="newest" />
         <el-option label="最热" value="hottest" />
       </el-select>

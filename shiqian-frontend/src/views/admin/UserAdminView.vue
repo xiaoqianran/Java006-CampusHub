@@ -3,16 +3,17 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AdminLayout from '@/components/AdminLayout.vue'
 import StatusTag from '@/components/StatusTag.vue'
-import { useAppStore, type UserItem } from '@/stores/app'
+import { useAdminStore } from '@/stores/admin'
+import type { UserItem } from '@/stores/types'
 
-const store = useAppStore()
+const admin = useAdminStore()
 const keyword = ref('')
 const loading = ref(false)
 
 async function load() {
   loading.value = true
   try {
-    await store.loadUsers({ keyword: keyword.value.trim() })
+    await admin.loadUsers({ keyword: keyword.value.trim() })
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '用户加载失败')
   } finally {
@@ -35,8 +36,8 @@ async function toggleStatus(row: UserItem) {
         cancelButtonText: '取消'
       }
     )
-    await store.updateUserStatus(row.id, targetStatus, keyword.value.trim())
-    await store.recordAdminLog('USER_STATUS_CHANGE', row.id, `${actionText}用户 ${row.username || row.nickname || row.id}`)
+    await admin.updateUserStatus(row.id, targetStatus, keyword.value.trim())
+    await admin.recordAdminLog('USER_STATUS_CHANGE', row.id, `${actionText}用户 ${row.username || row.nickname || row.id}`)
     ElMessage.success(`${actionText}成功`)
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
@@ -60,8 +61,8 @@ async function changeRole(row: UserItem, targetRole: 'USER' | 'ADMIN') {
         cancelButtonText: '取消'
       }
     )
-    await store.updateUserRole(row.id, targetRole, keyword.value.trim())
-    await store.recordAdminLog('USER_ROLE_CHANGE', row.id, `${actionText} ${row.username || row.nickname || row.id}`)
+    await admin.updateUserRole(row.id, targetRole, keyword.value.trim())
+    await admin.recordAdminLog('USER_ROLE_CHANGE', row.id, `${actionText} ${row.username || row.nickname || row.id}`)
     ElMessage.success('角色修改成功')
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
@@ -93,7 +94,7 @@ onMounted(load)
       </div>
     </div>
 
-    <el-table v-loading="loading" :data="store.users" class="panel" style="width: 100%">
+    <el-table v-loading="loading" :data="admin.users" class="panel" style="width: 100%">
       <el-table-column prop="username" label="用户名" min-width="140" />
       <el-table-column prop="nickname" label="昵称" min-width="140" />
       <el-table-column prop="email" label="邮箱" min-width="200" />
@@ -145,6 +146,6 @@ onMounted(load)
       </el-table-column>
     </el-table>
 
-    <el-empty v-if="!loading && !store.users.length" description="暂无匹配的用户" />
+    <el-empty v-if="!loading && !admin.users.length" description="暂无匹配的用户" />
   </AdminLayout>
 </template>

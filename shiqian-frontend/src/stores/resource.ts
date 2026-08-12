@@ -1,371 +1,50 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import {
-  clearTokens,
   jsonBody,
-  refreshAccessToken,
   request,
-  setAuthFailureHandler,
-  setTokens,
   uploadRequest,
   type PageResult
 } from '@/api/client'
-
-export type Role = 'student' | 'admin'
-export type ResourceStatus = '已发布' | '待审核' | '待修改' | '已拒绝' | '已下架'
-export type ContentScene = 'BLOG' | 'GALLERY' | 'SHARE'
-export type ContentSceneFilter = 'ALL' | ContentScene
-
-export const CONTENT_SCENES: Array<{
-  value: ContentScene
-  label: string
-  description: string
-}> = [
-  { value: 'BLOG', label: '博客', description: '观点、教程、经验和长文' },
-  { value: 'GALLERY', label: '图片', description: '作品、相册和视觉内容' },
-  { value: 'SHARE', label: '资料', description: '文件、源码、课件和讨论' }
-]
-
-export function contentSceneLabel(scene?: string) {
-  return CONTENT_SCENES.find(item => item.value === scene)?.label || '资料'
-}
-
-export interface ResourceApiItem {
-  id: number
-  userId: number
-  title: string
-  // 旧字段（兼容历史数据）
-  description?: string
-  // 新字段（第一阶段主推）
-  summary?: string
-  contentMarkdown?: string
-  contentType?: string
-  contentScene?: ContentScene
-  tags?: string
-  categoryId?: number
-  categoryIds?: number[]
-  categoryNames?: string[]
-  tagIds?: number[]
-  tagNames?: string[]
-  version?: number
-  searchHighlights?: Record<string, string[]>
-  fileUrl?: string
-  fileSize?: number
-  fileType?: string
-  downloadCount?: number
-  viewCount?: number
-  status: number
-  reviewReason?: string
-  reviewerId?: number
-  reviewTime?: string
-  offlineReason?: string
-  publishedTime?: string
-  createTime?: string
-  updateTime?: string
-  attachments?: ResourceAttachmentItem[]
-  authorNickname?: string   // 后端富化提供
-}
-
-export interface UploadedFileItem {
-  originalName: string
-  fileUrl: string
-  fileSize: number
-  fileType: string
-  mimeType?: string
-  assetKind?: string
-  usageType?: string
-  sortOrder?: number
-}
-
-// 第二阶段：资源附件（用于详情展示）
-export interface ResourceAttachmentItem {
-  id?: number
-  resourceId?: number
-  fileName: string
-  fileUrl: string
-  fileSize: number
-  fileType?: string
-  mimeType?: string
-  assetKind?: string
-  usageType?: string
-  sortOrder?: number
-}
-
-export interface CategoryApiItem {
-  id: number
-  parentId: number
-  name: string
-  sortOrder: number
-  icon?: string
-  status: number
-  children?: CategoryApiItem[]
-}
-
-export interface TagApiItem {
-  id: number
-  name: string
-  status: number
-}
-
-export interface LoginUser {
-  userId: number
-  username: string
-  nickname: string
-  role: 'USER' | 'ADMIN'
-  email?: string
-  phone?: string
-  avatar?: string
-  status?: number
-}
-
-export interface ResourceItem {
-  id: number
-  title: string
-  cat: string
-  categoryId?: number
-  categoryIds: number[]
-  categoryNames: string[]
-  scene: ContentScene
-  tags?: string
-  tagIds: number[]
-  tagNames: string[]
-  version: number
-  type: string
-  author: string
-  userId?: number
-  views: number
-  downloads: number
-  favs: number
-  status: ResourceStatus
-  desc: string
-  // 新字段（详情页渲染用）
-  summary?: string
-  contentMarkdown?: string
-  contentType?: string
-  fileUrl?: string
-  fileSize?: number
-  // 第二阶段：附件列表
-  attachments?: ResourceAttachmentItem[]
-  reviewReason?: string
-  reviewerId?: number
-  reviewTime?: string
-  offlineReason?: string
-  publishedTime?: string
-  searchHighlights?: Record<string, string[]>
-}
-
-export interface ResourceVersionItem {
-  id: number
-  resourceId: number
-  versionNumber: number
-  title: string
-  summary?: string
-  description?: string
-  markdownContent?: string
-  categoryIds: number[]
-  tagNames: string[]
-  contentScene: ContentScene
-  resourceType: string
-  fileUrl?: string
-  fileSize?: number
-  fileType?: string
-  attachments: ResourceAttachmentItem[]
-  changeDescription?: string
-  createdBy: number
-  createTime?: string
-}
-
-export interface UserItem {
-  id: number
-  name: string
-  username: string
-  nickname: string
-  email: string
-  phone: string
-  role: string
-  status: '正常' | '禁用'
-}
-
-export interface AdminLogItem {
-  id: number
-  operatorId: number
-  operatorName?: string
-  action: string
-  targetType?: string
-  targetId?: number
-  detail?: string
-  requestMethod?: string
-  requestUri?: string
-  requestIp?: string
-  result?: string
-  errorMessage?: string
-  durationMs?: number
-  createTime?: string
-}
-
-export interface SensitiveWordItem {
-  id: number
-  word: string
-  level: number
-  status: number
-  createdBy?: number
-  createTime?: string
-  updateTime?: string
-}
-
-export interface ContentReviewRecordItem {
-  id: number
-  resourceId?: number
-  submitterId?: number
-  reviewerId?: number
-  reviewType: 'AUTO' | 'MANUAL'
-  decision: string
-  matchedWords?: string
-  reason?: string
-  contentTitle?: string
-  createTime?: string
-}
-
-interface LoginResponse {
-  accessToken: string
-  refreshToken: string
-  userId: number
-  username: string
-  nickname: string
-  role: 'USER' | 'ADMIN'
-}
-
-interface RegisterPayload {
-  username: string
-  password: string
-  nickname?: string
-  email?: string
-  phone?: string
-}
-
-interface ResourceSubmitPayload {
-  title: string
-  cat?: string
-  categories?: string[]
-  summary: string
-  contentMarkdown?: string
-  contentScene: ContentScene
-  tags?: string
-  tagNames?: string[]
-  attachments?: UploadedFileItem[]
-  files?: UploadedFileItem[]   // 临时兼容，submitResource 内部处理
-}
-
-interface ResourceUpdatePayload {
-  title: string
-  cat?: string
-  categories?: string[]
-  summary: string
-  contentMarkdown: string
-  contentScene: ContentScene
-  tags?: string
-  tagNames?: string[]
-  changeDescription?: string
-  file?: UploadedFileItem | ResourceAttachmentItem
-  attachments?: (UploadedFileItem | ResourceAttachmentItem)[]
-}
-
-interface LoadOptions {
-  force?: boolean
-}
-
-interface HomeLoadOptions extends LoadOptions {
-  includePersonal?: boolean
-}
-
-interface ResourceDetailLoadOptions extends LoadOptions {
-  includeFavorite?: boolean
-}
+import { useAuthStore } from './auth'
+import { useCatalogStore } from './catalog'
+import {
+  mapStatus,
+  type ContentScene,
+  type ContentSceneFilter,
+  type HomeLoadOptions,
+  type LoadOptions,
+  type ResourceApiItem,
+  type ResourceDetailLoadOptions,
+  type ResourceItem,
+  type ResourceSubmitPayload,
+  type ResourceUpdatePayload,
+  type ResourceVersionItem,
+  type UploadedFileItem
+} from './types'
 
 const DATA_CACHE_TTL_MS = 30_000
 
-const fallbackCategories = ['计算机科学', '高等数学', '大学英语', '考研资料', '课程笔记', '实验报告', '竞赛资料', '校园生活']
-
-function mapStatus(status: number): ResourceStatus {
-  if (status === 1) return '已发布'
-  if (status === 2) return '待修改'
-  if (status === 3) return '已拒绝'
-  if (status === 4) return '已下架'
-  return '待审核'
-}
-
-function flattenCategories(items: CategoryApiItem[]): CategoryApiItem[] {
-  return items.flatMap(item => [item, ...flattenCategories(item.children || [])])
-}
-
-export const useAppStore = defineStore('app', () => {
-  const role = ref<Role>((localStorage.getItem('shiqian_role') as Role) || 'student')
-  const logged = ref(Boolean(localStorage.getItem('shiqian_access_token')))
-  const currentUser = ref<LoginUser | null>(null)
+/**
+ * 资源域 store：列表/详情/搜索/收藏/我的/回收站与相关 CRUD。
+ * 全局广场筛选（keyword / activeScene / sortMode / activeCategory）也放这里，
+ * 因为 filteredResources / searchResources / loadResources 与之强耦合。
+ */
+export const useResourceStore = defineStore('resource', () => {
   const activeCategory = ref<string>('全部分类')
   const activeScene = ref<ContentSceneFilter>('ALL')
   const keyword = ref('')
   const sortMode = ref<'newest' | 'hottest'>('newest')
   const loading = ref(false)
 
-  // ===== 主题系统 (Search-First + Element Plus 暗色适配) =====
-  const theme = ref<'light' | 'dark'>(
-    (localStorage.getItem('shiqian_theme') as 'light' | 'dark' | null) || 'light'
-  )
-  const isDark = computed(() => theme.value === 'dark')
-
-  function applyThemeToDOM(t: 'light' | 'dark') {
-    const root = document.documentElement
-    root.dataset.theme = t
-    // 同步更新 body 背景，减少闪烁
-    if (t === 'dark') {
-      root.style.setProperty('color-scheme', 'dark')
-    } else {
-      root.style.setProperty('color-scheme', 'light')
-    }
-  }
-
-  function initTheme() {
-    const saved = localStorage.getItem('shiqian_theme') as 'light' | 'dark' | null
-    const initial = saved || 'light'
-    theme.value = initial
-    applyThemeToDOM(initial)
-  }
-
-  function setTheme(t: 'light' | 'dark') {
-    theme.value = t
-    localStorage.setItem('shiqian_theme', t)
-    applyThemeToDOM(t)
-  }
-
-  function toggleTheme() {
-    setTheme(theme.value === 'dark' ? 'light' : 'dark')
-  }
-
-  const categoryTree = ref<CategoryApiItem[]>([])
-  const tags = ref<TagApiItem[]>([])
   const resources = ref<ResourceItem[]>([])
   const recycleResources = ref<ResourceItem[]>([])
-  const users = ref<UserItem[]>([])
-  const adminLogs = ref<AdminLogItem[]>([])
   const favoriteIds = ref<number[]>([])
   const myResourceIds = ref<number[]>([])
   const searchResultIds = ref<number[] | null>(null)
   const searchResultTotal = ref(0)
   const searchLoading = ref(false)
 
-  // token 刷新失败时同步清会话，避免 UI 仍显示已登录。
-  setAuthFailureHandler(() => {
-    logged.value = false
-    currentUser.value = null
-    favoriteIds.value = []
-    myResourceIds.value = []
-    role.value = 'student'
-    localStorage.setItem('shiqian_role', 'student')
-  })
-
-  let categoriesLoadedAt = 0
-  let categoriesInFlight: Promise<void> | null = null
   const resourcesLoadedAt = new Map<string, number>()
   const resourcesInFlight = new Map<string, Promise<void>>()
   const detailLoadedAt = new Map<number, number>()
@@ -376,15 +55,11 @@ export const useAppStore = defineStore('app', () => {
   const favoritesInFlight = new Map<string, Promise<void>>()
   const myResourcesLoadedAt = new Map<string, number>()
   const myResourcesInFlight = new Map<string, Promise<void>>()
-  let currentUserLoadedAt = 0
-  let currentUserInFlight: Promise<void> | null = null
   let homeDataInFlight: Promise<void> | null = null
   let coreDataLoaded = false
   let searchAbortController: AbortController | null = null
   let searchSequence = 0
 
-  const flatCategories = computed(() => flattenCategories(categoryTree.value))
-  const categories = computed(() => flatCategories.value.length ? flatCategories.value.map(item => item.name) : fallbackCategories)
   const publishedResources = computed(() => resources.value.filter(item => item.status === '已发布'))
   const pendingResources = computed(() => resources.value.filter(item => item.status === '待审核'))
   const hotResources = computed(() => [...publishedResources.value].sort((a, b) => (b.downloads || 0) - (a.downloads || 0)).slice(0, 6))
@@ -432,28 +107,21 @@ export const useAppStore = defineStore('app', () => {
     return [...filtered].sort((a, b) => b.id - a.id) // newest by id (proxy for create_time)
   })
 
-  function categoryName(categoryId?: number) {
-    return flatCategories.value.find(item => item.id === categoryId)?.name || '未分类'
-  }
-
-  function categoryId(category: string) {
-    return flatCategories.value.find(item => item.name === category)?.id
-  }
-
   function mapResource(item: ResourceApiItem): ResourceItem {
+    const catalog = useCatalogStore()
     const categoryIds = item.categoryIds?.length
       ? item.categoryIds
       : item.categoryId ? [item.categoryId] : []
     const categoryNames = item.categoryNames?.length
       ? item.categoryNames
-      : categoryIds.map(id => categoryName(id)).filter(name => name !== '未分类')
+      : categoryIds.map(id => catalog.categoryName(id)).filter(name => name !== '未分类')
     const tagNames = item.tagNames?.length
       ? item.tagNames
       : (item.tags || '').split(/[,，]/).map(tag => tag.trim()).filter(Boolean)
     return {
       id: item.id,
       title: item.title,
-      cat: categoryNames[0] || categoryName(item.categoryId),
+      cat: categoryNames[0] || catalog.categoryName(item.categoryId),
       categoryId: categoryIds[0],
       categoryIds,
       categoryNames,
@@ -484,19 +152,6 @@ export const useAppStore = defineStore('app', () => {
       offlineReason: item.offlineReason,
       publishedTime: item.publishedTime,
       searchHighlights: item.searchHighlights
-    }
-  }
-
-  function mapUser(item: LoginUser): UserItem {
-    return {
-      id: item.userId,
-      username: item.username,
-      nickname: item.nickname || '',
-      name: item.nickname || item.username,
-      role: item.role === 'ADMIN' ? '管理员' : '学生',
-      email: item.email || '',
-      phone: item.phone || '',
-      status: item.status === 0 ? '禁用' : '正常'
     }
   }
 
@@ -535,8 +190,9 @@ export const useAppStore = defineStore('app', () => {
     tagId?: number
     tag?: string
   }) {
+    const auth = useAuthStore()
     return JSON.stringify({
-      scope: `${logged.value}:${role.value}`,
+      scope: `${auth.logged}:${auth.role}`,
       page: params.page ?? 1,
       size: params.size ?? 100,
       categoryId: params.categoryId ?? null,
@@ -556,56 +212,18 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  function invalidateCategoryCache() {
-    categoriesLoadedAt = 0
+  /** 登录/登出后清空与会话相关的列表缓存与收藏/我的 ID。 */
+  function clearSessionScopedState() {
+    favoriteIds.value = []
+    myResourceIds.value = []
+    invalidateAuthScopedCaches()
+    favoriteStateLoadedAt.clear()
   }
 
-  async function loadCategories(options: LoadOptions = {}) {
-    if (!options.force && isFresh(categoriesLoadedAt)) return
-    if (categoriesInFlight) return categoriesInFlight
-
-    const task = request<CategoryApiItem[]>('/api/category/tree')
-      .then(data => {
-        categoryTree.value = data
-        categoriesLoadedAt = Date.now()
-      })
-      .finally(() => {
-        if (categoriesInFlight === task) categoriesInFlight = null
-      })
-    categoriesInFlight = task
-    return task
-  }
-
-  async function loadTags(keyword?: string) {
-    tags.value = await request<TagApiItem[]>('/api/tag', {
-      query: { keyword: keyword?.trim() || undefined }
-    })
-    return tags.value
-  }
-
-  async function createTag(name: string) {
-    const created = await request<TagApiItem>('/api/tag', {
-      method: 'POST',
-      body: jsonBody({ name: name.trim() })
-    })
-    await loadTags()
-    return created
-  }
-
-  async function updateTag(id: number, name: string) {
-    const updated = await request<TagApiItem>(`/api/tag/${id}`, {
-      method: 'PUT',
-      body: jsonBody({ name: name.trim() })
-    })
-    await loadTags()
-    invalidateResourceCache()
-    return updated
-  }
-
-  async function deleteTag(id: number) {
-    await request<void>(`/api/tag/${id}`, { method: 'DELETE' })
-    await loadTags()
-    invalidateResourceCache()
+  function invalidateAuthScopedCaches() {
+    resourcesLoadedAt.clear()
+    favoritesLoadedAt.clear()
+    myResourcesLoadedAt.clear()
   }
 
   async function loadResources(
@@ -657,14 +275,15 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function loadHomeData(options: HomeLoadOptions = {}) {
-    if (options.includePersonal && logged.value) {
+    const auth = useAuthStore()
+    if (options.includePersonal && auth.logged) {
       void Promise.allSettled([
         loadFavorites(),
         loadMyResources(),
-        loadCurrentUser()
+        auth.loadCurrentUser()
       ])
-    } else if (logged.value && !currentUser.value) {
-      void loadCurrentUser().catch(() => undefined)
+    } else if (auth.logged && !auth.currentUser) {
+      void auth.loadCurrentUser().catch(() => undefined)
     }
 
     if (!options.force && homeDataInFlight) return homeDataInFlight
@@ -759,7 +378,7 @@ export const useAppStore = defineStore('app', () => {
       }
       await task
     }
-    if (logged.value && options.includeFavorite !== false) {
+    if (useAuthStore().logged && options.includeFavorite !== false) {
       void refreshFavoriteState(id).catch(() => undefined)
     }
     return getResource(id)
@@ -807,109 +426,6 @@ export const useAppStore = defineStore('app', () => {
       })
     myResourcesInFlight.set(key, task)
     return task
-  }
-
-  async function loadUsers(params: { page?: number, size?: number, keyword?: string } = {}) {
-    const data = await request<PageResult<LoginUser>>('/api/user/admin/users', {
-      query: { page: params.page || 1, size: params.size || 100, keyword: params.keyword }
-    })
-    users.value = data.records.map(mapUser)
-  }
-
-  async function loadCurrentUser(options: LoadOptions = {}) {
-    if (!options.force && currentUser.value && isFresh(currentUserLoadedAt)) return
-    if (currentUserInFlight) return currentUserInFlight
-
-    const task = request<LoginUser>('/api/user/me')
-      .then(user => {
-        currentUser.value = user
-        users.value = [mapUser(user), ...users.value.filter(item => item.id !== user.userId)]
-        setRole(user.role === 'ADMIN' ? 'admin' : 'student')
-        currentUserLoadedAt = Date.now()
-      })
-      .finally(() => {
-        if (currentUserInFlight === task) currentUserInFlight = null
-      })
-    currentUserInFlight = task
-    return task
-  }
-
-  function setRole(nextRole: Role) {
-    role.value = nextRole
-    localStorage.setItem('shiqian_role', nextRole)
-  }
-
-  async function login(username: string, password: string) {
-    const data = await request<LoginResponse>('/api/user/login', {
-      method: 'POST',
-      body: jsonBody({ username, password })
-    })
-    setTokens(data.accessToken, data.refreshToken)
-    logged.value = true
-    currentUser.value = data
-    setRole(data.role === 'ADMIN' ? 'admin' : 'student')
-    currentUserLoadedAt = Date.now()
-    resourcesLoadedAt.clear()
-    favoritesLoadedAt.clear()
-    myResourcesLoadedAt.clear()
-    // 登录响应不含邮箱/手机/头像等完整资料，立刻拉 /me 补齐会话资料。
-    await Promise.allSettled([
-      loadCurrentUser({ force: true }),
-      loadFavorites({}, { force: true }),
-      loadMyResources({}, { force: true })
-    ])
-  }
-
-  async function refresh() {
-    // 显式刷新（request 层已自动处理 401 场景，此为可选手动调用）
-    await refreshAccessToken()
-  }
-
-  async function register(payload: RegisterPayload) {
-    await request<void>('/api/user/register', {
-      method: 'POST',
-      body: jsonBody(payload)
-    })
-    await login(payload.username, payload.password)
-  }
-
-  async function logout() {
-    // 服务端撤销 access + 全部 refresh，避免本地清 token 后令牌仍可被盗用。
-    try {
-      await request<void>('/api/user/logout', { method: 'POST' })
-    } catch {
-      // 网络或已过期时仍清理本地态
-    }
-    clearTokens()
-    logged.value = false
-    currentUser.value = null
-    favoriteIds.value = []
-    myResourceIds.value = []
-    currentUserLoadedAt = 0
-    resourcesLoadedAt.clear()
-    favoritesLoadedAt.clear()
-    myResourcesLoadedAt.clear()
-    favoriteStateLoadedAt.clear()
-    setRole('student')
-  }
-
-  async function changePassword(payload: { oldPassword: string; newPassword: string }) {
-    await request<void>('/api/user/me/password', {
-      method: 'PUT',
-      body: jsonBody(payload)
-    })
-    // 改密后后端会使全部令牌失效，本地必须退出并要求重新登录。
-    clearTokens()
-    logged.value = false
-    currentUser.value = null
-    favoriteIds.value = []
-    myResourceIds.value = []
-    currentUserLoadedAt = 0
-    resourcesLoadedAt.clear()
-    favoritesLoadedAt.clear()
-    myResourcesLoadedAt.clear()
-    favoriteStateLoadedAt.clear()
-    setRole('student')
   }
 
   function setCategory(category: string) {
@@ -1049,11 +565,12 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function submitResource(payload: ResourceSubmitPayload) {
+    const catalog = useCatalogStore()
     const categoryNames = payload.categories?.length
       ? payload.categories
       : payload.cat ? [payload.cat] : []
     const categoryIds = categoryNames
-      .map(categoryId)
+      .map(name => catalog.categoryId(name))
       .filter((id): id is number => id !== undefined)
     const tagNames = payload.tagNames?.length
       ? payload.tagNames.map(tag => tag.trim()).filter(Boolean)
@@ -1101,11 +618,12 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function updateResource(id: number, payload: ResourceUpdatePayload) {
+    const catalog = useCatalogStore()
     const categoryNames = payload.categories?.length
       ? payload.categories
       : payload.cat ? [payload.cat] : []
     const categoryIds = categoryNames
-      .map(categoryId)
+      .map(name => catalog.categoryId(name))
       .filter((value): value is number => value !== undefined)
     const tagNames = payload.tagNames?.length
       ? payload.tagNames.map(tag => tag.trim()).filter(Boolean)
@@ -1223,70 +741,6 @@ export const useAppStore = defineStore('app', () => {
     return nextVersion
   }
 
-  async function createCategory(name: string, icon?: string, sortOrder?: number) {
-    // extended minimally to support icon (emoji/URL) and sortOrder from admin UI
-    const nextSort = sortOrder ?? (flatCategories.value.length + 1)
-    const payload: any = { name, parentId: 0, sortOrder: nextSort, status: 1 }
-    if (icon) payload.icon = icon
-    await request<void>('/api/category', {
-      method: 'POST',
-      body: jsonBody(payload)
-    })
-    invalidateCategoryCache()
-    await loadCategories({ force: true })
-  }
-
-  async function updateCategory(id: number, name: string, icon?: string, sortOrder?: number) {
-    // extended minimally to support icon and sortOrder editing from admin UI; 2-arg calls remain name-only
-    const existing = flatCategories.value.find(item => item.id === id)
-    const payload: any = { ...existing, name }
-    if (icon !== undefined) payload.icon = icon || null
-    if (sortOrder !== undefined) payload.sortOrder = sortOrder
-    await request<void>(`/api/category/${id}`, {
-      method: 'PUT',
-      body: jsonBody(payload)
-    })
-    invalidateCategoryCache()
-    await loadCategories({ force: true })
-  }
-
-  async function deleteCategory(id: number) {
-    await request<void>(`/api/category/${id}`, { method: 'DELETE' })
-    invalidateCategoryCache()
-    await loadCategories({ force: true })
-  }
-
-  async function updateProfile(payload: Partial<{ nickname: string; email: string; phone: string; avatar: string }>) {
-    await request<void>('/api/user/me', {
-      method: 'PUT',
-      body: jsonBody(payload)
-    })
-    // 刷新当前用户信息
-    if (currentUser.value) {
-      Object.assign(currentUser.value, payload)
-    }
-  }
-
-  // === 管理员用户管理 ===
-  async function updateUserStatus(id: number, status: 0 | 1, keyword?: string) {
-    await request<void>(`/api/user/admin/users/${id}/status`, {
-      method: 'PUT',
-      body: jsonBody({ status })
-    })
-    // 刷新用户列表（保留当前搜索关键词）
-    await loadUsers({ keyword })
-  }
-
-  async function updateUserRole(id: number, role: 'USER' | 'ADMIN', keyword?: string) {
-    await request<void>(`/api/user/admin/users/${id}/role`, {
-      method: 'PUT',
-      body: jsonBody({ role })
-    })
-    // 刷新用户列表（保留当前搜索关键词）
-    await loadUsers({ keyword })
-  }
-
-  // === 回收站操作 ===
   async function restoreResource(id: number) {
     await request<void>(`/api/resource/${id}/restore`, { method: 'PUT' })
     // 从回收站列表移除，刷新其他列表
@@ -1304,98 +758,7 @@ export const useAppStore = defineStore('app', () => {
     recycleResources.value = recycleResources.value.filter(item => item.id !== id)
   }
 
-  // === 轻量管理员操作日志 ===
-  async function loadAdminLogs(params: {
-    page?: number
-    size?: number
-    action?: string
-    operatorId?: number
-    startTime?: string
-    endTime?: string
-  } = {}) {
-    const data = await request<PageResult<AdminLogItem>>('/api/admin/logs', {
-      query: {
-        page: params.page ?? 1,
-        size: params.size ?? 20,
-        action: params.action || undefined,
-        operatorId: params.operatorId,
-        startTime: params.startTime,
-        endTime: params.endTime
-      }
-    })
-    adminLogs.value = data.records || []
-    return data
-  }
-
-  async function recordAdminLog(action: string, targetId?: number, detail?: string) {
-    if (!action) return
-    await request<void>('/api/admin/logs', {
-      method: 'POST',
-      body: jsonBody({ action, targetId, detail })
-    })
-  }
-
-  async function loadSensitiveWords(keyword?: string) {
-    return request<SensitiveWordItem[]>('/api/admin/content-moderation/sensitive-words', {
-      query: { keyword: keyword || undefined }
-    })
-  }
-
-  async function createSensitiveWord(payload: { word: string, level: number, status: number }) {
-    return request<number>('/api/admin/content-moderation/sensitive-words', {
-      method: 'POST',
-      body: jsonBody(payload)
-    })
-  }
-
-  async function updateSensitiveWord(id: number, payload: { word: string, level: number, status: number }) {
-    await request<void>(`/api/admin/content-moderation/sensitive-words/${id}`, {
-      method: 'PUT',
-      body: jsonBody(payload)
-    })
-  }
-
-  async function deleteSensitiveWord(id: number) {
-    await request<void>(`/api/admin/content-moderation/sensitive-words/${id}`, {
-      method: 'DELETE'
-    })
-  }
-
-  async function reloadSensitiveWords() {
-    await request<void>('/api/admin/content-moderation/sensitive-words/reload', {
-      method: 'POST'
-    })
-  }
-
-  async function loadContentReviewRecords(params: {
-    page?: number
-    size?: number
-    reviewType?: string
-    decision?: string
-    resourceId?: number
-  } = {}) {
-    return request<PageResult<ContentReviewRecordItem>>('/api/admin/content-moderation/records', {
-      query: {
-        page: params.page ?? 1,
-        size: params.size ?? 20,
-        reviewType: params.reviewType || undefined,
-        decision: params.decision || undefined,
-        resourceId: params.resourceId
-      }
-    })
-  }
-
   return {
-    // 主题
-    theme,
-    isDark,
-    initTheme,
-    setTheme,
-    toggleTheme,
-    // 原有
-    role,
-    logged,
-    currentUser,
     activeCategory,
     activeScene,
     keyword,
@@ -1403,14 +766,8 @@ export const useAppStore = defineStore('app', () => {
     loading,
     searchLoading,
     searchResultTotal,
-    categoryTree,
-    tags,
-    flatCategories,
-    categories,
     resources,
     recycleResources,
-    users,
-    adminLogs,
     favoriteIds,
     myResourceIds,
     publishedResources,
@@ -1424,17 +781,9 @@ export const useAppStore = defineStore('app', () => {
     favoriteResources,
     myResources,
     filteredResources,
-    setRole,
-    login,
-    register,
-    refresh,
-    logout,
-    changePassword,
     setCategory,
     resetFilters,
     loadHomeData,
-    loadCategories,
-    loadTags,
     loadResources,
     loadRecycleResources,
     searchResources,
@@ -1442,8 +791,6 @@ export const useAppStore = defineStore('app', () => {
     loadResourceDetail,
     loadFavorites,
     loadMyResources,
-    loadUsers,
-    loadCurrentUser,
     getResource,
     isFavorite,
     refreshFavoriteState,
@@ -1463,26 +810,10 @@ export const useAppStore = defineStore('app', () => {
     updateResource,
     loadResourceVersions,
     rollbackResourceVersion,
-    createCategory,
-    updateCategory,
-    deleteCategory,
-    createTag,
-    updateTag,
-    deleteTag,
-    // 新增管理员能力
-    updateUserStatus,
-    updateUserRole,
     restoreResource,
     permanentDeleteResource,
-    updateProfile,
-    // 轻量审计日志
-    loadAdminLogs,
-    recordAdminLog,
-    loadSensitiveWords,
-    createSensitiveWord,
-    updateSensitiveWord,
-    deleteSensitiveWord,
-    reloadSensitiveWords,
-    loadContentReviewRecords
+    invalidateResourceCache,
+    clearSessionScopedState,
+    invalidateAuthScopedCaches
   }
 })

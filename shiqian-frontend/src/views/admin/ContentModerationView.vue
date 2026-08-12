@@ -2,13 +2,10 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AdminLayout from '@/components/AdminLayout.vue'
-import {
-  useAppStore,
-  type ContentReviewRecordItem,
-  type SensitiveWordItem
-} from '@/stores/app'
+import { useAdminStore } from '@/stores/admin'
+import type { ContentReviewRecordItem, SensitiveWordItem } from '@/stores/types'
 
-const store = useAppStore()
+const admin = useAdminStore()
 const activeTab = ref('words')
 const words = ref<SensitiveWordItem[]>([])
 const records = ref<ContentReviewRecordItem[]>([])
@@ -27,7 +24,7 @@ const form = reactive({ word: '', level: 2, status: 1 })
 async function loadWords() {
   loadingWords.value = true
   try {
-    words.value = await store.loadSensitiveWords(keyword.value)
+    words.value = await admin.loadSensitiveWords(keyword.value)
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '加载敏感词失败')
   } finally {
@@ -38,7 +35,7 @@ async function loadWords() {
 async function loadRecords(page = 1) {
   loadingRecords.value = true
   try {
-    const data = await store.loadContentReviewRecords({
+    const data = await admin.loadContentReviewRecords({
       page,
       size: 20,
       reviewType: reviewType.value,
@@ -76,9 +73,9 @@ async function saveWord() {
   try {
     const payload = { word, level: form.level, status: form.status }
     if (editingId.value) {
-      await store.updateSensitiveWord(editingId.value, payload)
+      await admin.updateSensitiveWord(editingId.value, payload)
     } else {
-      await store.createSensitiveWord(payload)
+      await admin.createSensitiveWord(payload)
     }
     dialogVisible.value = false
     ElMessage.success('敏感词规则已生效')
@@ -91,7 +88,7 @@ async function saveWord() {
 async function removeWord(row: SensitiveWordItem) {
   try {
     await ElMessageBox.confirm(`确认删除“${row.word}”吗？`, '删除敏感词', { type: 'warning' })
-    await store.deleteSensitiveWord(row.id)
+    await admin.deleteSensitiveWord(row.id)
     ElMessage.success('已删除并热更新')
     await loadWords()
   } catch (error) {
@@ -103,7 +100,7 @@ async function removeWord(row: SensitiveWordItem) {
 
 async function reloadRules() {
   try {
-    await store.reloadSensitiveWords()
+    await admin.reloadSensitiveWords()
     ElMessage.success('已从数据库重新加载规则')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '重新加载失败')

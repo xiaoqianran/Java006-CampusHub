@@ -6,11 +6,10 @@ import { Close, Document, EditPen, Picture, UploadFilled } from '@element-plus/i
 import { useRouter } from 'vue-router'
 import AttachmentPreviewDialog from '@/components/AttachmentPreviewDialog.vue'
 import MarkdownLiveEditor from '@/components/MarkdownLiveEditor.vue'
-import {
-  useAppStore,
-  type ContentScene,
-  type UploadedFileItem
-} from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
+import { useCatalogStore } from '@/stores/catalog'
+import { useResourceStore } from '@/stores/resource'
+import type { ContentScene, UploadedFileItem } from '@/stores/types'
 import { buildApiUrl } from '@/api/client'
 import {
   MAX_RESOURCE_FILE_COUNT,
@@ -22,7 +21,9 @@ import {
 } from '@/utils/resourceUpload'
 
 const router = useRouter()
-const store = useAppStore()
+const auth = useAuthStore()
+const catalog = useCatalogStore()
+const resource = useResourceStore()
 const submitting = ref(false)
 const uploading = ref(false)
 const selectedFiles = ref<UploadUserFile[]>([])
@@ -149,7 +150,7 @@ watch(
 )
 
 onMounted(() => {
-  store.loadCategories().catch(() => undefined)
+  catalog.loadCategories().catch(() => undefined)
   const raw = localStorage.getItem(DRAFT_KEY)
   if (!raw) return
   ElMessageBox.confirm('检测到未提交的草稿，是否恢复？', '恢复草稿', {
@@ -236,7 +237,7 @@ async function performSelectedUpload() {
         uploadedFiles.value = [...uploadedFiles.value, uploadedFile]
       },
       worker: async (file, onProgress) => {
-        const response = await store.uploadFiles([file], {
+        const response = await resource.uploadFiles([file], {
           signal: uploadController?.signal,
           onProgress
         })
@@ -284,7 +285,7 @@ function handleExceed() {
 }
 
 async function submit() {
-  if (!store.logged) {
+  if (!auth.logged) {
     ElMessage.warning('请先登录后发布内容')
     router.push('/login')
     return
@@ -298,7 +299,7 @@ async function submit() {
   try {
     if (currentUploadPromise) await currentUploadPromise
     if (selectedFiles.value.length) await uploadSelectedFiles()
-    await store.submitResource({
+    await resource.submitResource({
       title: form.title.trim(),
       cat: form.cat || undefined,
       categories: form.categories,
@@ -331,7 +332,7 @@ async function submit() {
     </div>
 
     <el-alert
-      v-if="!store.logged"
+      v-if="!auth.logged"
       title="请先登录后发布内容"
       type="warning"
       show-icon
@@ -388,7 +389,7 @@ async function submit() {
                   :max-collapse-tags="2"
                   placeholder="最多选择 10 个分类"
                 >
-                  <el-option v-for="category in store.categories" :key="category" :label="category" :value="category" />
+                  <el-option v-for="category in catalog.categories" :key="category" :label="category" :value="category" />
                 </el-select>
               </el-form-item>
             </el-col>
@@ -446,7 +447,7 @@ async function submit() {
           action="#"
           :accept="RESOURCE_FILE_ACCEPT"
           :limit="Math.max(1, MAX_RESOURCE_FILE_COUNT - uploadedFiles.length)"
-          :disabled="!store.logged || uploading || uploadedFiles.length >= MAX_RESOURCE_FILE_COUNT"
+          :disabled="!auth.logged || uploading || uploadedFiles.length >= MAX_RESOURCE_FILE_COUNT"
           :on-exceed="handleExceed"
           :auto-upload="false"
           :show-file-list="false"

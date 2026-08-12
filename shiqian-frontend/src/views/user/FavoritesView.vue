@@ -2,13 +2,15 @@
 import { onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import ResourceCard from '@/components/ResourceCard.vue'
-import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
+import { useResourceStore } from '@/stores/resource'
 
-const store = useAppStore()
+const auth = useAuthStore()
+const resource = useResourceStore()
 
 onMounted(() => {
-  if (!store.logged) return
-  store.loadFavorites().catch(error => {
+  if (!auth.logged) return
+  resource.loadFavorites().catch(error => {
     ElMessage.error(error instanceof Error ? error.message : '收藏加载失败')
   })
 })
@@ -21,16 +23,16 @@ onMounted(() => {
         <h1>我的收藏</h1>
         <p class="sub">收藏按钮在广场和详情页保持同一状态。</p>
       </div>
-      <el-select v-model="store.sortMode" style="width: 140px" size="small">
+      <el-select v-model="resource.sortMode" style="width: 140px" size="small">
         <el-option label="最新" value="newest" />
         <el-option label="最热" value="hottest" />
       </el-select>
     </div>
-    <div v-loading="store.loading" style="min-height: 120px;">
-      <div v-if="store.favoriteResources.length" class="resource-grid">
-        <ResourceCard v-for="item in store.favoriteResources" :key="item.id" :item="item" />
+    <div v-loading="resource.loading" style="min-height: 120px;">
+      <div v-if="resource.favoriteResources.length" class="resource-grid">
+        <ResourceCard v-for="item in resource.favoriteResources" :key="item.id" :item="item" />
       </div>
-      <el-empty v-else-if="!store.loading" description="暂无收藏" />
+      <el-empty v-else-if="!resource.loading" description="暂无收藏" />
     </div>
   </section>
 </template>

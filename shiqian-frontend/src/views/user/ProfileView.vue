@@ -3,9 +3,9 @@ import { reactive, ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { UserFilled } from '@element-plus/icons-vue'
-import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
 
-const store = useAppStore()
+const auth = useAuthStore()
 const router = useRouter()
 const submitting = ref(false)
 const passwordSubmitting = ref(false)
@@ -24,7 +24,7 @@ const passwordForm = reactive({
 })
 
 function resetForm() {
-  const u = store.currentUser
+  const u = auth.currentUser
   if (u) {
     form.nickname = u.nickname || ''
     form.email = u.email || ''
@@ -49,7 +49,7 @@ onMounted(() => {
 })
 
 // 同步当前用户变化（例如外部更新后）
-watch(() => store.currentUser, resetForm, { deep: true })
+watch(() => auth.currentUser, resetForm, { deep: true })
 
 async function saveProfile() {
   submitting.value = true
@@ -60,7 +60,7 @@ async function saveProfile() {
       phone: form.phone || undefined,
       avatar: form.avatar || undefined
     }
-    await store.updateProfile(payload)
+    await auth.updateProfile(payload)
     ElMessage.success('个人资料已更新')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '更新失败')
@@ -71,7 +71,7 @@ async function saveProfile() {
 
 async function refreshProfile() {
   try {
-    await store.loadCurrentUser()
+    await auth.loadCurrentUser()
     ElMessage.success('资料已刷新')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '刷新失败')
@@ -98,7 +98,7 @@ async function savePassword() {
 
   passwordSubmitting.value = true
   try {
-    await store.changePassword({
+    await auth.changePassword({
       oldPassword: passwordForm.oldPassword,
       newPassword: passwordForm.newPassword
     })
@@ -127,12 +127,12 @@ async function savePassword() {
         <el-row :gutter="20">
           <el-col :xs="24" :sm="12">
             <el-form-item label="用户名">
-              <el-input :model-value="store.currentUser?.username || ''" disabled placeholder="用户名不可修改" />
+              <el-input :model-value="auth.currentUser?.username || ''" disabled placeholder="用户名不可修改" />
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="12">
             <el-form-item label="角色">
-              <el-input :model-value="store.currentUser?.role === 'ADMIN' ? '管理员' : '学生'" disabled />
+              <el-input :model-value="auth.currentUser?.role === 'ADMIN' ? '管理员' : '学生'" disabled />
             </el-form-item>
           </el-col>
         </el-row>

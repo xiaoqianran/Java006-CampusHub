@@ -13,8 +13,8 @@ vi.mock('vue-router', () => ({
   useRouter: () => ({ push: mocks.push })
 }))
 
-// Mock the app store module (minimal, focused)
-vi.mock('@/stores/app', () => {
+// Mock the auth store module (minimal, focused)
+vi.mock('@/stores/auth', () => {
   const currentUser = {
     userId: 1,
     username: 'student01',
@@ -26,7 +26,7 @@ vi.mock('@/stores/app', () => {
   }
 
   return {
-    useAppStore: () => ({
+    useAuthStore: () => ({
       currentUser,
       updateProfile: mocks.updateProfile,
       loadCurrentUser: mocks.loadCurrentUser,

@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
 import { request } from '@/api/client'
-import type { ResourceAttachmentItem, UploadedFileItem } from '@/stores/app'
+import type { ResourceAttachmentItem, UploadedFileItem } from '@/stores/types'
 import {
   attachmentPreviewKind,
   inlineResourceFileUrl,

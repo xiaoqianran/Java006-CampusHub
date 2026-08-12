@@ -13,10 +13,15 @@ import {
 } from '@element-plus/icons-vue'
 import AdminLayout from '@/components/AdminLayout.vue'
 import StatusTag from '@/components/StatusTag.vue'
-import { useAppStore, type CategoryApiItem, type ResourceItem } from '@/stores/app'
+import { useAdminStore } from '@/stores/admin'
+import { useCatalogStore } from '@/stores/catalog'
+import { useResourceStore } from '@/stores/resource'
+import type { CategoryApiItem, ResourceItem } from '@/stores/types'
 import { buildApiUrl } from '@/api/client'
 
-const store = useAppStore()
+const catalog = useCatalogStore()
+const resource = useResourceStore()
+const admin = useAdminStore()
 const router = useRouter()
 
 const selectedCategory = ref<CategoryApiItem | null>(null)
@@ -34,14 +39,14 @@ const categoryForm = ref<{ name: string; icon: string; sortOrder: number }>({
 
 onMounted(() => {
   Promise.all([
-    store.loadCategories(),
-    store.loadResources()
+    catalog.loadCategories(),
+    resource.loadResources()
   ]).catch(() => undefined)
 })
 
 const selectedResources = computed(() => {
   if (!selectedCategory.value) return []
-  return store.resources.filter(item =>
+  return resource.resources.filter(item =>
     item.categoryIds.includes(selectedCategory.value!.id)
     || item.categoryId === selectedCategory.value?.id
     || item.cat === selectedCategory.value?.name
@@ -50,7 +55,7 @@ const selectedResources = computed(() => {
 
 const categoryCountMap = computed(() => {
   const map = new Map<number, number>()
-  store.resources.forEach(item => {
+  resource.resources.forEach(item => {
     const categoryIds = item.categoryIds.length
       ? item.categoryIds
       : item.categoryId ? [item.categoryId] : []
@@ -63,14 +68,14 @@ const categoryCountMap = computed(() => {
 
 function categoryCount(category: CategoryApiItem) {
   return categoryCountMap.value.get(category.id)
-    || store.resources.filter(item => item.cat === category.name).length
+    || resource.resources.filter(item => item.cat === category.name).length
 }
 
 // Open create dialog (computes reasonable default sortOrder)
 function openAddCategory() {
   isEditing.value = false
   editingId.value = null
-  const maxSort = store.flatCategories.reduce((m, c) => Math.max(m, c.sortOrder || 0), 0)
+  const maxSort = catalog.flatCategories.reduce((m, c) => Math.max(m, c.sortOrder || 0), 0)
   categoryForm.value = {
     name: '',
     icon: '',
@@ -103,17 +108,17 @@ async function submitCategoryForm() {
 
   try {
     if (isEditing.value && editingId.value != null) {
-      await store.updateCategory(editingId.value, name, icon || undefined, sortOrder)
-      const latest = store.flatCategories.find(item => item.id === editingId.value)
+      await catalog.updateCategory(editingId.value, name, icon || undefined, sortOrder)
+      const latest = catalog.flatCategories.find(item => item.id === editingId.value)
       if (selectedCategory.value?.id === editingId.value && latest) {
         selectedCategory.value = latest
       }
-      await store.recordAdminLog('CATEGORY_UPDATE', editingId.value, name)
+      await admin.recordAdminLog('CATEGORY_UPDATE', editingId.value, name)
       ElMessage.success('分类已更新（含图标/排序）')
     } else {
-      await store.createCategory(name, icon || undefined, sortOrder)
-      const created = store.flatCategories.find(c => c.name === name)
-      if (created) await store.recordAdminLog('CATEGORY_CREATE', created.id, name)
+      await catalog.createCategory(name, icon || undefined, sortOrder)
+      const created = catalog.flatCategories.find(c => c.name === name)
+      if (created) await admin.recordAdminLog('CATEGORY_CREATE', created.id, name)
       ElMessage.success('分类已新增（支持图标与排序）')
     }
     categoryFormVisible.value = false
@@ -133,8 +138,8 @@ async function deleteCategoryConfirm(id: number, name: string) {
       confirmButtonText: '删除',
       cancelButtonText: '取消'
     })
-    await store.deleteCategory(id)
-    await store.recordAdminLog('CATEGORY_DELETE', id, name)
+    await catalog.deleteCategory(id)
+    await admin.recordAdminLog('CATEGORY_DELETE', id, name)
     if (selectedCategory.value?.id === id) {
       selectedCategory.value = null
     }
@@ -150,7 +155,7 @@ async function openCategory(category: CategoryApiItem) {
   detailLoading.value = true
 
   try {
-    await store.loadResources({ categoryId: category.id })
+    await resource.loadResources({ categoryId: category.id })
     selectedCategory.value = category
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '资源加载失败')
@@ -197,7 +202,7 @@ function handleCategoryCommand(command: string, category: CategoryApiItem) {
 
       <div class="admin-category-grid">
         <el-card
-          v-for="category in store.flatCategories"
+          v-for="category in catalog.flatCategories"
           :key="category.id"
           class="admin-category-folder"
           shadow="never"

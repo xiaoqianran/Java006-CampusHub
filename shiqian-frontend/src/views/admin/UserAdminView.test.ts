@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { shallowMount } from '@vue/test-utils'
 import UserAdminView from './UserAdminView.vue'
 
-vi.mock('@/stores/app', () => ({
-  useAppStore: () => ({
+vi.mock('@/stores/admin', () => ({
+  useAdminStore: () => ({
     users: [
       { id: 1, username: 'student01', nickname: '学生1', role: 'USER', status: '正常' },
       { id: 2, username: 'admin', nickname: '管理员', role: 'ADMIN', status: '正常' }
@@ -11,8 +11,7 @@ vi.mock('@/stores/app', () => ({
     loadUsers: vi.fn().mockResolvedValue(undefined),
     updateUserStatus: vi.fn().mockResolvedValue(undefined),
     updateUserRole: vi.fn().mockResolvedValue(undefined),
-    recordAdminLog: vi.fn().mockResolvedValue(undefined),
-    loadCurrentUser: vi.fn().mockResolvedValue(undefined)
+    recordAdminLog: vi.fn().mockResolvedValue(undefined)
   })
 }))
 

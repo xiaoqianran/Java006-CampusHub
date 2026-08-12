@@ -1,5 +1,5 @@
 import { createRouter, createWebHashHistory, RouteRecordRaw } from 'vue-router'
-import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
 import HomeView from '@/views/user/HomeView.vue'
 
 const PlazaView = () => import('@/views/user/PlazaView.vue')
@@ -60,25 +60,25 @@ const router = createRouter({
 })
 
 router.beforeEach(async to => {
-  const store = useAppStore()
+  const auth = useAuthStore()
   const requiresAuth = Boolean(to.meta.requiresAuth)
   const roles = to.meta.roles as string[] | undefined
   const isAdminRoute = to.path === '/admin' || to.path.startsWith('/admin/')
 
-  if ((requiresAuth || isAdminRoute) && !store.logged) {
+  if ((requiresAuth || isAdminRoute) && !auth.logged) {
     return { path: '/login', query: { redirect: to.fullPath } }
   }
 
-  if ((requiresAuth || isAdminRoute) && store.logged && !store.currentUser) {
+  if ((requiresAuth || isAdminRoute) && auth.logged && !auth.currentUser) {
     try {
-      await store.loadCurrentUser()
+      await auth.loadCurrentUser()
     } catch {
-      store.logout()
+      await auth.logout()
       return { path: '/login', query: { redirect: to.fullPath } }
     }
   }
 
-  const backendRole = store.currentUser?.role
+  const backendRole = auth.currentUser?.role
   if (isAdminRoute && backendRole !== 'ADMIN') {
     return { path: '/home' }
   }

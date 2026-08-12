@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ResourceStatus } from '@/stores/app'
+import type { ResourceStatus } from '@/stores/types'
 
 defineProps<{ status: ResourceStatus | '正常' | '禁用' }>()
 </script>

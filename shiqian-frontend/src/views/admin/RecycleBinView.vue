@@ -3,16 +3,17 @@ import { onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AdminLayout from '@/components/AdminLayout.vue'
 import StatusTag from '@/components/StatusTag.vue'
-import { contentSceneLabel, useAppStore } from '@/stores/app'
+import { useResourceStore } from '@/stores/resource'
+import { contentSceneLabel } from '@/stores/types'
 
-const store = useAppStore()
+const resource = useResourceStore()
 const keyword = ref('')
 const loading = ref(false)
 
 async function load() {
   loading.value = true
   try {
-    await store.loadRecycleResources({ keyword: keyword.value.trim() })
+    await resource.loadRecycleResources({ keyword: keyword.value.trim() })
   } finally {
     loading.value = false
   }
@@ -21,7 +22,7 @@ async function load() {
 async function restore(id: number, title: string) {
   try {
     await ElMessageBox.confirm(`确认恢复「${title}」到资源列表？`, '恢复资源', { type: 'warning' })
-    await store.restoreResource(id)
+    await resource.restoreResource(id)
     ElMessage.success('已恢复')
     await load()
   } catch (error) {
@@ -34,7 +35,7 @@ async function restore(id: number, title: string) {
 async function permanentDelete(id: number, title: string) {
   try {
     await ElMessageBox.confirm(`永久删除「${title}」？此操作不可恢复！`, '永久删除', { type: 'error' })
-    await store.permanentDeleteResource(id)
+    await resource.permanentDeleteResource(id)
     ElMessage.success('已永久删除')
     await load()
   } catch (error) {
@@ -60,7 +61,7 @@ onMounted(load)
       </div>
     </div>
 
-    <el-table v-loading="loading" :data="store.recycleResources" class="panel">
+    <el-table v-loading="loading" :data="resource.recycleResources" class="panel">
       <el-table-column label="内容" min-width="260">
         <template #default="{ row }">
           <b>{{ row.title }}</b>
@@ -80,6 +81,6 @@ onMounted(load)
       </el-table-column>
     </el-table>
 
-    <el-empty v-if="!loading && store.recycleResources.length === 0" description="回收站为空" />
+    <el-empty v-if="!loading && resource.recycleResources.length === 0" description="回收站为空" />
   </AdminLayout>
 </template>

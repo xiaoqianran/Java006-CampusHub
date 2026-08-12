@@ -2,9 +2,10 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import AdminLayout from '@/components/AdminLayout.vue'
-import { useAppStore, type AdminLogItem } from '@/stores/app'
+import { useAdminStore } from '@/stores/admin'
+import type { AdminLogItem } from '@/stores/types'
 
-const store = useAppStore()
+const admin = useAdminStore()
 
 const loading = ref(false)
 const currentPage = ref(1)
@@ -31,7 +32,7 @@ const actionOptions = [
 async function load(page = 1) {
   loading.value = true
   try {
-    const data = await store.loadAdminLogs({
+    const data = await admin.loadAdminLogs({
       page,
       size: pageSize.value,
       action: filterAction.value || undefined,
@@ -95,7 +96,7 @@ onMounted(() => {
       <span class="sub" style="margin-left:auto;">数据库持久化 · 支持分页检索</span>
     </div>
 
-    <el-table :data="store.adminLogs" v-loading="loading" class="panel" stripe>
+    <el-table :data="admin.adminLogs" v-loading="loading" class="panel" stripe>
       <el-table-column label="时间" width="180">
         <template #default="{ row }">{{ row.createTime || '-' }}</template>
       </el-table-column>
@@ -137,7 +138,7 @@ onMounted(() => {
       />
     </div>
 
-    <div v-if="!loading && !store.adminLogs.length" class="sub" style="margin-top:12px;">
+    <div v-if="!loading && !admin.adminLogs.length" class="sub" style="margin-top:12px;">
       暂无操作日志。执行内容审核、用户启禁用或回收站操作后会自动记录。
     </div>
   </AdminLayout>

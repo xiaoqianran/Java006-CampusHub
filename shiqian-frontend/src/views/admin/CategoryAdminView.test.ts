@@ -2,19 +2,29 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { shallowMount } from '@vue/test-utils'
 import CategoryAdminView from './CategoryAdminView.vue'
 
-vi.mock('@/stores/app', () => ({
-  useAppStore: () => ({
+vi.mock('@/stores/catalog', () => ({
+  useCatalogStore: () => ({
     categories: ['编程', '数学'],
     flatCategories: [
       { id: 1, name: '编程', icon: '💻', sortOrder: 10 },
       { id: 2, name: '数学', icon: '∑', sortOrder: 20 }
     ],
-    resources: [],
     loadCategories: vi.fn().mockResolvedValue(undefined),
     createCategory: vi.fn().mockResolvedValue(undefined),
     updateCategory: vi.fn().mockResolvedValue(undefined),
-    deleteCategory: vi.fn().mockResolvedValue(undefined),
-    loadResources: vi.fn().mockResolvedValue(undefined),
+    deleteCategory: vi.fn().mockResolvedValue(undefined)
+  })
+}))
+
+vi.mock('@/stores/resource', () => ({
+  useResourceStore: () => ({
+    resources: [],
+    loadResources: vi.fn().mockResolvedValue(undefined)
+  })
+}))
+
+vi.mock('@/stores/admin', () => ({
+  useAdminStore: () => ({
     recordAdminLog: vi.fn().mockResolvedValue(undefined)
   })
 }))
