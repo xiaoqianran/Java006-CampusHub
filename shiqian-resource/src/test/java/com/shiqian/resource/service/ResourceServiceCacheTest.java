@@ -47,6 +47,10 @@ class ResourceServiceCacheTest extends BaseResourceTest {
     }
 
     private void cleanDatabase() {
+        // Must clear outbox too: create/update/delete append PENDING events, and restarting
+        // resource identity to 1 otherwise collides with leftover aggregate_id rows
+        // (breaks ResourceTransactionIntegrationTest when it runs after this class).
+        jdbcTemplate.execute("DELETE FROM t_outbox_event");
         jdbcTemplate.execute("DELETE FROM t_resource");
         jdbcTemplate.execute("DELETE FROM t_category");
         jdbcTemplate.execute("ALTER TABLE t_resource ALTER COLUMN id RESTART WITH 1");

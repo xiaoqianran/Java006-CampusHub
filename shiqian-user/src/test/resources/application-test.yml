@@ -40,3 +40,16 @@ platform:
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
+
+# Test profile only: scrape-contract tests need prometheus; prod/default stay health-only.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: shiqian-user
