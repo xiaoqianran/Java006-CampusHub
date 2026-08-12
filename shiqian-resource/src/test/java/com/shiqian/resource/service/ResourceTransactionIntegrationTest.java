@@ -13,6 +13,7 @@ import com.shiqian.resource.mapper.ResourceAttachmentMapper;
 import com.shiqian.resource.mapper.ResourceMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 
@@ -33,6 +34,13 @@ class ResourceTransactionIntegrationTest extends BaseResourceTest {
     @Autowired
     private OutboxEventMapper outboxEventMapper;
     private final List<Long> createdResourceIds = new ArrayList<>();
+
+    @BeforeEach
+    void clearStaleOutboxRowsFromSharedH2Database() {
+        // Shared jdbc:h2:mem:testdb keeps PENDING outbox rows across classes that
+        // DELETE resources and RESTART identity (e.g. ResourceServiceCacheTest).
+        outboxEventMapper.delete(new QueryWrapper<>());
+    }
 
     @AfterEach
     void cleanUp() {
