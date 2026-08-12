@@ -27,3 +27,16 @@ gateway:
       - /api/user/refresh
       - /api/user/health
       - /actuator/health
+
+# Test profile only: scrape-contract tests need prometheus; prod/default stay health-only.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: shiqian-gateway
