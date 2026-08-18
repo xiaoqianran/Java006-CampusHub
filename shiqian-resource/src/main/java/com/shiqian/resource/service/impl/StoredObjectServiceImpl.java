@@ -55,6 +55,8 @@ public class StoredObjectServiceImpl implements StoredObjectService {
     private static final String PENDING_DELETE = "PENDING_DELETE";
     private static final Pattern MANAGED_URL = Pattern.compile(
             "^/api/resource/files/object/([0-9a-fA-F-]{36})$");
+    private static final Pattern LEGACY_URL = Pattern.compile(
+            "^/api/resource/files/([0-9]+)/[^/]+$");
 
     private final ObjectStorage objectStorage;
     private final StoredObjectMapper storedObjectMapper;
@@ -185,6 +187,54 @@ public class StoredObjectServiceImpl implements StoredObjectService {
             throw new BusinessException(404, "文件不存在");
         }
         return metadata;
+    }
+
+    @Override
+    public void validateUserSubmittedFileUrls(Long ownerId, List<String> fileUrls) {
+        if (fileUrls == null || fileUrls.isEmpty()) {
+            return;
+        }
+        if (ownerId == null) {
+            throw new BusinessException(401, "未登录");
+        }
+        for (String fileUrl : fileUrls) {
+            if (!StringUtils.hasText(fileUrl)) {
+                continue;
+            }
+            final URI uri;
+            try {
+                uri = URI.create(fileUrl.trim());
+            } catch (IllegalArgumentException error) {
+                throw new BusinessException("附件地址不合法");
+            }
+            // Public resource DTOs may only reference same-origin paths returned by this service.
+            // Reject absolute/protocol-relative URLs so arbitrary third-party tracking/download URLs
+            // cannot bypass upload validation and ownership checks.
+            if (uri.isAbsolute() || StringUtils.hasText(uri.getAuthority())) {
+                throw new BusinessException("附件地址必须来自平台上传接口");
+            }
+            String path = uri.getPath();
+            if (!StringUtils.hasText(path)) {
+                throw new BusinessException("附件地址不合法");
+            }
+            if (MANAGED_URL.matcher(path).matches()) {
+                continue;
+            }
+            Matcher legacy = LEGACY_URL.matcher(path);
+            if (legacy.matches()) {
+                long legacyOwner;
+                try {
+                    legacyOwner = Long.parseLong(legacy.group(1));
+                } catch (NumberFormatException error) {
+                    throw new BusinessException("附件地址不合法");
+                }
+                if (legacyOwner != ownerId.longValue()) {
+                    throw new BusinessException(403, "不能引用其他用户的历史附件");
+                }
+                continue;
+            }
+            throw new BusinessException("附件地址必须来自平台上传接口");
+        }
     }
 
     @Override
