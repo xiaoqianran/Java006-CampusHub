@@ -91,7 +91,7 @@ class OutboxIntegrationTest extends BaseResourceTest {
         create.setTitle("Outbox 回滚");
         create.setContentMarkdown("正文");
         AttachmentCreateDTO invalid = new AttachmentCreateDTO();
-        invalid.setFileUrl("/invalid/no-name.txt");
+        invalid.setFileUrl("/api/resource/files/1/no-name.txt");
         create.setAttachments(List.of(invalid));
 
         assertThrows(
