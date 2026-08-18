@@ -52,6 +52,6 @@ class StoredObjectUrlValidationTest extends BaseResourceTest {
                 1L,
                 List.of(
                         "/api/resource/files/object/123e4567-e89b-12d3-a456-426614174000",
-                        "/api/resource/files/1/legacy.pdf"))));
+                        "/api/resource/files/1/legacy.pdf")));
     }
 }
