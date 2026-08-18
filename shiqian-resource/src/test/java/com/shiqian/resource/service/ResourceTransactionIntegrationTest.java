@@ -115,14 +115,14 @@ class ResourceTransactionIntegrationTest extends BaseResourceTest {
     private AttachmentCreateDTO validAttachment() {
         AttachmentCreateDTO attachment = new AttachmentCreateDTO();
         attachment.setFileName("valid.txt");
-        attachment.setFileUrl("/files/valid.txt");
+        attachment.setFileUrl("/api/resource/files/11/valid.txt");
         attachment.setFileSize(10L);
         return attachment;
     }
 
     private AttachmentCreateDTO invalidAttachment() {
         AttachmentCreateDTO attachment = new AttachmentCreateDTO();
-        attachment.setFileUrl("/files/invalid.txt");
+        attachment.setFileUrl("/api/resource/files/11/invalid.txt");
         attachment.setFileSize(10L);
         return attachment;
     }
