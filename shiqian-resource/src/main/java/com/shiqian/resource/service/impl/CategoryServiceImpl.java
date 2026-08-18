@@ -22,8 +22,10 @@ import org.springframework.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -39,12 +41,7 @@ public class CategoryServiceImpl implements CategoryService {
     @CacheEvict(cacheNames = CacheNames.CATEGORY_TREE, allEntries = true)
     @Transactional(rollbackFor = Exception.class)
     public void addCategory(Category category) {
-        if (category.getParentId() != null && category.getParentId() != 0) {
-            Category parent = categoryMapper.selectById(category.getParentId());
-            if (parent == null || parent.getDeleted() == 1) {
-                throw new BusinessException("父分类不存在");
-            }
-        }
+        validateParentAssignment(null, category.getParentId());
 
         category.setStatus(category.getStatus() != null ? category.getStatus() : 1);
         category.setSortOrder(category.getSortOrder() != null ? category.getSortOrder() : 0);
@@ -64,12 +61,9 @@ public class CategoryServiceImpl implements CategoryService {
             throw new BusinessException("分类不存在");
         }
 
-        if (category.getParentId() != null && category.getParentId() != 0
+        if (category.getParentId() != null
                 && !category.getParentId().equals(existing.getParentId())) {
-            Category parent = categoryMapper.selectById(category.getParentId());
-            if (parent == null || parent.getDeleted() == 1) {
-                throw new BusinessException("父分类不存在");
-            }
+            validateParentAssignment(category.getId(), category.getParentId());
         }
 
         category.setCreateTime(null);
@@ -135,18 +129,48 @@ public class CategoryServiceImpl implements CategoryService {
         Map<Long, List<Category>> childrenMap = allCategories.stream()
                 .collect(Collectors.groupingBy(Category::getParentId));
 
-        return buildTree(childrenMap, 0L);
+        return buildTree(childrenMap, 0L, new HashSet<>());
     }
 
-    private List<Category> buildTree(Map<Long, List<Category>> childrenMap, Long parentId) {
+    private void validateParentAssignment(Long categoryId, Long parentId) {
+        if (parentId == null || parentId == 0) {
+            return;
+        }
+        Set<Long> visited = new HashSet<>();
+        Long cursor = parentId;
+        while (cursor != null && cursor != 0) {
+            if (categoryId != null && categoryId.equals(cursor)) {
+                throw new BusinessException("不能将分类移动到自身或其子分类下");
+            }
+            if (!visited.add(cursor)) {
+                throw new BusinessException("分类层级存在循环，请先修复父子关系");
+            }
+            Category parent = categoryMapper.selectById(cursor);
+            if (parent == null || parent.getDeleted() == 1) {
+                throw new BusinessException("父分类不存在");
+            }
+            cursor = parent.getParentId();
+        }
+    }
+
+    private List<Category> buildTree(
+            Map<Long, List<Category>> childrenMap,
+            Long parentId,
+            Set<Long> visited) {
         List<Category> children = childrenMap.getOrDefault(parentId, new ArrayList<>());
         children.sort(Comparator.comparingInt(c -> c.getSortOrder() != null ? c.getSortOrder() : 0));
 
+        List<Category> safeChildren = new ArrayList<>();
         for (Category child : children) {
-            List<Category> grandChildren = buildTree(childrenMap, child.getId());
+            if (child.getId() == null || !visited.add(child.getId())) {
+                log.warn("检测到分类树重复/循环节点，已跳过: parentId={}, childId={}", parentId, child.getId());
+                continue;
+            }
+            List<Category> grandChildren = buildTree(childrenMap, child.getId(), visited);
             child.setChildren(grandChildren);
+            safeChildren.add(child);
         }
-        return children;
+        return safeChildren;
     }
 
     @Override
