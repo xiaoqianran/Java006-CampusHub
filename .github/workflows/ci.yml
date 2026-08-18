@@ -44,6 +44,12 @@ jobs:
       - name: Test
         run: mvn -B test
 
+      - name: Print backend test failures
+        if: failure()
+        run: |
+          find . -path '*/target/surefire-reports/*.txt' -type f -print -exec tail -n 200 {} \;
+          find . -path '*/target/surefire-reports/*.dumpstream' -type f -print -exec tail -n 200 {} \;
+
       - name: Package
         run: mvn -B package -DskipTests
 
