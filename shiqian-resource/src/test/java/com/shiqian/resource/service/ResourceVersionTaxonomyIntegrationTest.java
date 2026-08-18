@@ -136,7 +136,7 @@ class ResourceVersionTaxonomyIntegrationTest extends BaseResourceTest {
     private AttachmentCreateDTO attachment(String fileName) {
         AttachmentCreateDTO attachment = new AttachmentCreateDTO();
         attachment.setFileName(fileName);
-        attachment.setFileUrl("/files/" + fileName);
+        attachment.setFileUrl("/api/resource/files/1/" + fileName);
         attachment.setFileSize(128L);
         attachment.setFileType("application/pdf");
         attachment.setMimeType("application/pdf");
