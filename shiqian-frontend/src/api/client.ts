@@ -14,7 +14,8 @@ export interface PageResult<T> {
 
 const runtimeConfig = window.__SHIQIAN_CONFIG__ || {}
 const API_BASE = runtimeConfig.apiBaseUrl || import.meta.env.VITE_API_BASE_URL || ''
-let refreshInFlight: Promise<{ accessToken: string; refreshToken: string }> | null = null
+let accessToken = ''
+let refreshInFlight: Promise<{ accessToken: string }> | null = null
 let authFailureHandler: (() => void) | null = null
 
 /** 由 Pinia store 注册：token 失效时同步清空登录态。 */
@@ -34,44 +35,43 @@ export function buildApiUrl(path: string, query?: Record<string, unknown>) {
   return buildUrl(path, query)
 }
 
+/** Access Token 只保存在当前页面内存中，不持久化到 Web Storage。 */
 export function getAccessToken() {
-  return localStorage.getItem('shiqian_access_token') || ''
+  return accessToken
 }
 
-export function getRefreshToken() {
-  return localStorage.getItem('shiqian_refresh_token') || ''
-}
-
-export function setTokens(accessToken: string, refreshToken: string) {
-  localStorage.setItem('shiqian_access_token', accessToken)
-  localStorage.setItem('shiqian_refresh_token', refreshToken)
-}
-
-export function clearTokens() {
+export function setTokens(nextAccessToken: string, _legacyRefreshToken?: string) {
+  accessToken = nextAccessToken || ''
+  // 清理旧版本遗留的长期令牌，升级后不再向 Web Storage 写入任何认证 token。
   localStorage.removeItem('shiqian_access_token')
   localStorage.removeItem('shiqian_refresh_token')
 }
 
-export async function refreshAccessToken(): Promise<{ accessToken: string; refreshToken: string }> {
+export function clearTokens() {
+  accessToken = ''
+  localStorage.removeItem('shiqian_access_token')
+  localStorage.removeItem('shiqian_refresh_token')
+}
+
+/**
+ * 使用 HttpOnly Cookie 中的 refresh token 轮换会话。
+ * JavaScript 永远不读取 refresh token；并发 401 共享同一个刷新请求。
+ */
+export async function refreshAccessToken(): Promise<{ accessToken: string }> {
   if (refreshInFlight) return refreshInFlight
 
   const task = (async () => {
-    const refreshToken = getRefreshToken()
-    if (!refreshToken) {
-      throw new Error('无 refreshToken')
-    }
-    // 多文件并发遇到 401 时共享同一次刷新，避免重复刷新导致令牌竞争。
     const resp = await fetch(buildUrl('/api/user/refresh'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken })
+      credentials: 'include',
+      cache: 'no-store'
     })
     const result = await resp.json().catch(() => null) as Result<any> | null
-    if (!resp.ok || !result || result.code !== 200 || !result.data) {
+    if (!resp.ok || !result || result.code !== 200 || !result.data?.accessToken) {
       throw new Error(result?.message || '刷新令牌失败')
     }
-    const data = result.data as { accessToken: string; refreshToken: string }
-    setTokens(data.accessToken, data.refreshToken)
+    const data = result.data as { accessToken: string }
+    setTokens(data.accessToken)
     return data
   })()
   refreshInFlight = task
@@ -97,6 +97,10 @@ function isAuthErrorStatus(status: number, code?: number | null) {
   return status === 401 || code === 401 || (status === 403 && code === 401)
 }
 
+function canAutoRefresh(path: string) {
+  return !['/api/user/login', '/api/user/register', '/api/user/refresh'].includes(path)
+}
+
 export async function request<T>(path: string, options: RequestInit & { query?: Record<string, unknown> } = {}) {
   const doRequest = async (useToken: string): Promise<{ response: Response; result: Result<T> | null }> => {
     const headers = new Headers(options.headers)
@@ -108,6 +112,7 @@ export async function request<T>(path: string, options: RequestInit & { query?: 
     }
     const response = await fetch(buildUrl(path, options.query), {
       ...options,
+      credentials: 'include',
       headers
     })
     const result = await response.json().catch(() => null) as Result<T> | null
@@ -117,9 +122,9 @@ export async function request<T>(path: string, options: RequestInit & { query?: 
   let token = getAccessToken()
   let { response, result } = await doRequest(token)
 
-  // 401 时尝试用 refreshToken 刷新一次（非破坏性）
+  // Access Token 失效后仅尝试一次 HttpOnly Cookie 刷新；refresh 自身不会递归刷新。
   const isAuthError = isAuthErrorStatus(response.status, result?.code)
-  if (isAuthError && getRefreshToken()) {
+  if (isAuthError && canAutoRefresh(path)) {
     try {
       await refreshAccessToken()
       token = getAccessToken()
@@ -164,6 +169,7 @@ function uploadOnce<T>(
     const xhr = new XMLHttpRequest()
     const abort = () => xhr.abort()
     xhr.open('POST', buildUrl(path))
+    xhr.withCredentials = true
     if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
 
     xhr.upload.onprogress = event => {
@@ -203,7 +209,7 @@ export async function uploadRequest<T>(
   let response = await uploadOnce<T>(path, body, token, options)
   const isAuthError = isAuthErrorStatus(response.status, response.result?.code)
 
-  if (isAuthError && getRefreshToken() && !options.signal?.aborted) {
+  if (isAuthError && !options.signal?.aborted) {
     try {
       await refreshAccessToken()
       token = getAccessToken()
