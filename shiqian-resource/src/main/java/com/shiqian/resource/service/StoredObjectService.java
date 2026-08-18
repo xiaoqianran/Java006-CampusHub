@@ -22,6 +22,9 @@ public interface StoredObjectService {
 
     StoredObject requireMetadata(String publicId, Long requesterId, boolean privileged);
 
+    /** Validate file references accepted from public create/update DTOs. */
+    void validateUserSubmittedFileUrls(Long ownerId, List<String> fileUrls);
+
     void bindResourceFiles(Long ownerId, Long resourceId, List<String> fileUrls);
 
     void deleteResourceFiles(Long resourceId);

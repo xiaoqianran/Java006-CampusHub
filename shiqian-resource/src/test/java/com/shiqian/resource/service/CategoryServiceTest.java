@@ -85,6 +85,50 @@ public class CategoryServiceTest extends BaseResourceTest {
     }
 
     @Test
+    public void testUpdateCategoryRejectsSelfParent() {
+        Category category = new Category();
+        category.setName("自引用分类");
+        category.setParentId(0L);
+        category.setStatus(1);
+        categoryService.addCategory(category);
+
+        Category update = new Category();
+        update.setId(category.getId());
+        update.setName(category.getName());
+        update.setParentId(category.getId());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> categoryService.updateCategory(update));
+        assertEquals("不能将分类移动到自身或其子分类下", exception.getMessage());
+    }
+
+    @Test
+    public void testUpdateCategoryRejectsDescendantAsParent() {
+        Category parent = new Category();
+        parent.setName("父分类");
+        parent.setParentId(0L);
+        parent.setStatus(1);
+        categoryService.addCategory(parent);
+
+        Category child = new Category();
+        child.setName("子分类");
+        child.setParentId(parent.getId());
+        child.setStatus(1);
+        categoryService.addCategory(child);
+
+        Category update = new Category();
+        update.setId(parent.getId());
+        update.setName(parent.getName());
+        update.setParentId(child.getId());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> categoryService.updateCategory(update));
+        assertEquals("不能将分类移动到自身或其子分类下", exception.getMessage());
+    }
+
+    @Test
     public void testDeleteCategorySuccess() {
         Category category = new Category();
         category.setName("待删除");

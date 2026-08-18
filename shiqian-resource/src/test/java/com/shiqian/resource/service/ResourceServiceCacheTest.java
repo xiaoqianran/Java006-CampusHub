@@ -75,7 +75,7 @@ class ResourceServiceCacheTest extends BaseResourceTest {
         dto.setSummary("缓存测试摘要");
         dto.setContentMarkdown("缓存测试正文");
         dto.setCategoryId(category.getId());
-        dto.setFileUrl("http://example.com/file.pdf");
+        dto.setFileUrl("/api/resource/files/1/file.pdf");
         dto.setFileSize(1024L);
         dto.setFileType("application/pdf");
 
@@ -112,7 +112,7 @@ class ResourceServiceCacheTest extends BaseResourceTest {
         dto.setSummary("一致性测试摘要");
         dto.setContentMarkdown("一致性测试正文");
         dto.setCategoryId(category.getId());
-        dto.setFileUrl("http://example.com/file.pdf");
+        dto.setFileUrl("/api/resource/files/1/file.pdf");
         dto.setFileSize(1024L);
         dto.setFileType("application/pdf");
 
@@ -129,7 +129,7 @@ class ResourceServiceCacheTest extends BaseResourceTest {
         updateDTO.setSummary("一致性测试摘要");
         updateDTO.setContentMarkdown("一致性测试正文");
         updateDTO.setCategoryId(category.getId());
-        updateDTO.setFileUrl("http://example.com/file.pdf");
+        updateDTO.setFileUrl("/api/resource/files/1/file.pdf");
         updateDTO.setFileSize(1024L);
         updateDTO.setFileType("application/pdf");
         resourceService.updateResource(1L, id, updateDTO);

@@ -23,6 +23,7 @@ import com.shiqian.resource.service.ResourceVersionService;
 import com.shiqian.resource.service.ResourceMessagePublisher;
 import com.shiqian.resource.service.ResourceIndexMaintenanceService;
 import com.shiqian.resource.service.ResourceCounterService;
+import com.shiqian.resource.service.support.ResourceStatuses;
 import com.shiqian.resource.vo.ResourceVO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -81,7 +82,6 @@ public class ResourceController {
             return Result.fail(401, "未登录");
         }
         Resource resource = resourceService.createResource(userId, dto);
-        businessMetrics.published();
         return Result.ok(resource.getId());
     }
 
@@ -422,7 +422,10 @@ public class ResourceController {
                 ? reviewDTO.getStatus()
                 : status;
         businessMetrics.audited(
-                reviewedStatus != null && reviewedStatus >= 2);
+                reviewedStatus != null && reviewedStatus >= ResourceStatuses.STATUS_NEEDS_CHANGES);
+        if (Integer.valueOf(ResourceStatuses.STATUS_PUBLISHED).equals(reviewedStatus)) {
+            businessMetrics.published();
+        }
         return Result.ok();
     }
 

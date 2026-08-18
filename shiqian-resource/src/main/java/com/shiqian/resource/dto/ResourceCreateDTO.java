@@ -18,6 +18,7 @@ public class ResourceCreateDTO {
     @Size(max = 500, message = "资源摘要最多500个字符")
     private String summary;
 
+    @Size(max = 200000, message = "资源正文最多200000个字符")
     private String contentMarkdown;
 
     @Size(max = 30, message = "内容类型最多30个字符")

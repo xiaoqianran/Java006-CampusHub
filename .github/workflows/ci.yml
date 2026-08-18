@@ -47,6 +47,9 @@ jobs:
       - name: Package
         run: mvn -B package -DskipTests
 
+      - name: Validate startup scripts
+        run: bash -n 01_Environment.sh 02_StartBackend.sh 03_StopBackend.sh 04_StartFrontend.sh 05_StopFrontend.sh restart-backend.sh
+
       - name: Validate Docker Compose
         env:
           MYSQL_ROOT_PASSWORD: ci-only-password
@@ -57,7 +60,11 @@ jobs:
           MINIO_SECRET_KEY: ci-only-password
           GRAFANA_ADMIN_USER: ci-admin
           GRAFANA_ADMIN_PASSWORD: ci-only-password
-        run: docker compose config --quiet
+        run: |
+          docker compose config --quiet
+          docker compose -f docker-compose.yml -f docker-compose.low-memory.yml config --quiet
+          docker compose -f docker-compose.yml -f docker-compose.low-memory.yml config \
+            | grep -q -- '--web.listen-address=127.0.0.1:19090'
 
       - name: Upload backend jars
         uses: actions/upload-artifact@v5

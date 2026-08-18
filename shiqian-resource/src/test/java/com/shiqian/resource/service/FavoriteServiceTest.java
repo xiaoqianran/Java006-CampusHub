@@ -143,7 +143,7 @@ public class FavoriteServiceTest extends BaseResourceTest {
         dto.setSummary("新摘要");
         dto.setContentMarkdown("# 改写正文\n\n需要重新审核。");
         dto.setCategoryId(category.getId());
-        dto.setFileUrl("http://example.com/new.pdf");
+        dto.setFileUrl("/api/resource/files/1/new.pdf");
         dto.setFileSize(2048L);
         dto.setFileType("application/pdf");
         resourceService.updateResource(1L, published.getId(), dto);
@@ -170,7 +170,7 @@ public class FavoriteServiceTest extends BaseResourceTest {
         ResourceCreateDTO dto = new ResourceCreateDTO();
         dto.setTitle(title);
         dto.setCategoryId(categoryId);
-        dto.setFileUrl("http://example.com/file.pdf");
+        dto.setFileUrl("/api/resource/files/1/file.pdf");
         dto.setFileSize(1024L);
         dto.setFileType("application/pdf");
         return resourceService.createResource(1L, dto);

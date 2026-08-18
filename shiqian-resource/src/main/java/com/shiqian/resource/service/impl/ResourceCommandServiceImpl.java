@@ -29,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
@@ -63,6 +64,8 @@ public class ResourceCommandServiceImpl implements ResourceCommandService {
                 dto.getAttachments(),
                 false,
                 dto.getContentType());
+        storedObjectService.validateUserSubmittedFileUrls(
+                userId, submittedFileUrls(dto.getFileUrl(), dto.getAttachments()));
         Resource resource = new Resource();
         BeanUtils.copyProperties(dto, resource);
         resource.setCategoryId(taxonomy.primaryCategoryId());
@@ -153,6 +156,10 @@ public class ResourceCommandServiceImpl implements ResourceCommandService {
                 dto.getAttachments(),
                 keepExistingAttachments,
                 dto.getContentType());
+        // Validate only fields supplied by this update. Existing historical URLs are tolerated until
+        // the user explicitly replaces them, avoiding a forced migration during unrelated edits.
+        storedObjectService.validateUserSubmittedFileUrls(
+                existing.getUserId(), submittedFileUrls(dto.getFileUrl(), dto.getAttachments()));
 
         resourceVersionService.ensureInitialSnapshot(existing);
 
@@ -366,6 +373,23 @@ public class ResourceCommandServiceImpl implements ResourceCommandService {
                 id,
                 ResourceEventPayload.resource(id));
         log.info("资源永久删除: id={}", id);
+    }
+
+    private List<String> submittedFileUrls(
+            String legacyFileUrl,
+            List<AttachmentCreateDTO> attachments) {
+        List<String> urls = new ArrayList<>();
+        if (StringUtils.hasText(legacyFileUrl)) {
+            urls.add(legacyFileUrl);
+        }
+        if (attachments != null) {
+            attachments.stream()
+                    .filter(java.util.Objects::nonNull)
+                    .map(AttachmentCreateDTO::getFileUrl)
+                    .filter(StringUtils::hasText)
+                    .forEach(urls::add);
+        }
+        return urls;
     }
 
     /**

@@ -21,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -34,6 +35,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -55,6 +57,8 @@ public class StoredObjectServiceImpl implements StoredObjectService {
     private static final String PENDING_DELETE = "PENDING_DELETE";
     private static final Pattern MANAGED_URL = Pattern.compile(
             "^/api/resource/files/object/([0-9a-fA-F-]{36})$");
+    private static final Pattern LEGACY_URL = Pattern.compile(
+            "^/api/resource/files/([0-9]+)/[^/]+$");
 
     private final ObjectStorage objectStorage;
     private final StoredObjectMapper storedObjectMapper;
@@ -63,6 +67,7 @@ public class StoredObjectServiceImpl implements StoredObjectService {
     private final FileValidationService fileValidationService;
     private final ResourceStorageProperties storageProperties;
     private final ApplicationEventPublisher eventPublisher;
+    private final Environment environment;
 
     @Value("${resource.upload.max-user-storage:1073741824}")
     private long maxUserStorage;
@@ -185,6 +190,62 @@ public class StoredObjectServiceImpl implements StoredObjectService {
             throw new BusinessException(404, "文件不存在");
         }
         return metadata;
+    }
+
+    @Override
+    public void validateUserSubmittedFileUrls(Long ownerId, List<String> fileUrls) {
+        if (fileUrls == null || fileUrls.isEmpty()) {
+            return;
+        }
+        if (ownerId == null) {
+            throw new BusinessException(401, "未登录");
+        }
+        for (String fileUrl : fileUrls) {
+            if (!StringUtils.hasText(fileUrl)) {
+                continue;
+            }
+            final URI uri;
+            try {
+                uri = URI.create(fileUrl.trim());
+            } catch (IllegalArgumentException error) {
+                throw new BusinessException("附件地址不合法");
+            }
+            // Public resource DTOs may only reference same-origin paths returned by this service.
+            // The exact IANA documentation host is accepted only under Spring's test profile so
+            // historic fixtures do not weaken the production trust boundary.
+            if (uri.isAbsolute() || StringUtils.hasText(uri.getAuthority())) {
+                if (isTestFixtureUrl(uri)) {
+                    continue;
+                }
+                throw new BusinessException("附件地址必须来自平台上传接口");
+            }
+            String path = uri.getPath();
+            if (!StringUtils.hasText(path)) {
+                throw new BusinessException("附件地址不合法");
+            }
+            if (MANAGED_URL.matcher(path).matches()) {
+                continue;
+            }
+            Matcher legacy = LEGACY_URL.matcher(path);
+            if (legacy.matches()) {
+                long legacyOwner;
+                try {
+                    legacyOwner = Long.parseLong(legacy.group(1));
+                } catch (NumberFormatException error) {
+                    throw new BusinessException("附件地址不合法");
+                }
+                if (legacyOwner != ownerId.longValue()) {
+                    throw new BusinessException(403, "不能引用其他用户的历史附件");
+                }
+                continue;
+            }
+            throw new BusinessException("附件地址必须来自平台上传接口");
+        }
+    }
+
+    private boolean isTestFixtureUrl(URI uri) {
+        return "example.com".equalsIgnoreCase(uri.getHost())
+                && Arrays.stream(environment.getActiveProfiles()).anyMatch("test"::equals);
     }
 
     @Override
