@@ -144,10 +144,10 @@ ensure_mysql_databases() {
   user_table_count="$(docker exec "$mysql_container" \
       mysql -u"$root_user" -p"$root_pass" -Nse \
       "SELECT COUNT(*) FROM information_schema.TABLES
-       WHERE TABLE_SCHEMA = 'shiqian_user' AND TABLE_NAME = 't_user';" \
+       WHERE TABLE_SCHEMA = 'shiqian_user' AND TABLE_NAME = 'sys_user';" \
       2>/dev/null || echo "0")"
   if [[ "$user_table_count" != "1" ]]; then
-    echo "   [检测] shiqian_user 数据库或 t_user 表不存在"
+    echo "   [检测] shiqian_user 数据库或 sys_user 表不存在"
     need_init=true
   fi
 
@@ -167,16 +167,15 @@ ensure_mysql_databases() {
 
     local init_success=true
 
-    for sql_file in docker/mysql/init/init.sql docker/mysql/init/z-demo-data.sql; do
-      if [ -f "$sql_file" ]; then
-        echo "     - 执行 $(basename "$sql_file")"
-        if ! docker exec -i "$mysql_container" \
-            mysql -u"$root_user" -p"$root_pass" < "$sql_file" 2>&1; then
-          echo "     [错误] 执行 $sql_file 失败"
-          init_success=false
-        fi
+    local sql_file="docker/mysql/init/init.sql"
+    if [ -f "$sql_file" ]; then
+      echo "     - 执行 $(basename "$sql_file")"
+      if ! docker exec -i "$mysql_container" \
+          mysql -u"$root_user" -p"$root_pass" < "$sql_file" 2>&1; then
+        echo "     [错误] 执行 $sql_file 失败"
+        init_success=false
       fi
-    done
+    fi
 
     if [ "$init_success" = true ]; then
       echo "   ✓ 数据库初始化/修复完成"
@@ -186,6 +185,33 @@ ensure_mysql_databases() {
   else
     echo "   ✓ shiqian_user 和 shiqian_resource 数据库结构均已就绪"
   fi
+}
+
+seed_demo_data_if_requested() {
+  if [[ "${LOAD_DEMO_DATA:-false}" != "true" ]]; then
+    echo "→ 跳过演示账号导入（LOAD_DEMO_DATA!=true）"
+    return 0
+  fi
+
+  local sql_file="docker/mysql/init/z-demo-data.sql"
+  if [[ ! -f "$sql_file" ]]; then
+    echo "   [警告] 未找到演示数据脚本：$sql_file"
+    return 0
+  fi
+
+  local existing_demo_users
+  existing_demo_users="$(docker exec shiqian-mysql \
+      mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse \
+      "SELECT COUNT(*) FROM shiqian_user.sys_user WHERE username IN ('admin','student01');" \
+      2>/dev/null || echo "0")"
+  if [[ "$existing_demo_users" != "0" ]]; then
+    echo "→ 检测到已有演示用户名，跳过 seed，避免覆盖现有密码/状态"
+    return 0
+  fi
+
+  echo "→ LOAD_DEMO_DATA=true，首次导入演示账号..."
+  docker exec -i shiqian-mysql \
+    mysql -uroot -p"$MYSQL_ROOT_PASSWORD" < "$sql_file"
 }
 
 load_sdkman() {
@@ -237,6 +263,8 @@ start_backend() {
 
   # 自动检测并修复 MySQL 数据库（解决 volume 存在时初始化脚本不执行的问题）
   ensure_mysql_databases
+  # 演示账号必须显式开启，且只在用户名尚不存在时导入，绝不在普通启动时重置密码。
+  seed_demo_data_if_requested
 
   # 对已有数据卷执行幂等结构升级，补齐审核工作流字段。
   if [[ -f "docker/mysql/init/upgrade-resource-workflow.sql" ]]; then
