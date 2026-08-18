@@ -1,223 +1,170 @@
 # GitHub Pages 前端 + Caddy 后端部署
 
-本文只针对本项目 `Java006-CampusHub` 的前后端分离部署：
+本文针对 `Java-006-CampusHub` 的前后端分离部署：
 
-- 前端：GitHub Actions 构建 Vue 项目，并部署到 GitHub Pages
-- 后端：运行在你的服务器上
-- 服务器入口：Caddy + 后端 API 域名
-- 后端网关：`shiqian-gateway`，本机端口 `8080`
+- 前端：GitHub Pages
+- API：`https://api.xiaoqianran.xyz`
+- Caddy：TLS + 反向代理
+- API 网关：`shiqian-gateway`（本机 `8080`）
+
+> 认证安全模型已经调整：Access Token 仅保存在页面内存，Refresh Token 仅保存在 `HttpOnly` Cookie。浏览器请求 API 必须携带 credentials，并由 Gateway 统一处理精确 Origin CORS。
 
 ## 推荐域名结构
 
-建议用一个独立 API 子域名给后端：
-
 | 用途 | 示例 |
-|------|------|
-| GitHub Pages 前端 | `https://<你的GitHub用户名>.github.io/Java006-CampusHub/` |
-| GitHub Pages 自定义前端域名 | `https://shiqian.xiaoqianran.xyz` |
+|---|---|
+| GitHub Pages 默认域名 | `https://<user>.github.io/Java-006-CampusHub/` |
+| 自定义前端域名 | `https://shiqian.xiaoqianran.xyz` |
 | 后端 API 域名 | `https://api.xiaoqianran.xyz` |
 
-前端所有接口请求都访问：
+前端 API 地址：
 
 ```text
-https://api.xiaoqianran.xyz/api/...
-```
-
-后端服务器上，Caddy 只需要把 `api.xiaoqianran.xyz` 反代到网关：
-
-```text
-127.0.0.1:8080
+https://api.xiaoqianran.xyz
 ```
 
 ## 服务端口
 
-| 服务 | 端口 | 是否建议公网暴露 | 说明 |
-|------|------|------------------|------|
-| `shiqian-gateway` | `8080` | 是，仅通过 Caddy 暴露 | 前端所有 `/api/*` 请求进入这里 |
-| `shiqian-user` | `8081` | 否 | 网关内部转发用户接口 |
-| `shiqian-resource` | `8082` | 否 | 网关内部转发资源和分类接口 |
-| MySQL | `3306` | 否 | 数据库 |
-| Redis | `6379` | 否 | 缓存 |
-| Nacos | `8848` | 否 | 服务发现/配置 |
-| Elasticsearch | `9200` | 否 | 搜索 |
-| RabbitMQ | `5672` / `15672` | 否 | 消息队列和管理页 |
+| 服务 | 端口 | 公网暴露 |
+|---|---:|---|
+| `shiqian-gateway` | 8080 | 仅通过 Caddy |
+| `shiqian-user` | 8081 | 否 |
+| `shiqian-resource` | 8082 | 否 |
+| MySQL | 3306 | 否 |
+| Redis | 6379 | 否 |
+| Nacos | 8848 | 否 |
+| Elasticsearch | 9200 | 否 |
+| RabbitMQ | 5672 / 15672 | 否 |
 
-## 服务器 Caddyfile
+## Caddyfile
 
-下面是后端 API 域名的 Caddy 配置。把 `Access-Control-Allow-Origin` 改成你的 GitHub Pages 前端地址。
-
-如果你使用 GitHub Pages 默认地址：
-
-```text
-https://<你的GitHub用户名>.github.io
-```
-
-如果你给 GitHub Pages 绑定了自定义域名，例如：
-
-```text
-https://shiqian.xiaoqianran.xyz
-```
-
-就填这个自定义域名。
-
-```caddyfile
-# ====================== shiqian api ======================
-api.xiaoqianran.xyz {
-    encode gzip zstd
-
-    @preflight method OPTIONS
-    respond @preflight 204
-
-    header {
-        Access-Control-Allow-Origin "https://<你的前端Pages域名>"
-        Access-Control-Allow-Methods "GET,POST,PUT,DELETE,OPTIONS"
-        Access-Control-Allow-Headers "Authorization,Content-Type"
-        Access-Control-Max-Age "86400"
-        Vary "Origin"
-    }
-
-    reverse_proxy 127.0.0.1:8080
-}
-```
-
-示例：如果前端是 GitHub Pages 默认地址：
+CORS 已由 `shiqian-gateway` 统一处理，Caddy **不要再次写 `Access-Control-*` 响应头**，否则容易产生重复/冲突头。
 
 ```caddyfile
 api.xiaoqianran.xyz {
     encode gzip zstd
-
-    @preflight method OPTIONS
-    respond @preflight 204
-
-    header {
-        Access-Control-Allow-Origin "https://你的GitHub用户名.github.io"
-        Access-Control-Allow-Methods "GET,POST,PUT,DELETE,OPTIONS"
-        Access-Control-Allow-Headers "Authorization,Content-Type"
-        Access-Control-Max-Age "86400"
-        Vary "Origin"
-    }
-
     reverse_proxy 127.0.0.1:8080
 }
 ```
 
-示例：如果前端 GitHub Pages 绑定自定义域名 `shiqian.xiaoqianran.xyz`：
-
-```caddyfile
-api.xiaoqianran.xyz {
-    encode gzip zstd
-
-    @preflight method OPTIONS
-    respond @preflight 204
-
-    header {
-        Access-Control-Allow-Origin "https://shiqian.xiaoqianran.xyz"
-        Access-Control-Allow-Methods "GET,POST,PUT,DELETE,OPTIONS"
-        Access-Control-Allow-Headers "Authorization,Content-Type"
-        Access-Control-Max-Age "86400"
-        Vary "Origin"
-    }
-
-    reverse_proxy 127.0.0.1:8080
-}
-```
-
-重载 Caddy：
+重载：
 
 ```bash
 caddy reload --config /etc/caddy/Caddyfile
 ```
 
-## GitHub Actions Pages 配置
+## 认证 Cookie 与 Origin 配置
 
-仓库已经有前端 Pages workflow：
+### 场景 A：GitHub Pages 默认域名
+
+例如：
+
+```text
+Frontend: https://xiaoqianran.github.io
+API:      https://api.xiaoqianran.xyz
+```
+
+两者属于跨站点。生产环境：
+
+```bash
+CORS_ALLOWED_ORIGINS=https://xiaoqianran.github.io
+BROWSER_AUTH_ALLOWED_ORIGINS=https://xiaoqianran.github.io
+REFRESH_TOKEN_COOKIE_SECURE=true
+REFRESH_TOKEN_COOKIE_SAME_SITE=None
+```
+
+`SameSite=None` 必须和 `Secure=true` 一起使用。
+
+### 场景 B：自定义同站前端子域
+
+例如：
+
+```text
+Frontend: https://shiqian.xiaoqianran.xyz
+API:      https://api.xiaoqianran.xyz
+```
+
+推荐：
+
+```bash
+CORS_ALLOWED_ORIGINS=https://shiqian.xiaoqianran.xyz
+BROWSER_AUTH_ALLOWED_ORIGINS=https://shiqian.xiaoqianran.xyz
+REFRESH_TOKEN_COOKIE_SECURE=true
+REFRESH_TOKEN_COOKIE_SAME_SITE=Lax
+```
+
+如果需要同时允许多个前端 Origin，使用英文逗号分隔：
+
+```bash
+CORS_ALLOWED_ORIGINS=https://xiaoqianran.github.io,https://shiqian.xiaoqianran.xyz
+BROWSER_AUTH_ALLOWED_ORIGINS=https://xiaoqianran.github.io,https://shiqian.xiaoqianran.xyz
+```
+
+禁止配置：
+
+```text
+CORS_ALLOWED_ORIGINS=*
+```
+
+因为本项目启用了 credential cookie，`*` 既不安全，也与 credential CORS 语义冲突。
+
+## JWT 建议
+
+生产环境至少显式配置：
+
+```bash
+JWT_SECRET=<高熵随机密钥，至少 32 字节>
+JWT_ACCESS_TOKEN_EXPIRATION=1800000
+JWT_REFRESH_TOKEN_EXPIRATION=604800000
+```
+
+默认 Access Token 为 30 分钟，Refresh Token 为 7 天。Refresh Token 不会出现在登录/刷新 JSON 中，也不会进入 `localStorage`。
+
+## GitHub Pages 配置
+
+仓库使用：
 
 ```text
 .github/workflows/deploy-frontend-pages.yml
 ```
 
-### 当前 workflow 主要改进（2026 年更新）
-
-- 使用 `actions/configure-pages@v4` 初始化 Pages 环境（官方推荐）
-- 自动生成 `.nojekyll` 文件，避免 GitHub Pages 的 Jekyll 处理导致的资源 404 问题
-- `VITE_BASE` 使用 `github.event.repository.name`（GitHub Actions 表达式支持的稳定写法）
-- 构建时优先读取仓库 Variables 中的 `VITE_API_BASE_URL`
-
-### 配置步骤
-
-1. 进入仓库 `Settings -> Secrets and variables -> Actions -> Variables`，新增仓库变量：
-
-   **变量名**：`VITE_API_BASE_URL`
-   
-   **变量值**：`https://你的真实API域名`（例如 `https://api.xiaoqianran.xyz`）
-
-   > **重要**：不配置时会回退到示例域名，可能导致前端无法与你的后端交互（出现“系统内部错误”等）。
-
-2. 进入 `Settings -> Pages`，将 `Build and deployment` 的 `Source` 设置为 **GitHub Actions**。
-
-3. 推送到 `main` 分支或手动触发 `Deploy Frontend to GitHub Pages` workflow 即可自动部署。
-
-workflow 现在更贴近 GitHub 官方 Pages 部署最佳实践，部署成功率和稳定性显著提升。
-
-## GitHub Pages 路径说明
-
-当前 `deploy-frontend-pages.yml` workflow 使用以下表达式（GitHub Actions 官方支持的写法）：
-
-```yaml
-VITE_BASE: /${{ github.event.repository.name }}/
-```
-
-这适合 GitHub Pages 默认项目地址，兼容 push 和手动触发：
+在：
 
 ```text
-https://<你的GitHub用户名>.github.io/Java006-CampusHub/
+Settings -> Secrets and variables -> Actions -> Variables
 ```
 
-如果你给 Pages 绑定了自定义域名，并且网站在域名根路径访问，例如：
-
-```text
-https://shiqian.xiaoqianran.xyz/
-```
-
-可以手动把 workflow 里的 `VITE_BASE` 改成：
-
-```yaml
-VITE_BASE: /
-```
-
-否则静态资源路径会多一层仓库名。
-
-**注意**：workflow 内部已自动处理，无需在大多数场景下手动修改。注意 GitHub Actions 表达式语法有限，不支持 `.split()` 等 JS 方法。
-
-## 前端如何指定后端地址
-
-本项目前端支持两种后端地址配置。
-
-### 方式一：GitHub Actions 变量，推荐用于 Pages
-
-在 GitHub Actions Variables 中设置：
+设置：
 
 ```text
 VITE_API_BASE_URL=https://api.xiaoqianran.xyz
 ```
 
-然后重新运行 `Deploy Frontend to GitHub Pages` workflow。
-
-### 方式二：运行时 config.js
-
-本地或自托管静态文件时，可以编辑：
+然后在：
 
 ```text
-shiqian-frontend/public/config.js
+Settings -> Pages
 ```
 
-或构建后的：
+选择 GitHub Actions 作为部署源。
 
-```text
-shiqian-frontend/dist/config.js
+## Pages 路径
+
+默认项目 Pages 地址使用：
+
+```yaml
+VITE_BASE: /${{ github.event.repository.name }}/
 ```
 
-示例：
+如果绑定自定义域名并从域名根目录访问，可将构建路径设置为：
+
+```yaml
+VITE_BASE: /
+```
+
+## 运行时 API 地址
+
+前端也支持：
 
 ```js
 window.__SHIQIAN_CONFIG__ = {
@@ -225,43 +172,40 @@ window.__SHIQIAN_CONFIG__ = {
 }
 ```
 
-注意：GitHub Pages 上的 `config.js` 来自仓库构建产物，不能直接登录服务器修改；Pages 场景优先使用 GitHub Actions Variables。
+对应：
 
-## 前端本地开发代理
+```text
+shiqian-frontend/public/config.js
+```
 
-本地开发默认代理到：
+Pages 场景优先使用 Actions Variables。
+
+## 本地开发
+
+默认 Vite 代理目标：
 
 ```text
 http://localhost:8080
 ```
 
-如果本地前端要连服务器后端：
+也可指定：
 
 ```bash
 cd shiqian-frontend
 VITE_API_PROXY_TARGET=https://api.xiaoqianran.xyz npm run dev -- --host 0.0.0.0
 ```
 
-本地开发时，浏览器请求 `/api/...`，Vite 开发服务器会把请求代理到 `VITE_API_PROXY_TARGET`。
+本地 `shiqian-user` profile 会把 Refresh Cookie 的 `Secure` 关闭，以允许 `http://localhost` 开发；不要把 local profile 用于生产。
 
-## 部署检查清单
+## 上线检查清单
 
-1. 后端服务器启动 `shiqian-gateway`，确认监听 `8080`。
-2. DNS 添加 `api.xiaoqianran.xyz`，指向你的服务器公网 IP。
-3. Caddy 使用上面的 `api.xiaoqianran.xyz` 配置（正确设置 CORS）。
-4. Caddy 的 `Access-Control-Allow-Origin` 填你的 GitHub Pages 前端域名（或使用 `*` 临时测试）。
-5. **GitHub 仓库设置**：
-   - `Settings -> Pages` → Source 选择 **GitHub Actions**
-   - `Settings -> Secrets and variables -> Actions -> Variables` 新增 `VITE_API_BASE_URL`（**强烈建议配置**）
-6. 推送代码到 `main` 或手动触发 `Deploy Frontend to GitHub Pages` workflow。
-7. 部署成功后，在浏览器开发者工具 Network 面板确认接口请求正确发往你的后端域名。
-
-## 本项目已改动的前端文件
-
-| 文件 | 作用 |
-|------|------|
-| `shiqian-frontend/public/config.js` | 运行时后端地址配置，Pages 场景通常保持空值并使用 GitHub Actions Variables |
-| `shiqian-frontend/index.html` | 加载 `/config.js` |
-| `shiqian-frontend/src/api/client.ts` | 优先读取运行时配置，其次读取 `VITE_API_BASE_URL` |
-| `shiqian-frontend/src/env.d.ts` | 声明 `window.__SHIQIAN_CONFIG__` 类型 |
-| `shiqian-frontend/vite.config.ts` | 开发代理支持 `VITE_API_PROXY_TARGET` |
+1. `shiqian-user`、`shiqian-resource`、数据库、Redis、Nacos 等内部端口不对公网开放。
+2. Caddy 只反向代理到 Gateway `127.0.0.1:8080`。
+3. `JWT_SECRET`、`INTERNAL_SERVICE_KEY` 使用独立高熵随机值。
+4. `CORS_ALLOWED_ORIGINS` 与 `BROWSER_AUTH_ALLOWED_ORIGINS` 都是精确 HTTPS Origin，不能是 `*`。
+5. GitHub Pages 默认域名部署使用 `REFRESH_TOKEN_COOKIE_SAME_SITE=None` + `REFRESH_TOKEN_COOKIE_SECURE=true`。
+6. 自定义同站子域优先使用 `SameSite=Lax` + `Secure=true`。
+7. 浏览器 Network 中登录响应应出现 `Set-Cookie: campushub_refresh=...; HttpOnly; Secure; ...`。
+8. 登录/刷新响应 JSON 中不得出现 `refreshToken`。
+9. Application -> Local Storage 中不得出现 `shiqian_access_token` 或 `shiqian_refresh_token`。
+10. 刷新页面后，应通过一次 `/api/user/refresh` Cookie 请求恢复登录，而不是从 Web Storage 恢复 token。
