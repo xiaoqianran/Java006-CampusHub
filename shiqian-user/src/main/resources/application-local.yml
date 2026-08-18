@@ -9,6 +9,13 @@ spring:
 server:
   address: ${INTERNAL_SERVER_ADDRESS:127.0.0.1}
 
+campushub:
+  auth:
+    # localhost 开发通常使用 HTTP；生产 profile 不应继承这个覆盖。
+    refresh-cookie:
+      secure: false
+      same-site: Lax
+
 management:
   endpoints:
     web:

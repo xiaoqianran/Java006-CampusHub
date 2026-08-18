@@ -1,10 +1,11 @@
 package com.shiqian.user.config;
 
+import com.shiqian.user.filter.BrowserAuthOriginFilter;
+import com.shiqian.user.filter.InternalServiceKeyFilter;
 import com.shiqian.user.filter.JwtAuthenticationFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -21,9 +22,16 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final InternalServiceKeyFilter internalServiceKeyFilter;
+    private final BrowserAuthOriginFilter browserAuthOriginFilter;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+    public SecurityConfig(
+            JwtAuthenticationFilter jwtAuthenticationFilter,
+            InternalServiceKeyFilter internalServiceKeyFilter,
+            BrowserAuthOriginFilter browserAuthOriginFilter) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.internalServiceKeyFilter = internalServiceKeyFilter;
+        this.browserAuthOriginFilter = browserAuthOriginFilter;
     }
 
     @Bean
@@ -47,18 +55,16 @@ public class SecurityConfig {
                     "/swagger-ui.html",
                     "/favicon.ico"
                 ).permitAll()
-                .requestMatchers(
-                    HttpMethod.POST,
-                    "/internal/users/public-profiles/batch"
-                ).permitAll()
-                .requestMatchers(
-                    HttpMethod.GET,
-                    "/internal/users/*/authorities"
-                ).permitAll()
+                // /internal/** 由 InternalServiceKeyFilter 在进入 Controller 前统一鉴权。
+                .requestMatchers("/internal/**").permitAll()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter,
                 UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(browserAuthOriginFilter,
+                JwtAuthenticationFilter.class)
+            .addFilterBefore(internalServiceKeyFilter,
+                JwtAuthenticationFilter.class)
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint((request, response, authException) -> {
                     response.setContentType("application/json;charset=UTF-8");
