@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   clearTokens,
+  getAccessToken,
   request,
   setAuthFailureHandler,
   setTokens
@@ -9,17 +10,19 @@ import {
 describe('api client auth handling', () => {
   beforeEach(() => {
     localStorage.clear()
+    clearTokens()
     setAuthFailureHandler(null)
     vi.restoreAllMocks()
   })
 
   afterEach(() => {
+    clearTokens()
     localStorage.clear()
     setAuthFailureHandler(null)
   })
 
-  it('refreshes on 401 then retries once', async () => {
-    setTokens('old-access', 'refresh-token')
+  it('refreshes on 401 then retries once without persisting tokens to Web Storage', async () => {
+    setTokens('old-access')
     const fetchMock = vi.fn()
       .mockResolvedValueOnce({
         ok: false,
@@ -32,7 +35,7 @@ describe('api client auth handling', () => {
         json: async () => ({
           code: 200,
           message: 'ok',
-          data: { accessToken: 'new-access', refreshToken: 'new-refresh' }
+          data: { accessToken: 'new-access' }
         })
       })
       .mockResolvedValueOnce({
@@ -44,12 +47,19 @@ describe('api client auth handling', () => {
 
     const data = await request<{ id: number }>('/api/resource/mine')
     expect(data).toEqual({ id: 1 })
-    expect(localStorage.getItem('shiqian_access_token')).toBe('new-access')
+    expect(getAccessToken()).toBe('new-access')
+    expect(localStorage.getItem('shiqian_access_token')).toBeNull()
+    expect(localStorage.getItem('shiqian_refresh_token')).toBeNull()
     expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({
+      method: 'POST',
+      credentials: 'include',
+      cache: 'no-store'
+    })
   })
 
   it('clears session when refresh fails after auth error', async () => {
-    setTokens('old-access', 'refresh-token')
+    setTokens('old-access')
     const onFail = vi.fn()
     setAuthFailureHandler(onFail)
     const fetchMock = vi.fn()
@@ -71,11 +81,13 @@ describe('api client auth handling', () => {
 
     await expect(request('/api/resource/mine')).rejects.toThrow('登录已过期')
     expect(onFail).toHaveBeenCalled()
+    expect(getAccessToken()).toBe('')
     expect(localStorage.getItem('shiqian_access_token')).toBeNull()
+    expect(localStorage.getItem('shiqian_refresh_token')).toBeNull()
   })
 
   it('treats 403 with business code 401 as auth error', async () => {
-    setTokens('old-access', 'refresh-token')
+    setTokens('old-access')
     const fetchMock = vi.fn()
       .mockResolvedValueOnce({
         ok: false,
@@ -88,7 +100,7 @@ describe('api client auth handling', () => {
         json: async () => ({
           code: 200,
           message: 'ok',
-          data: { accessToken: 'a2', refreshToken: 'r2' }
+          data: { accessToken: 'a2' }
         })
       })
       .mockResolvedValueOnce({
@@ -99,5 +111,7 @@ describe('api client auth handling', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(request('/api/resource/favorites')).resolves.toBe('ok')
+    expect(getAccessToken()).toBe('a2')
+    expect(localStorage.getItem('shiqian_access_token')).toBeNull()
   })
 })
