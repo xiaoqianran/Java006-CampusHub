@@ -61,6 +61,12 @@ const router = createRouter({
 
 router.beforeEach(async to => {
   const auth = useAuthStore()
+
+  // Access Token 不再持久化。每个新页面只在首次导航时使用 HttpOnly Cookie 恢复会话。
+  if (!auth.initialized) {
+    await auth.restoreSession()
+  }
+
   const requiresAuth = Boolean(to.meta.requiresAuth)
   const roles = to.meta.roles as string[] | undefined
   const isAdminRoute = to.path === '/admin' || to.path.startsWith('/admin/')
