@@ -19,6 +19,14 @@ spring:
 campushub:
   internal:
     service-key: ${INTERNAL_SERVICE_KEY:}
+  auth:
+    # 浏览器认证接口只接受这些精确 Origin。生产环境必须显式覆盖为真实前端域名。
+    allowed-origins: ${BROWSER_AUTH_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+    refresh-cookie:
+      name: ${REFRESH_TOKEN_COOKIE_NAME:campushub_refresh}
+      secure: ${REFRESH_TOKEN_COOKIE_SECURE:true}
+      same-site: ${REFRESH_TOKEN_COOKIE_SAME_SITE:Lax}
+      domain: ${REFRESH_TOKEN_COOKIE_DOMAIN:}
 
 rbac:
   authority-cache-ttl: ${RBAC_AUTHORITY_CACHE_TTL:24h}
@@ -28,10 +36,10 @@ mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
 
-# JWT 配置
+# JWT 配置：access token 短生命周期，refresh token 仅通过 HttpOnly Cookie 持久化。
 jwt:
   secret: ${JWT_SECRET}
-  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:7200000}
+  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:1800000}
   refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000}
 
 management:
